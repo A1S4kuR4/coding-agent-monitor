@@ -68,11 +68,12 @@ closed, provided the repository is clearly marked pre-release.
   A fresh MSI administrative extraction on 2026-08-26 exited 0 and contained the
   main executable, both sidecars, `LICENSE`, and `THIRD_PARTY_NOTICES.md`; the
   extracted license and notice files match the repository originals by SHA-256.
-- [ ] Confirm the signing decision for this pre-release. The current candidate
-  MSI, NSIS installer, main executable, and both sidecars report Authenticode
-  `NotSigned`. Do not infer a future certificate/signing decision. If the final
-  choice is unsigned, disclose the resulting SmartScreen warning risk in the
-  GitHub Release Notes.
+- [x] Confirm the signing decision for this pre-release. This v0.1.0 Pre-release
+  explicitly ships **unsigned** assets: the candidate MSI, NSIS installer, main
+  executable, and both sidecars report Authenticode `NotSigned`. This is not a
+  signature-verification pass — no certificate is used and no claim of signing is
+  made. The unsigned choice and the resulting SmartScreen / unknown-publisher
+  warning are disclosed in the GitHub Release Notes.
 - [x] Re-run install, launch, tray, offline, child-process, and uninstall checks
   against the final release artifacts. Performed 2026-08-26 against the
   `com.codingagentmonitor` v0.1.0 artifacts (recorded in
@@ -87,8 +88,9 @@ closed, provided the repository is clearly marked pre-release.
   NSIS installer is
   `4132B4DC71793290D962D0D9B8D27C9E73004150DE4DE714C9FFF2B20192064F`.
 - [ ] Publish SHA-256 checksums for the final assets attached to the GitHub
-  Pre-release. Candidate checksums have been calculated but no Release or final
-  asset checksum has been published.
+  Pre-release. `SHA256SUMS.txt` and the MSI/NSIS checksums are uploaded to the
+  `v0.1.0` Draft, which remains unpublished; this item closes only when the
+  Pre-release is publicly published.
 - [x] Draft GitHub Pre-release notes that disclose Gate 0 as **WAIVED / NOT RUN**
   and, with the unsigned choice confirmed, the SmartScreen warning risk. Draft
   notes are written into the `v0.1.0` Pre-release and are pending maintainer
