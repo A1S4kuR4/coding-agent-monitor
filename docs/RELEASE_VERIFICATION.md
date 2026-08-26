@@ -268,3 +268,26 @@ A GitHub **draft Pre-release** `v0.1.0` (tag `v0.1.0`, marked pre-release, not y
 was created at `08a21c0` for human review, with the MSI, NSIS, and `SHA256SUMS.txt` attached
 and the unsigned/SmartScreen and Gate 0 disclosures in the notes. Publication is intentionally
 held for maintainer review.
+
+### 10.6 Draft remote asset re-verification — 2026-08-26
+
+Final transport-integrity re-check against the as-uploaded Draft, performed after the
+pre-publication docs pass:
+
+- Draft Release ID `377007757`, target commitish `08a21c0177cd1ecc902584b94262d411eaf6ccaa`,
+  still `draft: true` and `prerelease: true`, `published_at` null (unpublished), no real
+  `v0.1.0` Git tag.
+- All three remote assets were re-downloaded into a throwaway directory under the system
+  temporary folder (removed after verification; nothing written into the repository):
+  `Coding.Agent.Monitor_0.1.0_x64-setup.exe` (4,919,294 B),
+  `Coding.Agent.Monitor_0.1.0_x64_en-US.msi` (7,671,808 B), and `SHA256SUMS.txt` (216 B).
+  Downloaded filenames and sizes match the Draft metadata exactly.
+- Re-computed hashes of the downloaded files match both `SHA256SUMS.txt` and the release
+  notes exactly — MSI `17372F1F5634CDBD0AC9344F9321BFECCCA2C90EC8266838B733953C734BE925`,
+  NSIS `4132B4DC71793290D962D0D9B8D27C9E73004150DE4DE714C9FFF2B20192064F`.
+- The Draft remains unpublished; publication is still the maintainer's pending human action.
+
+> Note: the GitHub Draft asset names use dots (`Coding.Agent.Monitor_0.1.0_x64-setup.exe` /
+> `Coding.Agent.Monitor_0.1.0_x64_en-US.msi`), while the local Tauri build output names in §4
+> and §10.5 use spaces (`Coding Agent Monitor_…`). The Draft Release Notes and asset table
+> reference the exact uploaded (dotted) names.
