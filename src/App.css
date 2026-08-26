@@ -1,0 +1,873 @@
+/*
+ * Reading Surface — visual + interaction layer.
+ * Presentation refactor: data, refresh and tray behavior are unchanged.
+ *   - Font roles: Display for titles, Sans for controls/body, Mono for every
+ *     numeric, percent, delta and date tick (`--font-display` replaces the old
+ *     `--font-serif` name).
+ *   - Agent identity is centralized in `src/features/usage/agents.ts`; the colour
+ *     values live only here in the theme tokens below and are referenced through
+ *     `--agent-*` variables (never hard-coded in components).
+ *   - All-mode total uses a neutral ink (not the agent colour); Refresh uses a
+ *     neutral secondary button.
+ */
+
+:root {
+  /* Font stacks — all system/bundled, never a network request. */
+  --font-display: "Iowan Old Style", Georgia, "Times New Roman", "Songti SC",
+    serif;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Malgun Gothic", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas,
+    "Roboto Mono", Menlo, monospace;
+
+  /* Surface: warm paper + ink ramp + hairline. */
+  --paper: #faf6f0;
+  --paper-track: #ede6db;
+  --ink: #211b15;
+  --ink-2: #5c5347;
+  --ink-3: #756b5f;
+  --hairline: #e3dbd0;
+
+  /* Accents. `--terracotta` is the text accent for estimated cost; Indigo is
+     the trend/focus accent; Moss is reserved for success states only. */
+  --terracotta: #b14a2e;
+  --indigo: #5a6bd6;
+  --indigo-focus: #3f4cb8;
+  --moss: #3f7a50;
+
+  --accent-fill: #b14a2e;
+  --accent-fill-hover: #993d24;
+  --on-accent: #fff;
+
+  /* Agent identity — one colour per agent, carried through row dots, chips,
+     chart segments and tooltip legends. Values are theme-neutral. */
+  --agent-claude: #e8836b;
+  --agent-codex: #8b93e6;
+  --agent-antigravity: #5fb8a5;
+  --agent-opencode: #d9b36a;
+  --agent-unknown: #9a9a8c;
+  /* 20% tint used for a selected agent chip's soft background. */
+  --agent-claude-soft: rgb(232 131 107 / 20%);
+  --agent-codex-soft: rgb(139 147 230 / 20%);
+  --agent-antigravity-soft: rgb(95 184 165 / 20%);
+  --agent-opencode-soft: rgb(217 179 106 / 20%);
+  --agent-unknown-soft: rgb(154 154 140 / 20%);
+
+  /* Day-over-day delta semantics. */
+  --delta-up: #f2555a;
+  --delta-down: #55b264;
+  --delta-flat: #9a9a8c;
+
+  /* Chart + tooltip surfaces (light theme overrides below). */
+  --surface-tooltip: #fffdf8;
+  --chart-track: rgb(33 27 21 / 7%);
+  --chart-baseline: rgb(33 27 21 / 22%);
+  --border-subtle: rgb(33 27 21 / 8%);
+  --scrollbar-thumb: #d8cfc2;
+  --scrollbar-thumb-hover: #c4b9a8;
+
+  /* Stale banner (amber, warning context). */
+  --stale-bg: #f6ecd0;
+  --stale-ink: #6f5410;
+
+  /* Spacing scale and radii. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius: 7px;
+
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+
+  color: var(--ink);
+  background: var(--paper);
+
+  /* Scrollbar — a visible thumb, never hidden. */
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #191612;
+    --paper-track: #2b241c;
+    --ink: #ece6dd;
+    --ink-2: #b3a99b;
+    /* Secondary text must not drop below #A6A49A on the dark warm paper. */
+    --ink-3: #a8a69c;
+    --hairline: #332d26;
+
+    --terracotta: #e07b5e;
+    --indigo: #8b96f4;
+    --indigo-focus: #a4acff;
+    --moss: #7fbf93;
+
+    --accent-fill: #c14e28;
+    --accent-fill-hover: #a64120;
+    --on-accent: #fff;
+
+    --surface-tooltip: #26261e;
+    --chart-track: rgb(255 255 255 / 5%);
+    --chart-baseline: rgb(255 255 255 / 15%);
+    --border-subtle: rgb(255 255 255 / 8%);
+    --scrollbar-thumb: #3a3a30;
+    --scrollbar-thumb-hover: #4a4a40;
+
+    --stale-bg: #3a3212;
+    --stale-ink: #f0d48a;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  /* No hard width floor: at 420x560, 125%/150% DPI, or 200% text zoom the
+     layout wraps and grows vertically instead of forcing horizontal scroll. */
+  min-width: 0;
+  min-height: 100vh;
+}
+
+/* Focus ring — single visible cue, Indigo. */
+:focus-visible {
+  outline: 2px solid var(--indigo-focus);
+  outline-offset: 2px;
+}
+
+/* Reduced motion: close the door on any transition. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* The shell centres the content and owns the horizontal gutters. Vertical
+   spacing is handled by the sticky header below, which carries the top padding
+   so it stays flush with the viewport while scrolling. */
+.shell {
+  width: min(100%, 1000px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 0 clamp(22px, 6vw, 48px) var(--space-5);
+}
+
+/* Repeating flex row used by header, section headings and agent rows. */
+.section-heading,
+.agent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Sticky action header: title + Refresh stay in view while the dashboard
+   scrolls. Solid paper background hides whatever scrolls beneath it. */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: var(--space-3);
+  margin-bottom: 32px;
+  padding: var(--space-5) 0 var(--space-4);
+  background: var(--paper);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.app-header > div {
+  min-width: 0;
+}
+
+/* Kicker uses Mono, uppercase, wide tracking. */
+.eyebrow {
+  margin: 0 0 5px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p,
+dl,
+dd,
+ul {
+  margin-top: 0;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+/* Core statistic — neutral main text (the shared terracotta now belongs to the
+   Claude agent only), on the Mono track for tabular numerals. */
+.total {
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: clamp(2.6rem, 11vw, 4.4rem);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Header day-over-day delta — Mono, carries arrow + sign + text redundantly. */
+.total-delta {
+  margin: 0 0 2px;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta.up {
+  color: var(--delta-up);
+}
+.delta.down {
+  color: var(--delta-down);
+}
+.delta.flat {
+  color: var(--delta-flat);
+}
+
+.unit {
+  margin-bottom: 34px;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.agent-list {
+  margin-bottom: 48px;
+  border-top: 1px solid var(--hairline);
+}
+
+.agent-block {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.agent-row {
+  min-width: 0;
+  min-height: 55px;
+  gap: var(--space-3);
+}
+
+/* Left cell: colour dot, then the caret + name that are vertically aligned so
+   the name starts at the same x whether or not the agent has an expander. */
+.agent-row .agent-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 auto;
+  padding-right: var(--space-3);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.agent-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.agent-toggle-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Caret button and its non-interactive placeholder share one fixed width so the
+   name after them starts at the same column in both cases. */
+.agent-toggle,
+.chevron-placeholder {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.2rem;
+}
+
+.chevron {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 0.7em;
+  line-height: 1;
+  transition: transform 120ms ease;
+}
+
+.chevron-placeholder {
+  color: var(--ink-3);
+  opacity: 0.55;
+}
+
+.agent-toggle {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-toggle:hover {
+  background: none;
+}
+
+.agent-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.agent-row .agent-tokens {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Expanded per-model detail: indented under its agent, hairline-separated.
+   A real <dl> (dl > div > dt+dd) so the "Other" residual row keeps a semantic
+   <dd> and the block stays axe definition-list clean. */
+.model-list {
+  margin: 0;
+  padding: 0 0 var(--space-2) var(--space-4);
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 30px;
+  font-size: 0.85rem;
+}
+
+.model-row dt {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.model-name {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.model-composition {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.model-other .model-name,
+.model-other dd {
+  color: var(--ink-2);
+}
+
+.model-row dd {
+  margin-bottom: 0;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
+.trend-section h2,
+.dash-right h2 {
+  margin-bottom: 0;
+  font-size: 1rem;
+}
+
+.section-heading > span {
+  color: var(--ink-3);
+  font-size: 0.76rem;
+}
+
+/* Two-column dashboard at desktop: left (Today, agents, breakdown) + right
+   (agent filter, Last 7 Days). Single column below 960px. */
+.dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.dash-left,
+.dash-right {
+  min-width: 0;
+}
+
+.trend {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  height: 220px;
+  margin-top: var(--space-5);
+}
+
+/* Each day is a real button: Tab-focusable, with a full aria-label, and it owns
+   the hover/focus/click tooltip. No role="img" wrapper. */
+.trend-day {
+  display: grid;
+  grid-template-rows: 22px 1fr 22px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.trend-day:hover,
+.trend-day:focus {
+  background: none;
+}
+
+.trend-value,
+.trend-date {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Stacked bar track. column-reverse puts the first (canonically-ordered) agent
+   at the bottom, so segments read bottom-up: Claude, Codex, Antigravity, ... */
+.bar-track {
+  position: relative;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  align-items: stretch;
+  border-radius: 5px 5px 2px 2px;
+  background: var(--chart-track);
+  overflow: hidden;
+}
+
+.bar-baseline {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0;
+  border-top: 1px dashed var(--chart-baseline);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* A segment's width/height come from the inline view-model; colour comes from
+   its agent's token. Only the topmost non-zero segment has the top rounding. */
+.bar-segment {
+  width: 100%;
+  flex: none;
+}
+.bar-segment.is-top {
+  border-radius: 4px 4px 0 0;
+}
+
+/* Tooltip is fixed-positioned by App.js, clamped to the viewport. */
+.chart-tooltip {
+  position: fixed;
+  z-index: 50;
+  max-width: 280px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface-tooltip);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  pointer-events: none;
+}
+
+.chart-tooltip .tooltip-date {
+  margin: 0 0 2px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.chart-tooltip .tooltip-total {
+  margin: 0 0 4px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+}
+
+.tooltip-agents {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tooltip-agents li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 1px 0;
+  min-width: 0;
+}
+
+.tooltip-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.tooltip-agent-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tooltip-agent-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chart-tooltip .tooltip-share {
+  margin: 0 0 2px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+}
+
+.tooltip-delta {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.empty-state,
+.status-copy {
+  color: var(--ink-2);
+}
+
+.empty-state {
+  margin-top: var(--space-5);
+  padding: 34px 20px;
+  border: 1px dashed var(--hairline);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.status-panel {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+}
+
+.status-panel h1 {
+  margin-bottom: 10px;
+  font-size: 1.8rem;
+}
+
+/* Primary actions — Terracotta fill with AA-clear text (Moss is never a control). */
+button {
+  border: 0;
+  border-radius: var(--radius);
+  padding: 9px 14px;
+  color: var(--on-accent);
+  background: var(--accent-fill);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent-fill-hover);
+}
+
+/* Refresh is a neutral secondary control — it must never pick up an agent or
+   accent colour, even in its default (idle) state. */
+.refresh-btn {
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+}
+.refresh-btn:hover {
+  color: var(--ink);
+  background: var(--paper-track);
+  border-color: var(--ink-3);
+}
+.refresh-btn:disabled {
+  color: var(--ink-3);
+  background: transparent;
+  border-color: var(--hairline);
+  cursor: default;
+}
+
+/* Secondary metadata row (estimated cost · cached share) — Mono, tabular. */
+.meta {
+  margin: -16px 0 24px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta-sep {
+  color: var(--ink-3);
+  opacity: 0.6;
+}
+
+.app-footer {
+  margin-top: 44px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+.updated {
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stale-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 28px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: var(--stale-ink);
+  background: var(--stale-bg);
+  font-size: 0.85rem;
+}
+
+.stale-banner button {
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  color: var(--on-accent);
+  background: var(--accent-fill);
+}
+.stale-banner button:hover {
+  background: var(--accent-fill-hover);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Token Breakdown — today's composition by type, each with its count and share.
+   Counts in Mono; the percentage right-aligns on a fixed column. */
+.breakdown-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--hairline);
+}
+
+.breakdown-list {
+  margin: var(--space-2) 0 0;
+}
+
+.breakdown-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 30px;
+}
+
+.breakdown-row dt {
+  color: var(--ink-2);
+}
+
+.breakdown-row dd {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.breakdown-count {
+  font-weight: 600;
+}
+
+.breakdown-pct {
+  width: 3ch;
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+/* Trend agent filter — simple chips; overrides the global accent button fill so
+   selection is an inked pill (All) or an agent-tinted pill, not a primary action. */
+.trend-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  color: var(--ink-2);
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.chip-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chip-color);
+}
+
+.filter-chip:hover {
+  border-color: var(--indigo);
+  background: var(--paper-track);
+}
+
+/* All chip — neutral selected state. */
+.filter-chip.active {
+  color: var(--paper);
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+/* Agent chip — selected state uses its own 20% soft tint + colour border; the
+   colour comes from the --chip-color/--chip-soft custom properties. */
+.filter-chip.agent-chip.active {
+  color: var(--ink);
+  border-color: var(--chip-color);
+  background: var(--chip-soft);
+}
+.filter-chip.agent-chip.active:hover {
+  border-color: var(--chip-color);
+  background: var(--chip-soft);
+}
+
+/* Desktop: two columns, taller chart. Left = Today + agents + breakdown,
+   right = filter + Last 7 Days. */
+@media (min-width: 960px) {
+  .dash-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 48px;
+  }
+
+  .trend {
+    height: 320px;
+    gap: 10px;
+  }
+}
+
+/* Compact height: trim fixed vertical redundancy so a short window fits without
+   excessive scrolling; nothing is clipped or hidden with overflow. */
+@media (max-height: 760px) and (min-width: 521px) {
+  .app-header {
+    margin-bottom: var(--space-4);
+    padding-top: var(--space-4);
+  }
+
+  .unit {
+    margin-bottom: var(--space-4);
+  }
+
+  .agent-row {
+    min-height: 44px;
+  }
+
+  .model-row {
+    min-height: 26px;
+  }
+
+  .agent-list {
+    margin-bottom: var(--space-5);
+  }
+
+  .trend {
+    height: 168px;
+    margin-top: var(--space-4);
+  }
+
+  .app-footer {
+    margin-top: var(--space-5);
+  }
+}

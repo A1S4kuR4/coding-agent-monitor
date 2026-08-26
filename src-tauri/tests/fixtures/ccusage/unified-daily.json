@@ -1,0 +1,60 @@
+{
+  "totals": { "totalTokens": 62290000 },
+  "daily": [
+    {
+      "period": "2026-08-18",
+      "totalTokens": 6200000,
+      "agents": [
+        { "agent": "claude", "totalTokens": 4100000, "inputTokens": 1200000, "outputTokens": 200000, "cacheReadTokens": 2700000, "cacheCreationTokens": 0, "totalCost": 3.1 },
+        { "agent": "codex", "totalTokens": 2100000, "inputTokens": 700000, "outputTokens": 200000, "cacheReadTokens": 1200000, "cacheCreationTokens": 0, "totalCost": 1.2 }
+      ]
+    },
+    {
+      "period": "2026-08-19",
+      "totalTokens": 5000000,
+      "agents": [
+        { "agent": "claude", "totalTokens": 5000000, "inputTokens": 1500000, "outputTokens": 200000, "cacheReadTokens": 3200000, "cacheCreationTokens": 100000, "totalCost": 4.0 }
+      ]
+    },
+    {
+      "period": "2026-08-20",
+      "totalTokens": 5400000,
+      "agents": [
+        { "agent": "claude", "totalTokens": 3200000, "inputTokens": 900000, "outputTokens": 200000, "cacheReadTokens": 2000000, "cacheCreationTokens": 100000, "totalCost": 2.5 },
+        { "agent": "codex", "totalTokens": 2200000, "inputTokens": 800000, "outputTokens": 200000, "cacheReadTokens": 1200000, "cacheCreationTokens": 0, "totalCost": 1.3 }
+      ]
+    },
+    {
+      "period": "2026-08-21",
+      "totalTokens": 9700000,
+      "agents": [
+        { "agent": "claude", "totalTokens": 6100000, "inputTokens": 1800000, "outputTokens": 200000, "cacheReadTokens": 3800000, "cacheCreationTokens": 300000, "totalCost": 5.2 },
+        { "agent": "codex", "totalTokens": 3600000, "inputTokens": 1200000, "outputTokens": 100000, "cacheReadTokens": 2100000, "cacheCreationTokens": 200000, "totalCost": 2.1 }
+      ]
+    },
+    {
+      "period": "2026-08-22",
+      "totalTokens": 12100000,
+      "agents": [
+        { "agent": "claude", "totalTokens": 7300000, "inputTokens": 2200000, "outputTokens": 200000, "cacheReadTokens": 4500000, "cacheCreationTokens": 400000, "totalCost": 6.0 },
+        { "agent": "codex", "totalTokens": 4800000, "inputTokens": 1600000, "outputTokens": 200000, "cacheReadTokens": 2900000, "cacheCreationTokens": 100000, "totalCost": 2.8 }
+      ]
+    },
+    {
+      "period": "2026-08-23",
+      "totalTokens": 10300000,
+      "agents": [
+        { "agent": "claude", "totalTokens": 6900000, "inputTokens": 2000000, "outputTokens": 200000, "cacheReadTokens": 4400000, "cacheCreationTokens": 300000, "totalCost": 5.6 },
+        { "agent": "codex", "totalTokens": 3400000, "inputTokens": 1100000, "outputTokens": 200000, "cacheReadTokens": 2000000, "cacheCreationTokens": 100000, "totalCost": 2.0 }
+      ]
+    },
+    {
+      "period": "2026-08-24",
+      "totalTokens": 13590000,
+      "agents": [
+        { "agent": "claude", "totalTokens": 8420000, "inputTokens": 2174608, "outputTokens": 101150, "cacheReadTokens": 6144242, "cacheCreationTokens": 0, "totalCost": 7.43 },
+        { "agent": "codex", "totalTokens": 5170000, "inputTokens": 1720000, "outputTokens": 150000, "cacheReadTokens": 3300000, "cacheCreationTokens": 0, "totalCost": 4.57 }
+      ]
+    }
+  ]
+}

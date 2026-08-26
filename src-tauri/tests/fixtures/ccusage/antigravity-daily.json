@@ -1,0 +1,16 @@
+{
+  "daily": [
+    {
+      "date": "2026-08-24",
+      "totalTokens": 1000000,
+      "inputTokens": 200000,
+      "outputTokens": 100000,
+      "cacheReadTokens": 700000,
+      "cacheCreationTokens": 0,
+      "totalCost": 0.0
+    }
+  ],
+  "totals": {
+    "totalTokens": 1000000
+  }
+}
