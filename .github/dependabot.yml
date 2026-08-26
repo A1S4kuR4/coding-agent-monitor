@@ -22,6 +22,11 @@ updates:
           - "typescript"
           - "vite"
           - "@vitejs/plugin-react"
+    ignore:
+      - dependency-name: "jsdom"
+        # jsdom 30 requires Node 22.22+; project stays on Node 20 (see engines).
+        # Revisit / remove once the project moves off Node 20.
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: cargo
     directory: /src-tauri
