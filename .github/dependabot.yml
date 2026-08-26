@@ -5,8 +5,23 @@ updates:
     schedule:
       interval: weekly
     groups:
-      javascript-dependencies:
+      # File each problematic major separately so an incompatible bump (e.g.
+      # jsdom 30 / TypeScript 7, incompatible with the project's Node 20 +
+      # typescript-eslint pin) surfaces on its own PR instead of being masked
+      # inside a combined group.
+      jsdom:
+        patterns: ["jsdom"]
+      typescript:
+        patterns: ["typescript"]
+      vite:
+        patterns: ["vite", "@vitejs/plugin-react"]
+      other-javascript-dependencies:
         patterns: ["*"]
+        exclude-patterns:
+          - "jsdom"
+          - "typescript"
+          - "vite"
+          - "@vitejs/plugin-react"
 
   - package-ecosystem: cargo
     directory: /src-tauri
