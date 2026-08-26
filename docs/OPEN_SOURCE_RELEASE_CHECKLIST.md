@@ -34,7 +34,10 @@ closed, provided the repository is clearly marked pre-release.
 - [x] Enable Private vulnerability reporting in GitHub Security settings. Verified
   `{"enabled":true}` on 2026-08-26.
 - [x] Enable branch protection after the default branch exists. `main` protected:
-  enforce_admins, 1 required approval, strict status checks on `CI / validate`.
+  1 required approval and strict status checks on `CI / validate` for
+  non-administrators; `enforce_admins` is `false`, so the repository owner
+  (administrator) can bypass the review/status checks and push or merge directly
+  — an intentional configuration for a single-maintainer repository.
 - [x] Verify that `token-usage-last7days.json`, `tauri-dev.log`, `screenshots/`,
   `src-tauri/target/`, and both sidecar EXEs are absent from the commit.
 - [x] Run the validation commands in `CONTRIBUTING.md` once more from the exact
