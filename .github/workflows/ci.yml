@@ -31,12 +31,17 @@ jobs:
       - name: Stage pinned sidecars
         run: pnpm fetch:sidecar
 
-      - name: Frontend checks
-        run: |
-          pnpm lint
-          pnpm typecheck
-          pnpm test
-          pnpm build
+      - name: Frontend lint
+        run: pnpm lint
+
+      - name: Frontend typecheck
+        run: pnpm typecheck
+
+      - name: Frontend tests
+        run: pnpm test
+
+      - name: Frontend build
+        run: pnpm build
 
       - name: Rust formatting
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
