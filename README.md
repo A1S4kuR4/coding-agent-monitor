@@ -2,15 +2,18 @@
 
 一款面向 Windows 的轻量级 Coding Agent Token 使用量监控工具。
 
-基于 **Tauri 2 + React + TypeScript + Rust + SQLite + ccusage** 构建，第一阶段主要支持 **Claude Code** 和 **OpenAI Codex**。
+基于 **Tauri 2 + React + TypeScript + Rust + SQLite + ccusage** 构建，通过动态 Agent
+契约展示官方 ccusage 统一快照，并用固定兼容桥补充 Antigravity。
 
 目标很简单：
 
-> 不打开命令行，也能随时知道 Claude Code 和 Codex 今天用了多少 Token。
+> 不打开命令行，也能随时查看本机 Coding Agent 今天用了多少 Token。
 
-> **当前状态：v0.1.0 Release Candidate（预发布）**  
-> 源码已完成主要自动化验证，但正式发布安装包前仍需关闭
-> [非 ASCII Windows 用户目录的人工 GUI 验收门禁](docs/RELEASE_VERIFICATION.md#9-gate-0-chinese-profile-full-gui-re-checked-2026-08-25--not-complete--blocked-by-environment)。
+> **当前状态：v0.1.0 pre-release candidate**
+> 非 ASCII Windows 用户目录下的完整人工 GUI Gate 0 已由维护者标记为
+> **WAIVED / NOT RUN**，不是 PASS。该场景仍是已知覆盖缺口；详见
+> [发布验证记录](docs/RELEASE_VERIFICATION.md)。当前候选安装包与可执行文件也尚未签名，
+> 发布前签名决策仍待确认。
 
 ## 隐私与安全
 
@@ -34,10 +37,12 @@ Codex          5.17M Tokens
 今日合计      13.59M Tokens
 ```
 
-第一阶段支持：
+当前用户可见支持范围：
 
-- Claude Code
-- OpenAI Codex
+- 官方固定 ccusage 20.0.20 二进制提供的统一 Agent 快照；
+- 开放字符串 ID + Rust `displayName` 的动态 Agent 列表，未知 Agent 可安全显示；
+- Claude Code 与 OpenAI Codex 的既有统计；
+- 固定上游提交构建的 Antigravity focused 兼容 sidecar。
 
 底层优先复用 `ccusage` 已有的数据解析能力，避免重复实现不同 Agent 的日志解析逻辑。
 
@@ -134,17 +139,13 @@ Coding Agent Monitor 不是：
 # 技术方案
 
 ```text
-Claude Code
-    │
-    ├────────┐
-    │        │
-Codex       │
-    │        │
-    └────────▼
-           ccusage
+Local Agent Records
+        │
+        ├── official pinned ccusage unified snapshot
+        └── pinned Antigravity compatibility bridge
               │
               ▼
-        JSON Adapter
+          Rust Adapter
               │
               ▼
            SQLite
@@ -173,7 +174,7 @@ Codex       │
 
 # 为什么使用 ccusage
 
-`ccusage` 已经能够解析 Claude Code、Codex 等 Coding Agent 的本地使用记录。
+`ccusage` 已经能够解析多种 Coding Agent 的本地使用记录。
 
 因此 Coding Agent Monitor 第一阶段不重复实现这些 Parser，而是：
 
@@ -201,7 +202,7 @@ Coding Agent Monitor
 
 第一版只实现三个核心功能，当前均已完成：
 
-- [x] 自动检测并统计 Claude Code / Codex Token
+- [x] 自动检测并统计动态 Coding Agent Token
 - [x] 今日用量 + 最近 7 天趋势可视化
 - [x] Windows 系统托盘快速查看
 
@@ -209,71 +210,22 @@ Coding Agent Monitor
 
 ---
 
-# v0.2 后续开发方向
-
-在完成 v0.1.0 的中文用户路径发布验收后，v0.2 按以下顺序推进：
-
-1. 将两次 focused sidecar 调用收敛为一次
-   `ccusage daily --json --offline --by-agent` 统一调用。
-2. 将固定的 Claude Code / Codex 数据契约改为动态 Agent 契约。
-3. 增加今日预估成本、缓存输入占比、最后更新时间和刷新失败降级。
-4. 在不增加路由、卡片堆叠和外部字体依赖的前提下，采用轻量的
-   Reading Surface 视觉语言并完成紧凑视口适配。
-
-统一命令的目标是减少外部进程数量、统一快照和消除 Agent 命令硬编码；
-它不承诺扫描耗时或系统 I/O 减半。模型明细、月度统计、Session 分析、
-Burn Rate、提醒和复杂设置仍不进入 v0.2。
-
-完整的开发任务、数据契约、测试矩阵与发布门禁见
-[`docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md`](docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md)。
-
----
-
 # 项目状态
 
-> v0.1.0 Release Candidate / v0.2 Phase 6、Phase 7、Phase 8、Phase 9 已完成
+> v0.1.0 pre-release candidate；manifest 版本仍为 `0.1.0`。
 
-`src-tauri/src/sidecar` 已从两次 focused（Claude、Codex）ccusage 调用收敛为一次
-`ccusage daily --json --offline --by-agent` 统一快照（v0.2 Phase 6，2026-08-25）。
-随后落成动态 Agent 契约（v0.2 Phase 7，2026-08-25）：封闭的 Claude/Codex 枚举与前端
-固定 label map 移除，改为开放字符串 `id` + Rust 产出的 `displayName`，每个日期按实际活跃
-Agent 动态聚合、稳定排序并对未知 Agent 做 title-case fallback；今日列表与托盘摘要随之动态。
-Claude/Codex 显示名与数值不回退。
+内部规划中的 Phase 6–9 已提前实施：统一官方 ccusage 快照、动态 Agent 契约、预估成本/
+缓存占比/更新时间与 stale 降级，以及 Reading Surface 响应式精修。这里的阶段名称是内部规划记录，
+不表示当前 manifest 已升级为 `0.2.0`。Antigravity 由固定上游提交构建的 focused sidecar 补充，
+Rust 会与官方统一报告合并并避免重复统计。
 
-再落成三项轻量信息（v0.2 Phase 8，2026-08-25）：Rust adapter 在日级聚合出可空预估成本
-`estimatedCostUsd` 与缓存输入占比 `cacheReadShare`（缺失值不伪装为 `$0.00`、零分母为不可用），
-runner 在成功采集后打上 `collectedAt`；Dashboard 主值近旁显示 `Est. cost $X`、次级元数据显示
-`~Y% cached input`、页脚显示 `Updated Xm ago`（60s 只刷新相对文案），托盘刷新成功后向窗口推送同一
-快照事件（`usage-updated`），刷新失败保留旧数据并显示 stale 状态与重试；per-agent token 构成只参与
-聚合不下发前端（§3 建议契约的经确认偏差，见 `V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md §10`）。
+Phase 10 仍是后续 v0.2 发布验证任务；本次不创建 `V0.2_RELEASE_VERIFICATION.md`。详细阶段历史、
+测试结果和未覆盖项见 [实施计划](docs/IMPLEMENTATION_PLAN.md) 与
+[v0.2 开发验收计划](docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md)。
 
-再完成纯展示层重构（v0.2 Phase 9，2026-08-25）：仅改动 `src/App.css`，抽出 paper/ink/Terracotta/
-Indigo/Moss/hairline/spacing CSS tokens，建立系统 Serif/Sans/Mono 三轨字体栈（无外部字体请求），
-今日核心值与主操作用暖 Terracotta、趋势条用冷 Indigo、Moss 仅作成功态预留；为低高度增加 compact
-media query（680×700 目标无滚动条）、`:focus-visible` Indigo focus ring、reduced-motion，200% 文本
-缩放与高 Agent 数下自然滚动不裁切（未用 `overflow:hidden` 掩盖）。数据、刷新与托盘行为不变。
-
-v0.1.0 唯一剩余的中文 Windows 用户路径 GUI 验收（Gate 0）仍未关闭、须在发布前由人工完成；
-Phase 6/7/8/9 按用户明确指示先于该门禁实施。下一阶段是 v0.2 Phase 10（v0.2 发布验证；
-结果写入新的 `docs/V0.2_RELEASE_VERIFICATION.md`）。
-
-Phase 7–9 审校发现的 8 项缺陷已修复（v0.2 审校修复，2026-08-25）：420×560 / 高 DPI 横向溢出与裁切、
-暗色主按钮与 stale Retry 的 WCAG AA 对比、Rust u64→JS 安全整数策略显式校验（超 `Number.MAX_SAFE_INTEGER`
-返回稳定错误而非静默丢精度）、focus/托盘事件的异步注册泄漏与卸载后 setState、统一日级 `totalTokens` 与
-`agents[]` 求和的校验（不一致返回稳定错误而非静默显示 0）、0 token 日趋势条高度归 0、核心统计走 Mono 轨道，
-并补齐 Phase 8 必需的组件/状态测试（状态机抽为纯 `viewReducer`）。前端 lint/typecheck/test/build 与
-Rust fmt/clippy/check/test 全部通过。实际命令结果、未运行的真机 GUI 项与仍开放的门禁见
-`docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md §12`。
-
-二次审校的 2 项 P2 也已闭环（§12.6）：重复日期的 `totalTokens` 校验按**逐行**（而非首见保底）与其自身
-`agents[]` 合计比对，再做跨行聚合，新增对应单测；并为 focus/托盘监听补上"注册 Promise 晚于卸载 resolve"的
-竞态测试（mock 支持延迟注册）。前端 7 文件/32 测试、Rust 26 passed + 1 ignored、lint/typecheck/build、
-fmt/clippy 均通过；真实数据 smoke 亦通过。
-
-Antigravity 数据缺口随后以本地固定兼容桥闭环：官方 ccusage 20.0.20 继续提供统一快照，另行固定
-上游 PR #1487 commit `c58c1b3aab2eacc82add250c8229bb6192e4489b`，仅运行 focused
-`antigravity daily`；Rust 在 sidecar adapter 边界合并两者，并在官方统一报告未来原生出现
-Antigravity 时按日期优先采用官方行，避免重复统计。这样不把整套 ccusage 回退到 PR 的 20.0.18 基线。
+v0.1.0 pre-release 的非 ASCII Windows 用户目录完整 GUI Gate 0 为
+**WAIVED / NOT RUN**，不是技术验证通过。当前候选 MSI、NSIS、主程序和两个 sidecar 的
+Authenticode 状态均为 `NotSigned`；发布前签名决策仍待确认。
 
 **先做好一个真正愿意长期放在 Windows 托盘里的 Coding Agent Token Monitor。**
 

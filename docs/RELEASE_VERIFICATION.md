@@ -116,11 +116,12 @@ record; the fresh MSI was rebuilt from the same verified release executable and 
 
 ---
 
-## 9. Gate-0 (Chinese-profile full-GUI) re-checked 2026-08-25 — NOT COMPLETE / blocked by environment
+## 9. Gate-0 (Chinese-profile full-GUI) re-checked 2026-08-25 — historical NOT RUN record
 
-Authoritative record of a fresh gate check on this date. This session re-confirmed that the
-v0.1 Chinese-named Windows user-path release gate is **still open**. It was **not** executed,
-and **no v0.2 (Phase 6+) code or data-path change was made** in this session.
+This section preserves the result as it stood on 2026-08-25. The check was **not** executed
+in that session. Its then-current statements about no Phase 6+ work and the ordering of later
+phases are historical only and are superseded by §10: Phase 6–9 were subsequently completed,
+and the maintainer waived this gate for the v0.1.0 pre-release without treating it as a PASS.
 
 ### 9.1 Gate definition (from `IMPLEMENTATION_PLAN.md` and `V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md` Gate 0)
 
@@ -147,9 +148,123 @@ components under Chinese-named paths were already exercised at the binary level 
 under `用户测试目录`; SQLite WAL/init/remove inside a Chinese-named directory), so §3 remains the
 extent of Chinese-path coverage.
 
-### 9.4 Next executable task (unchanged)
+### 9.4 Historical next-step statement (superseded)
 
-A human at the console must create/log into a Chinese-named Windows user account, install the
-freshly built package (`...x64-setup.exe`), launch the full GUI, confirm SQLite init and both
-ccusage reports succeed, then uninstall — and record the real outcome here. Only after that gate
-records a **PASS** may v0.2 Phase 6 begin. This session made **no** v0.2 changes.
+At the time, the next proposed task was a human console run from a Chinese-named Windows
+profile before Phase 6. That sequencing statement is superseded: Phase 6–9 are complete, while
+the GUI scenario itself remains untested. For the v0.1.0 pre-release its disposition is
+**WAIVED / NOT RUN**, not PASS; Phase 10 retains non-ASCII-profile coverage as a future v0.2
+release-verification task.
+
+---
+
+## 10. Finalization update — 2026-08-26
+
+This update records release-document finalization facts without replacing the dated results
+above. It validates candidate contents and metadata; it does **not** claim that the final
+installer runtime cycle was repeated.
+
+### 10.1 Source and CI identity
+
+- Exact candidate commit: `08a21c0177cd1ecc902584b94262d411eaf6ccaa`.
+- Local `HEAD`, `origin/main`, and GitHub `main` all resolve to that commit.
+- Tauri identifier: `com.codingagentmonitor`; the manifest version remains `0.1.0`.
+- Latest `main` CI: [run 32942584400](https://github.com/A1S4kuR4/coding-agent-monitor/actions/runs/32942584400),
+  completed successfully. Frontend lint, typecheck, tests, and build passed as separate steps;
+  Vitest reported **10 files / 63 tests passed**. Rust formatting and strict lint passed;
+  Rust tests reported **37 passed / 1 ignored** (the ignored test reads real local usage).
+- No Git tag or GitHub Release existed when this update was recorded. The intended publication
+  remains a GitHub **Pre-release**, not a stable release.
+
+### 10.2 Candidate asset and MSI-content verification
+
+A fresh `msiexec /a` administrative extraction of the local candidate MSI completed with
+exit **0**. The extracted package contained exactly the required named payloads:
+
+- `coding-agent-monitor.exe`
+- `ccusage.exe`
+- `ccusage-antigravity.exe`
+- `LICENSE`
+- `THIRD_PARTY_NOTICES.md`
+
+The extracted `LICENSE` and `THIRD_PARTY_NOTICES.md` matched the repository originals by
+SHA-256. This closes the candidate **content/notices review** only; it is not a repeat of
+install, launch, GUI, tray, offline, child-process, or uninstall behavior.
+
+Candidate publication assets:
+
+| Asset | SHA-256 |
+|---|---|
+| MSI | `17372F1F5634CDBD0AC9344F9321BFECCCA2C90EC8266838B733953C734BE925` |
+| NSIS | `4132B4DC71793290D962D0D9B8D27C9E73004150DE4DE714C9FFF2B20192064F` |
+
+Supporting content verification:
+
+| File | SHA-256 | Verified scope |
+|---|---|---|
+| Official pinned binary, ccusage 20.0.20 | `3FD2F3B9FBA3A74881B9E75C76BAA5574F99E19142394E855C5FBAAF22F245BC` | Staged file, release sibling, and MSI-extracted `ccusage.exe` all match |
+| Pinned Antigravity compatibility sidecar | `F58A76779CB938F1C954F87F757E8AE7AF8A2F1FDC241C8975CCCA377635AD42` | Staged file, release sibling, and MSI-extracted `ccusage-antigravity.exe` all match; this is a local candidate hash, not an upstream Authenticode signature or a cross-build reproducibility claim |
+| `LICENSE` | `C6447A8FE0DA16AE8EF500352B442842C1F9104781C8B72C32F951AB820A6639` | Repository and MSI extraction match |
+| `THIRD_PARTY_NOTICES.md` | `0221F7AE03E59581C2308BD7B78F63EE7809AFBD04D004B1CC2A38594A13E038` | Repository and MSI extraction match |
+
+These are calculated and archived candidate checksums. They are attached, together with a
+`SHA256SUMS.txt` manifest, to the draft GitHub Pre-release `v0.1.0` and are pending human
+review before final publication.
+
+### 10.3 Signing and remaining runtime scope
+
+Windows Authenticode inspection reports `NotSigned` for the candidate MSI, NSIS installer,
+main executable, official pinned ccusage binary, and pinned Antigravity compatibility
+sidecar. For this pre-release the maintainer chose **unsigned** assets; no claim of
+code-signing is made. The GitHub Release Notes disclose the potential SmartScreen warning
+risk that unsigned installers may trigger.
+
+The following content checks are complete: identifier confirmation, exact commit/CI identity,
+candidate asset hashing, MSI administrative extraction, payload presence, both sidecar hashes,
+and license/notice equality. The release-artifact install → launch → tray → offline →
+child-process → uninstall cycle was rerun on 2026-08-26 against the final `com.codingagentmonitor`
+artifacts and is recorded in §10.5 (no longer open).
+
+### 10.4 Gate 0 disposition and disclosed limitation
+
+For the v0.1.0 pre-release, the maintainer disposition is **WAIVED / NOT RUN**. A complete
+human GUI cycle from a real Windows profile whose path contains non-ASCII characters was not
+performed. The binary-level non-ASCII-path checks in §3 do not substitute for that GUI cycle,
+so this is not a PASS. The limitation must remain disclosed in the README and GitHub Release
+Notes. Phase 6–9 are already complete; Phase 10 remains a future v0.2 release-verification
+task and no `V0.2_RELEASE_VERIFICATION.md` exists yet.
+
+### 10.5 Install → launch → tray → offline → child-process → uninstall — rerun 2026-08-26
+
+The full runtime cycle was rerun live against the final `com.codingagentmonitor` v0.1.0
+artifacts (release commit `08a21c0`, CI run 32942584400). Gate 0 (non-ASCII-profile GUI) is
+excluded by the maintainer waiver in §10.4; every other gate below was exercised live.
+
+NSIS (`Coding Agent Monitor_0.1.0_x64-setup.exe`):
+- **Install (silent `/S`):** exit **0**. Per-user install to
+  `%LOCALAPPDATA%\Coding Agent Monitor\` containing the main exe, both sidecars, `LICENSE`,
+  `THIRD_PARTY_NOTICES.md`, and `uninstall.exe`; HKCU `Uninstall` entry `DisplayVersion 0.1.0`
+  present.
+- **Launch / tray-resident:** started, stayed alive ≥8 s with a "Coding Agent Monitor" main
+  window (tray-resident process; no crash).
+- **Offline:** installed `ccusage.exe` under an empty profile returned `{"daily":[]}` with
+  all-zero totals for `codex daily --json --offline` and "No usage data found." for `claude`;
+  both exit **0**, no network.
+- **Child-process hygiene:** after app shutdown, **zero** residual `coding-agent-monitor.exe`
+  or `ccusage.exe`.
+- **Uninstall (silent `/S`):** exit **0**; install dir and HKCU uninstall entry removed; zero
+  residual processes.
+
+MSI (`Coding Agent Monitor_0.1.0_x64_en-US.msi`, elevated):
+- **Install (elevated, UAC approved):** exit **0**; per-user default dir
+  `%LOCALAPPDATA%\Coding Agent Monitor\` with main exe, both sidecars, `LICENSE`,
+  `THIRD_PARTY_NOTICES.md`, and a Start Menu `Uninstall … .lnk` shortcut; ProductCode
+  `{EB418B31-DFC1-4091-9822-9611D04434EF}` registered.
+- **Launch:** started and stayed alive ≥8 s with a main window (tray-resident).
+- **Uninstall (elevated `/x`, UAC approved):** exit **0**; install dir and registry entry
+  removed; zero residual processes.
+
+A GitHub **draft Pre-release** `v0.1.0` (tag `v0.1.0`, marked pre-release, not yet published)
+was created at `08a21c0` for human review, with the MSI, NSIS, and `SHA256SUMS.txt` attached
+and the unsigned/SmartScreen and Gate 0 disclosures in the notes. Publication is intentionally
+held for maintainer review.

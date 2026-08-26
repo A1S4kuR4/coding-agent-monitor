@@ -22,6 +22,12 @@ closed, provided the repository is clearly marked pre-release.
   no vulnerability advisory. It reported 17 non-vulnerability warnings: 12 are
   outside the Windows target graph; five unmaintained `unic-*` crates are
   transitive through Tauri's `urlpattern` dependency.
+- [x] Reconfirm the exact pre-release candidate source and CI on 2026-08-26:
+  local `HEAD`, `origin/main`, and GitHub `main` all resolve to
+  `08a21c0177cd1ecc902584b94262d411eaf6ccaa`; [CI run 32942584400](https://github.com/A1S4kuR4/coding-agent-monitor/actions/runs/32942584400)
+  passed frontend lint/typecheck/test/build (10 files / 63 tests), Rust
+  fmt/strict lint, and Rust tests (37 passed / 1 ignored). No tag or GitHub
+  Release exists yet.
 
 ## Before making the GitHub repository public
 
@@ -45,20 +51,45 @@ closed, provided the repository is clearly marked pre-release.
   pnpm lint / typecheck / test (10 files, 63 tests) / build, cargo fmt --check /
   clippy -D warnings / test (37 passed). No files changed, no amend required.
 - [ ] Monitor Tauri / `urlpattern` for removal of the five unmaintained `unic-*`
-  transitive crates. This is a maintenance warning, not a known vulnerability.
+  transitive crates. This is a non-blocking maintenance warning, not a known
+  security vulnerability.
 
 ## Additional gates before publishing installers
 
 - [x] Choose the final reverse-DNS Tauri identifier before the first public
-  installer. The current `com.codingagentmonitor.app` works on Windows but Tauri
-  warns about the `.app` suffix; changing identity after release can disrupt
-  upgrades or per-user data paths. The identifier was finalized as
-  `com.codingagentmonitor` (dropping the `.app` suffix).
-- [ ] Complete the still-open full-GUI test from a real Windows profile whose
-  path contains non-ASCII characters (Gate 0 in `RELEASE_VERIFICATION.md`).
-- [ ] Review the exact binary dependency notices and retain them in the bundle.
-- [ ] Decide whether to code-sign the Windows installer. Unsigned binaries may
-  trigger SmartScreen warnings; do not claim they are signed.
-- [ ] Re-run install, launch, tray, offline, child-process, and uninstall checks
-  against the final release artifacts.
-- [ ] Publish SHA-256 checksums for every release asset.
+  installer. The identifier is finalized as `com.codingagentmonitor`; the earlier
+  `.app`-suffixed value was replaced before this candidate was built.
+- [x] Record the maintainer's Gate 0 disposition for the v0.1.0 pre-release:
+  **WAIVED / NOT RUN**. A complete GUI install/use/uninstall cycle from a real
+  Windows profile whose path contains non-ASCII characters was not performed and
+  is not a test PASS. Disclose this coverage risk in the README, verification
+  record, and GitHub Release Notes.
+- [x] Review the exact binary dependency notices and retain them in the bundle.
+  A fresh MSI administrative extraction on 2026-08-26 exited 0 and contained the
+  main executable, both sidecars, `LICENSE`, and `THIRD_PARTY_NOTICES.md`; the
+  extracted license and notice files match the repository originals by SHA-256.
+- [ ] Confirm the signing decision for this pre-release. The current candidate
+  MSI, NSIS installer, main executable, and both sidecars report Authenticode
+  `NotSigned`. Do not infer a future certificate/signing decision. If the final
+  choice is unsigned, disclose the resulting SmartScreen warning risk in the
+  GitHub Release Notes.
+- [x] Re-run install, launch, tray, offline, child-process, and uninstall checks
+  against the final release artifacts. Performed 2026-08-26 against the
+  `com.codingagentmonitor` v0.1.0 artifacts (recorded in
+  `RELEASE_VERIFICATION.md §10.5`): NSIS full cycle (install → launch →
+  tray-resident → offline sidecar → child-process recovery → silent uninstall)
+  and MSI elevated cycle (install → launch → uninstall) both passed; zero
+  residual processes after each uninstall. Gate 0 GUI remains WAIVED / NOT RUN
+  per maintainer disposition.
+- [x] Calculate and archive candidate-asset SHA-256 values. On 2026-08-26 the
+  local v0.1.0 candidate MSI is
+  `17372F1F5634CDBD0AC9344F9321BFECCCA2C90EC8266838B733953C734BE925` and the
+  NSIS installer is
+  `4132B4DC71793290D962D0D9B8D27C9E73004150DE4DE714C9FFF2B20192064F`.
+- [ ] Publish SHA-256 checksums for the final assets attached to the GitHub
+  Pre-release. Candidate checksums have been calculated but no Release or final
+  asset checksum has been published.
+- [x] Draft GitHub Pre-release notes that disclose Gate 0 as **WAIVED / NOT RUN**
+  and, with the unsigned choice confirmed, the SmartScreen warning risk. Draft
+  notes are written into the `v0.1.0` Pre-release and are pending maintainer
+  publication.

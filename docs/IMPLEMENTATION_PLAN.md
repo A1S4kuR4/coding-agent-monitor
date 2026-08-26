@@ -13,9 +13,10 @@ Status legend: `[x]` scaffolded, `[ ]` implementation remains.
 > [`RELEASE_VERIFICATION.md`](RELEASE_VERIFICATION.md); v0.2 Phase outcomes are
 > recorded in [`V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md`](V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md).
 >
-> **Phases 6–9 were implemented (2026-08-25) under explicit user instruction to
-> proceed; the v0.1 Chinese-profile full-GUI gate (Gate 0, `RELEASE_VERIFICATION.md
-> §9`) remains recorded as open/unverified and is still required before release.**
+> **Phases 6–9 were implemented (2026-08-25). For the v0.1.0 pre-release, the
+> Chinese-profile full-GUI gate (Gate 0) is now explicitly `WAIVED / NOT RUN`:
+> the scenario remains unverified and is not a PASS. Phase 10 retains complete
+> non-ASCII-profile coverage as a future v0.2 release-verification task.**
 >
 > **Phase 7–9 review fixes (2026-08-25):** the 8 defects found in review — horizontal
 > overflow/clipping at 420×560 & 125%/150% DPI; WCAG AA contrast on the dark primary
@@ -24,7 +25,8 @@ Status legend: `[x]` scaffolded, `[ ]` implementation remains.
 > the Phase 8 component/state tests; unified daily `totalTokens` ⬄ `agents[]` sum
 > validation; the zero-token trend-bar height; and core-stat Mono track — were fixed
 > and are recorded in `docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md §12`, together
-> with the actual command results, unrun GUI items, and the still-open Gate 0.
+> with the actual command results and unrun GUI items. References there to an
+> open Gate 0 are historical and superseded by the v0.1.0 pre-release waiver.
 > A second review found two P2 issues — per-row (vs. first-wins) validation of
 > duplicate-date `totalTokens` ⬄ `agents[]` sums, and a deferred-registration
 > race test for focus/tray listeners — which were fixed, tested, and recorded
@@ -126,19 +128,21 @@ same `UsageSummary` as React, idle resource use stays low, and Exit leaves no pr
 **Acceptance:** all checks are recorded with actual outcomes; the installer contains
 the target-triple ccusage binary; Task Manager shows no residual child process.
 
-## Post-MVP v0.2 — Approved Planning Baseline
+## Post-MVP v0.2 — Implemented internal phases and remaining verification
 
-The post-MVP direction is approved for planning, but must not be mixed into the
-remaining v0.1.0 release-verification task. The detailed implementation sequence,
-contract decisions, test matrix, performance baseline, visual boundaries, and
-release gates live in
+Phase 6–9 were internal v0.2 planning labels and have already been implemented,
+even though the application manifest remains `0.1.0` for this pre-release candidate.
+The detailed sequence, contract decisions, test matrix, performance baseline,
+visual boundaries, historical outcomes, and remaining release verification live in
 [`V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md`](V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md).
 
-Summary sequence after the v0.1.0 gate closes:
+Current phase status:
 
 1. **Phase 6 — Unified sidecar snapshot:** replace two focused child processes with
    one `daily --json --offline --by-agent` process while keeping the current public
-   `UsageSummary` stable for parity verification.
+   `UsageSummary` stable for parity verification. **DONE (2026-08-25).** The later
+   pinned Antigravity compatibility bridge adds one focused sidecar without changing
+   the official pinned binary's authority for the unified snapshot.
 2. **Phase 7 — Dynamic agent contract:** replace the closed Claude/Codex enums with
    an open string ID plus display name and render only agents active today. **DONE
    (2026-08-25)** — open-string `id` + Rust-produced `displayName`, per-day dynamic
@@ -160,19 +164,21 @@ Summary sequence after the v0.1.0 gate closes:
 5. **Phase 10 — v0.2 release verification:** repeat automated, real-data, process,
    viewport, installer, offline, and non-ASCII-profile acceptance.
 
-Each phase is a separate reviewable task. A later phase cannot begin until the
-previous phase's required acceptance checks are recorded as actual results.
+Phases 6–9 are complete historical implementation units. Phase 10 is still a separate
+future v0.2 release-verification task and must record actual results rather than infer
+PASS from earlier phase checks.
 
 ## Next Executable Task
 
 Phases 6–9 (unified sidecar snapshot, dynamic Agent contract, estimated cost/cache/collection
 time/stale-data recovery, and Reading-Surface refinement) were executed and recorded on
-2026-08-25 per explicit user instruction, with the v0.1 Chinese-profile full-GUI gate still
-open. The next executable task is **Phase 10** (`V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md`):
+2026-08-25. The next v0.2 task is **Phase 10**
+(`V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md`):
 v0.2 release verification (repeat full automated, real-data, process, installer, offline and
 non-ASCII acceptance; write a new `docs/V0.2_RELEASE_VERIFICATION.md`, do not overwrite v0.1
-history). It must not be combined with Phase 9; each phase remains a separate reviewable task.
+history). That file must not be created until Phase 10 is actually executed.
 
-The Chinese-profile full-GUI gate (`RELEASE_VERIFICATION.md §9`, Gate 0) is still recorded
-as **open / unverified** and must be closed by a human at the console before any v0.2
-release candidate is declared.
+The Chinese-profile full-GUI gate (`RELEASE_VERIFICATION.md §9–§10`, Gate 0) is
+**WAIVED / NOT RUN for the v0.1.0 pre-release**, not technically verified. The same
+scenario remains an explicit Phase 10 coverage requirement before a future v0.2 release
+can be evaluated.
