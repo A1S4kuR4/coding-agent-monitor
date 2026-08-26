@@ -25,14 +25,22 @@ closed, provided the repository is clearly marked pre-release.
 
 ## Before making the GitHub repository public
 
-- [ ] Review `git diff --cached` and the complete first commit.
-- [ ] Confirm the GitHub repository description, topics, and owner are correct.
-- [ ] Enable Private vulnerability reporting in GitHub Security settings.
-- [ ] Enable branch protection after the default branch exists.
-- [ ] Verify that `token-usage-last7days.json`, `tauri-dev.log`, `screenshots/`,
+- [x] Review `git diff --cached` and the complete first commit. Commit `8c5da5f`
+  "Initial open-source release of Coding Agent Monitor (v0.1.0 pre-release)",
+  reviewed on 2026-08-26.
+- [x] Confirm the GitHub repository description, topics, and owner are correct.
+  `A1S4kuR4/coding-agent-monitor` (PUBLIC): description and six topics
+  (coding-agent, token-usage, monitoring, tauri, rust, windows) verified via `gh`.
+- [x] Enable Private vulnerability reporting in GitHub Security settings. Verified
+  `{"enabled":true}` on 2026-08-26.
+- [x] Enable branch protection after the default branch exists. `main` protected:
+  enforce_admins, 1 required approval, strict status checks on `CI / validate`.
+- [x] Verify that `token-usage-last7days.json`, `tauri-dev.log`, `screenshots/`,
   `src-tauri/target/`, and both sidecar EXEs are absent from the commit.
-- [ ] Run the validation commands in `CONTRIBUTING.md` once more from the exact
-  commit that will be pushed.
+- [x] Run the validation commands in `CONTRIBUTING.md` once more from the exact
+  commit that will be pushed. All seven gates pass from `8c5da5f` on 2026-08-26:
+  pnpm lint / typecheck / test (10 files, 63 tests) / build, cargo fmt --check /
+  clippy -D warnings / test (37 passed). No files changed, no amend required.
 - [ ] Monitor Tauri / `urlpattern` for removal of the five unmaintained `unic-*`
   transitive crates. This is a maintenance warning, not a known vulnerability.
 
