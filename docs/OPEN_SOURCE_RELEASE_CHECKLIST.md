@@ -49,10 +49,11 @@ closed, provided the repository is clearly marked pre-release.
 
 ## Additional gates before publishing installers
 
-- [ ] Choose the final reverse-DNS Tauri identifier before the first public
+- [x] Choose the final reverse-DNS Tauri identifier before the first public
   installer. The current `com.codingagentmonitor.app` works on Windows but Tauri
   warns about the `.app` suffix; changing identity after release can disrupt
-  upgrades or per-user data paths.
+  upgrades or per-user data paths. The identifier was finalized as
+  `com.codingagentmonitor` (dropping the `.app` suffix).
 - [ ] Complete the still-open full-GUI test from a real Windows profile whose
   path contains non-ASCII characters (Gate 0 in `RELEASE_VERIFICATION.md`).
 - [ ] Review the exact binary dependency notices and retain them in the bundle.
