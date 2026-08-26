@@ -66,7 +66,7 @@ Fresh `pnpm tauri build` produced:
 - **Uninstall (elevated):** `msiexec /x {1DEE55D9-…} /qn` → exit **0**. Install dir, registry `Uninstall` entry, and Start Menu shortcut all removed; **zero** residual `coding-agent-monitor.exe` / `ccusage.exe` processes.
 - Earlier exit-103 on the non-elevated attempt was an environment elevation-gating quirk, not a package defect; with elevation the MSI behaved normally end-to-end.
 
-> Note: an unrelated build-time `Warn` — bundle identifier `com.codingagentmonitor.app` ends in `.app`, discouraged on macOS. Windows-only target, so non-blocking. Left as-is per scope.
+> Note: an earlier build-time `Warn` flagged the bundle identifier `com.codingagentmonitor.app` for its `.app` suffix (discouraged on macOS). Resolved at release finalization by switching the identifier to `com.codingagentmonitor` — see the release checklist. Windows-only target.
 
 ---
 
