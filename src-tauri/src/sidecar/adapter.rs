@@ -23,7 +23,8 @@ impl TokenBreakdown {
             output_tokens: 0,
             cache_read_tokens: 0,
             cache_creation_tokens: 0,
-            other_tokens: 0,
+            reasoning_tokens: 0,
+            unclassified_tokens: 0,
         }
     }
 }
@@ -61,6 +62,8 @@ struct AntigravityDailyRow {
     output_tokens: u64,
     #[serde(default)]
     total_cost: Option<f64>,
+    #[serde(default)]
+    model_breakdowns: Vec<UnifiedModel>,
 }
 
 /// A single day in the unified report. `period` is the `YYYY-MM-DD` date (the
@@ -114,6 +117,12 @@ struct UnifiedAgent {
     total_cost: Option<f64>,
     #[serde(default)]
     model_breakdowns: Vec<UnifiedModel>,
+    /// Additive reasoning/thinking tokens known to sit outside the four common
+    /// components. This is populated explicitly by source adapters rather than
+    /// deserialized generically because some providers report reasoning as a
+    /// subset of `outputTokens` instead.
+    #[serde(skip)]
+    supplemental_reasoning_tokens: u64,
 }
 
 /// Running per-model aggregates (one day) keyed by raw model name, accumulated
@@ -139,6 +148,8 @@ struct AgentTotals {
     cache_read: u64,
     cache_creation: u64,
     output: u64,
+    /// Source-confirmed additive reasoning/thinking outside the common fields.
+    reasoning: u64,
     cost_sum: f64,
     /// Flips to false the moment any contributing row has an unknown or
     /// non-finite cost, so a partial daily cost can never masquerade as a
@@ -157,6 +168,7 @@ impl Default for AgentTotals {
             cache_read: 0,
             cache_creation: 0,
             output: 0,
+            reasoning: 0,
             cost_sum: 0.0,
             cost_known: true,
             models: BTreeMap::new(),
@@ -173,6 +185,9 @@ impl AgentTotals {
             .cache_creation
             .saturating_add(agent.cache_creation_tokens);
         self.output = self.output.saturating_add(agent.output_tokens);
+        self.reasoning = self
+            .reasoning
+            .saturating_add(agent.supplemental_reasoning_tokens);
         match agent.total_cost {
             Some(cost) if cost.is_finite() => self.cost_sum += cost,
             _ => self.cost_known = false,
@@ -292,6 +307,18 @@ pub fn normalize_reports(
             Some(cost) if cost.is_finite() && (cost > 0.0 || row.total_tokens == 0) => Some(cost),
             _ => None,
         };
+        // The pinned Antigravity adapter stores Gemini thinking tokens in its
+        // internal `extra_total_tokens`. Its focused JSON includes them in
+        // `totalTokens` but omits a named field, so the exact additive residue
+        // after the four exported components is the authoritative reasoning
+        // count for this source. Do not apply this inference generically: Codex
+        // and Claude report reasoning/thinking as a subset of output instead.
+        let exported_components = row
+            .input_tokens
+            .saturating_add(row.output_tokens)
+            .saturating_add(row.cache_read_tokens)
+            .saturating_add(row.cache_creation_tokens);
+        let supplemental_reasoning_tokens = row.total_tokens.saturating_sub(exported_components);
         day.entry("antigravity".to_string())
             .or_default()
             .add(UnifiedAgent {
@@ -302,8 +329,11 @@ pub fn normalize_reports(
                 cache_creation_tokens: row.cache_creation_tokens,
                 output_tokens: row.output_tokens,
                 total_cost,
-                // The focused compatibility report has no per-model split.
-                model_breakdowns: Vec::new(),
+                // The pinned focused report uses the same model-breakdown shape
+                // as unified agent rows. Preserve it so Antigravity can use the
+                // same expandable model detail as every other agent.
+                model_breakdowns: row.model_breakdowns,
+                supplemental_reasoning_tokens,
             });
     }
 
@@ -390,31 +420,34 @@ fn day_metrics(day: &BTreeMap<String, AgentTotals>) -> (Option<f64>, Option<f64>
     (cost, share)
 }
 
-/// Sums a day's component tokens (`input`, `output`, `cacheRead`,
-/// `cacheCreation`) across every agent, then folds the residual into `other` so
-/// the four types plus `other` equal `total_tokens`. Missing component fields
-/// are already `0`, so `Other` == the ccusage-unattributed residue for the day.
+/// Sums a day's common components and source-confirmed additive reasoning.
+/// Anything still left after those known types is explicitly `unclassified`
+/// rather than the ambiguous `other`.
 fn token_breakdown(day: &BTreeMap<String, AgentTotals>, total_tokens: u64) -> TokenBreakdown {
     let mut input = 0u64;
     let mut output = 0u64;
     let mut cache_read = 0u64;
     let mut cache_creation = 0u64;
+    let mut reasoning = 0u64;
     for totals in day.values() {
         input = input.saturating_add(totals.input);
         output = output.saturating_add(totals.output);
         cache_read = cache_read.saturating_add(totals.cache_read);
         cache_creation = cache_creation.saturating_add(totals.cache_creation);
+        reasoning = reasoning.saturating_add(totals.reasoning);
     }
     let components = input
         .saturating_add(output)
         .saturating_add(cache_read)
-        .saturating_add(cache_creation);
+        .saturating_add(cache_creation)
+        .saturating_add(reasoning);
     TokenBreakdown {
         input_tokens: input,
         output_tokens: output,
         cache_read_tokens: cache_read,
         cache_creation_tokens: cache_creation,
-        other_tokens: total_tokens.saturating_sub(components),
+        reasoning_tokens: reasoning,
+        unclassified_tokens: total_tokens.saturating_sub(components),
     }
 }
 
@@ -502,6 +535,15 @@ fn build_agents(totals: &BTreeMap<String, AgentTotals>) -> Vec<AgentUsage> {
             id: id.clone(),
             display_name: display_name(id),
             tokens: totals.tokens,
+            reasoning_tokens: totals.reasoning,
+            unclassified_tokens: totals.tokens.saturating_sub(
+                totals
+                    .input
+                    .saturating_add(totals.output)
+                    .saturating_add(totals.cache_read)
+                    .saturating_add(totals.cache_creation)
+                    .saturating_add(totals.reasoning),
+            ),
             models: build_models(&totals.models),
         })
         .collect();
@@ -635,6 +677,20 @@ mod tests {
         assert_eq!(summary.today.agents[2].id, "antigravity");
         assert_eq!(summary.today.agents[2].display_name, "Antigravity");
         assert_eq!(summary.today.agents[2].tokens, 1_000_000);
+        assert_eq!(summary.today.agents[2].reasoning_tokens, 5_000);
+        assert_eq!(summary.today.agents[2].unclassified_tokens, 0);
+        assert_eq!(summary.today.agents[2].models.len(), 1);
+        assert_eq!(
+            summary.today.agents[2].models[0].model_name,
+            "gemini-3.7-flash-safety-le"
+        );
+        assert_eq!(
+            summary.today.agents[2].models[0].model_display_name,
+            "gemini-3.7-flash-safety-le"
+        );
+        assert_eq!(summary.today.agents[2].models[0].total_tokens, 995_000);
+        assert_eq!(summary.today.token_breakdown.reasoning_tokens, 5_000);
+        assert_eq!(summary.today.token_breakdown.unclassified_tokens, 0);
         // The focused PR reports zero when a model has no embedded price. A
         // positive-token zero therefore becomes unknown, not a fake $0.00.
         assert!(summary.today.estimated_cost_usd.is_none());
@@ -843,7 +899,8 @@ mod tests {
     fn builds_a_day_token_breakdown_that_sums_to_the_day_total() {
         // Components across the day's agents, with a residual the agent rows do
         // not attribute (`codex` total 1000 but components sum to 400) that must
-        // land in `other_tokens` so the five counts equal the day total exactly.
+        // land in `unclassified_tokens` so the known types plus the explicit
+        // fallback equal the day total exactly.
         let json = r#"{
             "daily": [{
                 "period": "2026-08-24",
@@ -864,13 +921,15 @@ mod tests {
         assert_eq!(b.cache_read_tokens, 300);
         assert_eq!(b.cache_creation_tokens, 0);
         // residual: 1200 - (150+150+300+0) = 600 (all of codex's unattributed share).
-        assert_eq!(b.other_tokens, 600);
+        assert_eq!(b.reasoning_tokens, 0);
+        assert_eq!(b.unclassified_tokens, 600);
         assert_eq!(
             b.input_tokens
                 + b.output_tokens
                 + b.cache_read_tokens
                 + b.cache_creation_tokens
-                + b.other_tokens,
+                + b.reasoning_tokens
+                + b.unclassified_tokens,
             day.total_tokens
         );
     }
@@ -878,14 +937,16 @@ mod tests {
     #[test]
     fn token_breakdown_defaults_missing_component_fields_to_zero() {
         // Empty days and zero-token days stay all-zero and never emit a bogus
-        // breakdown; a day with only cacheRead tokens reports the rest as Other.
+        // breakdown; a day with only cacheRead tokens reports the rest as
+        // unclassified rather than guessing a token category.
         let empty = summarize(r#"{"daily":[]}"#);
         let b = &empty.today.token_breakdown;
         assert_eq!(b.input_tokens, 0);
         assert_eq!(b.output_tokens, 0);
         assert_eq!(b.cache_read_tokens, 0);
         assert_eq!(b.cache_creation_tokens, 0);
-        assert_eq!(b.other_tokens, 0);
+        assert_eq!(b.reasoning_tokens, 0);
+        assert_eq!(b.unclassified_tokens, 0);
 
         let json = r#"{
             "daily": [{
@@ -900,7 +961,8 @@ mod tests {
         assert_eq!(b.input_tokens, 0);
         assert_eq!(b.output_tokens, 0);
         assert_eq!(b.cache_creation_tokens, 0);
-        assert_eq!(b.other_tokens, 200); // 700 - 500
+        assert_eq!(b.reasoning_tokens, 0);
+        assert_eq!(b.unclassified_tokens, 200); // 700 - 500
     }
 
     #[test]

@@ -6,6 +6,8 @@ const dagent = (id: string, displayName: string, tokens = 1): AgentUsage => ({
   id,
   displayName,
   tokens,
+  reasoningTokens: 0,
+  unclassifiedTokens: 0,
   models: [],
 });
 

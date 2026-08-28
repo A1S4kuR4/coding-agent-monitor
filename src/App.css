@@ -370,12 +370,34 @@ h1 {
   font-weight: 600;
 }
 
-/* Expanded per-model detail: indented under its agent, hairline-separated.
-   A real <dl> (dl > div > dt+dd) so the "Other" residual row keeps a semantic
-   <dd> and the block stays axe definition-list clean. */
+/* Expanded per-model detail: indented under its agent with a faint vertical
+   guide line that signals parent→child without reading as a heavy file tree.
+   The guide + indent live on `.agent-models` so the optional multi-model
+   summary line shares the same axis as the model rows. The inner <dl>
+   (dl > div > dt+dd) stays semantically clean. */
+.agent-models {
+  margin: var(--space-1) 0 var(--space-2) var(--space-4);
+  padding: var(--space-1) 0 var(--space-2) var(--space-3);
+  border-left: 1px solid var(--hairline);
+}
+
+.model-agent-notes {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 var(--space-2);
+}
+
+.model-agent-summary {
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .model-list {
   margin: 0;
-  padding: 0 0 var(--space-2) var(--space-4);
+  padding: 0;
 }
 
 .model-row {
@@ -409,11 +431,6 @@ h1 {
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-}
-
-.model-other .model-name,
-.model-other dd {
-  color: var(--ink-2);
 }
 
 .model-row dd {
@@ -454,7 +471,7 @@ h1 {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
-  height: 220px;
+  height: 228px;
   margin-top: var(--space-5);
 }
 
@@ -463,6 +480,10 @@ h1 {
 .trend-day {
   display: grid;
   grid-template-rows: 22px 1fr 22px;
+  /* 4px breathing above and below the bar (value↔bar and bar↔date) so the
+     numbers and dates don't crowd the bar; the height is bumped below so this
+     spacing never squeezes the bars themselves. */
+  gap: 4px 0;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -476,6 +497,16 @@ h1 {
 .trend-day:hover,
 .trend-day:focus {
   background: none;
+}
+/* A very light brightness lift on the bar segments on hover and keyboard focus
+   — a muted "lit" cue. Reduced motion shortens the transition to a single frame,
+   leaving the brightness change itself intact. */
+.trend-day {
+  transition: filter 120ms ease;
+}
+.trend-day:hover .bar-segment,
+.trend-day:focus-visible .bar-segment {
+  filter: brightness(1.08);
 }
 
 .trend-value,
@@ -639,6 +670,9 @@ button:hover {
 /* Refresh is a neutral secondary control — it must never pick up an agent or
    accent colour, even in its default (idle) state. */
 .refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 12px;
   font-size: 0.85rem;
   font-weight: 600;
@@ -648,7 +682,26 @@ button:hover {
   border-radius: var(--radius);
   font-family: var(--font-sans);
 }
-.refresh-btn:hover {
+/* Idle: the neutral secondary button with a hairline border. */
+.refresh-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: currentColor;
+}
+/* Spinning only while a refresh is in flight. The global reduced-motion rule
+   caps an iteration count at 1, so it rotates once and settles instead of
+   spinning forever for users who prefer reduced motion. */
+.refresh-btn.refreshing .refresh-icon {
+  animation: refresh-spin 0.9s linear infinite;
+}
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.refresh-btn:hover:not(:disabled),
+.refresh-btn:focus-visible {
   color: var(--ink);
   background: var(--paper-track);
   border-color: var(--ink-3);
@@ -736,11 +789,30 @@ button:hover {
 }
 
 .breakdown-row {
+  position: relative;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
   min-height: 30px;
+  padding-bottom: 5px;
+}
+/* Minimal 2px proportion bar under each row. `::after` is not exposed to the
+   accessibility tree — the same intent as aria-hidden — without adding a DOM
+   node that would break the dl's dt+dd-only children. The width is the unrounded
+   share passed down as `--bar-width`; the rounded text % on the right remains
+   the accessible source of truth. Neutral ink, never an Agent colour. */
+.breakdown-row::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: var(--bar-width, 0%);
+  border-radius: 1px;
+  background: var(--ink-3);
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .breakdown-row dt {
@@ -833,7 +905,7 @@ button:hover {
   }
 
   .trend {
-    height: 320px;
+    height: 328px;
     gap: 10px;
   }
 }
@@ -863,7 +935,7 @@ button:hover {
   }
 
   .trend {
-    height: 168px;
+    height: 176px;
     margin-top: var(--space-4);
   }
 
