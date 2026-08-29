@@ -95,3 +95,27 @@ closed, provided the repository is clearly marked pre-release.
   and, with the unsigned choice confirmed, the SmartScreen warning risk. Draft
   notes are written into the `v0.1.0` Pre-release and are pending maintainer
   publication.
+
+## v0.2.0 release record (2026-08-29)
+
+- [x] Phase 10 verification completed and recorded in
+  `docs/V0.2_RELEASE_VERIFICATION.md` (2026-08-28): automated suite, real-data
+  smoke, NSIS + MSI install→launch→uninstall cycles, manual GUI walkthrough on
+  real data. Gate 0 (non-ASCII user-profile GUI) again **WAIVED / NOT RUN** by
+  maintainer disposition; 200% text-scaling walkthrough NOT RUN (WebView2 does
+  not respond to synthesized zoom input in this app).
+- [x] Mark v0.2.0 as release candidate per the v0.2 plan §4 acceptance criteria
+  (`docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md` §13). Verification ran on
+  commit `6bc54f5`; RC installers were built from `4d2e3a9` (docs + version
+  bump only in between).
+- [x] Merge the release branch to `main` via
+  [PR #13](https://github.com/A1S4kuR4/coding-agent-monitor/pull/13); `main` at
+  merge commit `d18c02c`.
+- [x] Build the release installers from `d18c02c`: MSI
+  `30C8C890E0470A62D02405680D8FA5982CD15F4B4C5A7857F76343AEF9F352A2`, NSIS
+  `3BB0C9564D3E5DEAD9617B2B952D47659A817EB138173068C19EBC590A732FE1`. Assets
+  remain unsigned (Authenticode `NotSigned`), disclosed in the release notes.
+- [x] Publish `SHA256SUMS.txt` and both installers with the public `v0.2.0`
+  GitHub Release (published 2026-08-29). The release notes disclose the Gate 0
+  waiver and the SmartScreen / unknown-publisher risk, and point to
+  `V0.2_RELEASE_VERIFICATION.md`.

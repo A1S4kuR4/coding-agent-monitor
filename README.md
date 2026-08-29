@@ -9,11 +9,11 @@
 
 > 不打开命令行，也能随时查看本机 Coding Agent 今天用了多少 Token。
 
-> **当前状态：v0.1.0 pre-release candidate**
-> 非 ASCII Windows 用户目录下的完整人工 GUI Gate 0 已由维护者标记为
+> **当前状态：v0.2.0 已发布**
+> 非 ASCII Windows 用户目录下的完整人工 GUI Gate 0 对 v0.1.0 与 v0.2.0 均由维护者标记为
 > **WAIVED / NOT RUN**，不是 PASS。该场景仍是已知覆盖缺口；详见
-> [发布验证记录](docs/RELEASE_VERIFICATION.md)。当前候选安装包与可执行文件也尚未签名，
-> 发布前签名决策仍待确认。
+> [v0.2 发布验证记录](docs/V0.2_RELEASE_VERIFICATION.md)。发布安装包仍未 Authenticode 签名，
+> 安装时可能出现 SmartScreen/未知发布者提示，请核对 Release 附带的 SHA-256 校验值。
 
 ## 隐私与安全
 
@@ -212,20 +212,22 @@ Coding Agent Monitor
 
 # 项目状态
 
-> v0.1.0 pre-release candidate；manifest 版本仍为 `0.1.0`。
+> v0.2.0 已发布；manifest 版本为 `0.2.0`。
 
-内部规划中的 Phase 6–9 已提前实施：统一官方 ccusage 快照、动态 Agent 契约、预估成本/
-缓存占比/更新时间与 stale 降级，以及 Reading Surface 响应式精修。这里的阶段名称是内部规划记录，
-不表示当前 manifest 已升级为 `0.2.0`。Antigravity 由固定上游提交构建的 focused sidecar 补充，
+内部规划中的 Phase 6–9 已实施：统一官方 ccusage 快照、动态 Agent 契约、预估成本/
+缓存占比/更新时间与 stale 降级，以及 Reading Surface 响应式精修。这里的阶段名称是内部规划记录。
+Antigravity 由固定上游提交构建的 focused sidecar 补充，
 Rust 会与官方统一报告合并并避免重复统计。
 
-Phase 10 仍是后续 v0.2 发布验证任务；本次不创建 `V0.2_RELEASE_VERIFICATION.md`。详细阶段历史、
+Phase 10 已于 2026-08-28 执行完毕，记录见
+[v0.2 发布验证记录](docs/V0.2_RELEASE_VERIFICATION.md)；v0.2.0 已标记为 release candidate 并按
+[开源发布清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md) 发布。详细阶段历史、
 测试结果和未覆盖项见 [实施计划](docs/IMPLEMENTATION_PLAN.md) 与
 [v0.2 开发验收计划](docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md)。
 
-v0.1.0 pre-release 的非 ASCII Windows 用户目录完整 GUI Gate 0 为
-**WAIVED / NOT RUN**，不是技术验证通过。当前候选 MSI、NSIS、主程序和两个 sidecar 的
-Authenticode 状态均为 `NotSigned`；发布前签名决策仍待确认。
+非 ASCII Windows 用户目录完整 GUI Gate 0 对 v0.1.0 与 v0.2.0 均为
+**WAIVED / NOT RUN**，不是技术验证通过。发布 MSI、NSIS、主程序和两个 sidecar 的
+Authenticode 状态均为 `NotSigned`，Release Notes 已披露 SmartScreen/未知发布者风险。
 
 **先做好一个真正愿意长期放在 Windows 托盘里的 Coding Agent Token Monitor。**
 
