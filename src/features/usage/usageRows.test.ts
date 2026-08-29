@@ -7,6 +7,8 @@ const row = (id: string, tokens: number): AgentUsage => ({
   id,
   displayName: id,
   tokens,
+  reasoningTokens: 0,
+  unclassifiedTokens: 0,
   models: [],
 });
 

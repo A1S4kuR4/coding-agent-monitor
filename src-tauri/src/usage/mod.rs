@@ -32,13 +32,19 @@ pub struct AgentUsage {
     pub id: String,
     pub display_name: String,
     pub tokens: u64,
+    /// Reasoning/thinking tokens that the source reports outside the standard
+    /// input/output/cache components. This is an agent-level aggregate; it is
+    /// not assigned to a model unless the source provides that attribution.
+    pub reasoning_tokens: u64,
+    /// Remaining agent total that cannot be classified by token type after all
+    /// known components, including reasoning, have been accounted for.
+    pub unclassified_tokens: u64,
     pub models: Vec<ModelUsage>,
 }
 
-/// A day's token composition by type. `otherTokens` absorbs the residual between
-/// the authoritative day total and the sum of the four component types
-/// (unattributed/missing fields), so `input + output + cacheRead + cacheCreation
-/// + other` always equals `DailyUsage.total_tokens`.
+/// A day's token composition by type. Known source-specific thinking/reasoning
+/// is separated from genuinely unknown residue. The six counts together equal
+/// `DailyUsage.total_tokens` for a well-formed source report.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenBreakdown {
@@ -46,7 +52,8 @@ pub struct TokenBreakdown {
     pub output_tokens: u64,
     pub cache_read_tokens: u64,
     pub cache_creation_tokens: u64,
-    pub other_tokens: u64,
+    pub reasoning_tokens: u64,
+    pub unclassified_tokens: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]

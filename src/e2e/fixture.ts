@@ -28,14 +28,15 @@ function breakdownFor(total: number): TokenBreakdown {
   const inputTokens = Math.floor(total * 0.3);
   const outputTokens = Math.floor(total * 0.1);
   const cacheReadTokens = Math.floor(total * 0.6);
-  const otherTokens =
+  const unclassifiedTokens =
     total - inputTokens - outputTokens - cacheReadTokens - 0;
   return {
     inputTokens,
     outputTokens,
     cacheReadTokens,
     cacheCreationTokens: 0,
-    otherTokens,
+    reasoningTokens: 0,
+    unclassifiedTokens,
   };
 }
 
@@ -79,7 +80,18 @@ const agent = (
   displayName: string,
   tokens: number,
   models: ModelUsage[],
-): AgentUsage => ({ id, displayName, tokens, models });
+  reasoningTokens = 0,
+): AgentUsage => {
+  const modeledTokens = models.reduce((sum, item) => sum + item.totalTokens, 0);
+  return {
+    id,
+    displayName,
+    tokens,
+    reasoningTokens,
+    unclassifiedTokens: Math.max(0, tokens - modeledTokens - reasoningTokens),
+    models,
+  };
+};
 
 export const e2eFixture: UsageSummary = {
   collectedAt: "2026-08-25T07:00:00.000Z",
@@ -93,7 +105,7 @@ export const e2eFixture: UsageSummary = {
     agent("opencode", "OpenCode", 18_165_661, []),
     agent("antigravity", "Antigravity", 8_470_305, [
       model("gemini-3.7-flash", 8_000_000),
-    ]),
+    ], 470_305),
   ]),
   last7Days: [
     day("2026-08-19", []),
@@ -123,7 +135,7 @@ export const e2eFixture: UsageSummary = {
       agent("claude", "Claude Code", 33_973_315, [model("deepseek-v4-flash", 30_000_000)]),
       agent("codex", "Codex", 33_280_719, [model("gpt-5.6-sol", 32_000_000)]),
       agent("opencode", "OpenCode", 18_165_661, []),
-      agent("antigravity", "Antigravity", 8_470_305, [model("gemini-3.7-flash", 8_000_000)]),
+      agent("antigravity", "Antigravity", 8_470_305, [model("gemini-3.7-flash", 8_000_000)], 470_305),
     ]),
   ],
 };

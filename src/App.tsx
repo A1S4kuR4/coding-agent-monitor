@@ -17,6 +17,7 @@ import { activeAgentRows } from "./features/usage/usageRows";
 import { viewReducer } from "./features/usage/viewState";
 import { formatUsd } from "./features/usage/formatUsd";
 import { formatPercent } from "./features/usage/formatPercent";
+import { cacheInputShare } from "./features/usage/cacheInputShare";
 import { relativeTime } from "./features/usage/relativeTime";
 import { agentMeta, compareByMeta, sortAgents } from "./features/usage/agents";
 import { formatDelta } from "./features/usage/formatDelta";
@@ -38,8 +39,8 @@ function shortDate(date: string): string {
 const deltaClass = (kind: string) => `delta ${kind}`;
 
 /** Today's token composition by type, each with its count and share of the day.
- * Input, Output and Cache read always render; Cache creation and Other only when
- * they carry tokens, so the visible rows always sum to the day's total. */
+ * Input, Output and Cache read always render; optional known types and the
+ * explicit unclassified fallback render only when they carry tokens. */
 function BreakdownList({
   total,
   breakdown,
@@ -59,16 +60,37 @@ function BreakdownList({
       value: breakdown.cacheCreationTokens,
     });
   }
-  if (breakdown.otherTokens > 0) {
-    parts.push({ key: "other", label: "Other", value: breakdown.otherTokens });
+  if (breakdown.reasoningTokens > 0) {
+    parts.push({
+      key: "reasoning",
+      label: "Reasoning",
+      value: breakdown.reasoningTokens,
+    });
+  }
+  if (breakdown.unclassifiedTokens > 0) {
+    parts.push({
+      key: "unclassified",
+      label: "Unclassified",
+      value: breakdown.unclassifiedTokens,
+    });
   }
 
   return (
     <dl className="breakdown-list">
       {parts.map((part) => {
         const pct = total > 0 ? Math.round((part.value / total) * 100) : 0;
+        // The 2px proportion bar under each row uses the unrounded share, so it
+        // never shows a rounded 0% bar for a tiny-but-real slice. It is rendered
+        // by a CSS pseudo-element (aria-hidden by construction), keeping the
+        // definition list's dt+dd-only children valid; the text % stays the
+        // accessible source of truth.
+        const barWidth = total > 0 ? (part.value / total) * 100 : 0;
         return (
-          <div className="breakdown-row" key={part.key}>
+          <div
+            className="breakdown-row"
+            key={part.key}
+            style={{ "--bar-width": `${barWidth}%` } as CSSProperties}
+          >
             <dt>{part.label}</dt>
             <dd>
               <span className="breakdown-count">
@@ -378,11 +400,27 @@ function App() {
           <h1>Today</h1>
         </div>
         <button
-          className="refresh-btn"
+          className={view.refreshing ? "refresh-btn refreshing" : "refresh-btn"}
           type="button"
           onClick={manualRefresh}
           disabled={view.refreshing}
         >
+          <svg
+            className="refresh-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <title />
+            <path
+              d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.7V6H10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
           {view.refreshing ? "Refreshing…" : "Refresh"}
         </button>
       </header>
@@ -429,12 +467,35 @@ function App() {
                 const meta = agentMeta(agent.id);
                 const hasModels = agent.models.length > 0;
                 const isOpen = expanded.has(agent.id);
-                // ccusage keeps some of an agent's tokens outside any model; fold
-                // that residual into an explainable "Other" row when present.
-                const unattributed = hasModels
-                  ? agent.tokens -
-                    agent.models.reduce((sum, m) => sum + m.totalTokens, 0)
+                const modelCoverageGap = hasModels
+                  ? Math.max(
+                      0,
+                      agent.tokens -
+                        agent.models.reduce((sum, m) => sum + m.totalTokens, 0),
+                    )
                   : 0;
+                // Cached-input share summed across the agent's models, weighted by
+                // tokens (never an average of per-model percentages). Shown only
+                // for multi-model agents with no unattributed residual: the models
+                // cover the denominator (input+cacheRead+cacheCreation) exactly,
+                // so the aggregate is trustworthy. Any residual would make the
+                // subset misrepresent the agent, so we hide it.
+                const agentCacheShare =
+                  hasModels &&
+                  agent.models.length >= 2 &&
+                  modelCoverageGap === 0
+                    ? cacheInputShare(
+                        agent.models.reduce((sum, m) => sum + m.inputTokens, 0),
+                        agent.models.reduce(
+                          (sum, m) => sum + m.cacheReadTokens,
+                          0,
+                        ),
+                        agent.models.reduce(
+                          (sum, m) => sum + m.cacheCreationTokens,
+                          0,
+                        ),
+                      )
+                    : null;
                 return (
                   <div className="agent-block" key={agent.id}>
                     <div className="agent-row">
@@ -470,34 +531,66 @@ function App() {
                       <span className="agent-tokens">{formatTokens(agent.tokens)}</span>
                     </div>
                     {isOpen && hasModels && (
-                      <dl className="model-list" id={`agent-models-${agent.id}`}>
-                        {agent.models.map((model) => (
-                          <div className="model-row" key={model.modelName}>
-                            <dt>
-                              <span className="model-name">
-                                {model.modelDisplayName}
-                              </span>
-                              <span className="model-composition">
-                                {formatTokens(model.inputTokens)} in ·{" "}
-                                {formatTokens(model.outputTokens)} out ·{" "}
-                                {formatTokens(model.cacheReadTokens)} cache read
-                                {model.cacheCreationTokens > 0
-                                  ? ` · ${formatTokens(model.cacheCreationTokens)} creation`
-                                  : ""}
-                              </span>
-                            </dt>
-                            <dd>{formatTokens(model.totalTokens)}</dd>
-                          </div>
-                        ))}
-                        {unattributed > 0 && (
-                          <div className="model-row model-other">
-                            <dt>
-                              <span className="model-name">Other</span>
-                            </dt>
-                            <dd>{formatTokens(unattributed)}</dd>
+                      <div
+                        className="agent-models"
+                        id={`agent-models-${agent.id}`}
+                      >
+                        {(agent.reasoningTokens > 0 ||
+                          agent.unclassifiedTokens > 0 ||
+                          agentCacheShare !== null) && (
+                          <div className="model-agent-notes">
+                            {agent.reasoningTokens > 0 && (
+                              <p className="model-agent-summary">
+                                Agent total includes{" "}
+                                {formatTokens(agent.reasoningTokens)} reasoning
+                              </p>
+                            )}
+                            {agent.unclassifiedTokens > 0 && (
+                              <p className="model-agent-summary">
+                                Agent total includes{" "}
+                                {formatTokens(agent.unclassifiedTokens)} unclassified
+                                tokens
+                              </p>
+                            )}
+                            {agentCacheShare !== null && (
+                              <p className="model-agent-summary">
+                                ~{formatPercent(agentCacheShare)} cached input across{" "}
+                                {agent.models.length} models
+                              </p>
+                            )}
                           </div>
                         )}
-                      </dl>
+                        <dl className="model-list">
+                          {agent.models.map((model) => {
+                            const modelShare = cacheInputShare(
+                              model.inputTokens,
+                              model.cacheReadTokens,
+                              model.cacheCreationTokens,
+                            );
+                            return (
+                              <div className="model-row" key={model.modelName}>
+                                <dt>
+                                  <span className="model-name">
+                                    {model.modelDisplayName}
+                                  </span>
+                                  <span className="model-composition">
+                                    {formatTokens(model.inputTokens)} in ·{" "}
+                                    {formatTokens(model.outputTokens)} out ·{" "}
+                                    {formatTokens(model.cacheReadTokens)} cache read
+                                    {model.cacheCreationTokens > 0
+                                      ? ` · ${formatTokens(model.cacheCreationTokens)} creation`
+                                      : ""}
+                                    {modelShare !== null
+                                      ? ` · ~${formatPercent(modelShare)} cached input`
+                                      : ""}
+                                  </span>
+                                </dt>
+                                <dd>{formatTokens(model.totalTokens)}</dd>
+                              </div>
+                            );
+                          })}
+                        </dl>
+                      </div>
                     )}
                   </div>
                 );

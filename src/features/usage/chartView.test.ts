@@ -16,6 +16,8 @@ function day(
     id,
     displayName,
     tokens,
+    reasoningTokens: 0,
+    unclassifiedTokens: 0,
     models: [],
   }));
   return {
@@ -26,7 +28,8 @@ function day(
       outputTokens: 0,
       cacheReadTokens: 0,
       cacheCreationTokens: 0,
-      otherTokens: dtotal(0),
+      reasoningTokens: dtotal(0),
+      unclassifiedTokens: dtotal(0),
     },
     estimatedCostUsd: null,
     cacheReadShare: null,

@@ -87,10 +87,10 @@ closed, provided the repository is clearly marked pre-release.
   `17372F1F5634CDBD0AC9344F9321BFECCCA2C90EC8266838B733953C734BE925` and the
   NSIS installer is
   `4132B4DC71793290D962D0D9B8D27C9E73004150DE4DE714C9FFF2B20192064F`.
-- [ ] Publish SHA-256 checksums for the final assets attached to the GitHub
-  Pre-release. `SHA256SUMS.txt` and the MSI/NSIS checksums are uploaded to the
-  `v0.1.0` Draft, which remains unpublished; this item closes only when the
-  Pre-release is publicly published.
+- [x] Publish SHA-256 checksums for the final assets attached to the GitHub
+  Pre-release. `SHA256SUMS.txt` and the MSI/NSIS checksums were uploaded to the
+  `v0.1.0` Draft and are now publicly published (2026-08-26). The published
+  Pre-release carries tag `untagged-0d7335725533fc748ffe` at `08a21c0…`.
 - [x] Draft GitHub Pre-release notes that disclose Gate 0 as **WAIVED / NOT RUN**
   and, with the unsigned choice confirmed, the SmartScreen warning risk. Draft
   notes are written into the `v0.1.0` Pre-release and are pending maintainer

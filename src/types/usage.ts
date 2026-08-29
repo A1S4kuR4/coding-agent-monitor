@@ -21,18 +21,22 @@ export interface AgentUsage {
   id: string;
   displayName: string;
   tokens: number;
+  /** Source-confirmed additive reasoning/thinking tokens reported at agent scope. */
+  reasoningTokens: number;
+  /** Agent tokens whose type remains unknown after known components are counted. */
+  unclassifiedTokens: number;
   models: ModelUsage[];
 }
 
-/** A day's token composition by type. `otherTokens` absorbs the residual
- * between the authoritative day total and the summed component types, so
- * `input + output + cacheRead + cacheCreation + other === totalTokens`. */
+/** A day's mutually additive token composition. Known provider reasoning is
+ * separated from genuinely unknown residue. */
 export interface TokenBreakdown {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
   cacheCreationTokens: number;
-  otherTokens: number;
+  reasoningTokens: number;
+  unclassifiedTokens: number;
 }
 
 export interface DailyUsage {

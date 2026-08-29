@@ -62,14 +62,15 @@ function breakdownFor(tokenTotal: number): TokenBreakdown {
   const outputTokens = Math.floor(tokenTotal * 0.1);
   const cacheReadTokens = Math.floor(tokenTotal * 0.6);
   const cacheCreationTokens = 0;
-  const otherTokens =
+  const unclassifiedTokens =
     tokenTotal - inputTokens - outputTokens - cacheReadTokens - cacheCreationTokens;
   return {
     inputTokens,
     outputTokens,
     cacheReadTokens,
     cacheCreationTokens,
-    otherTokens,
+    reasoningTokens: 0,
+    unclassifiedTokens,
   };
 }
 
@@ -90,6 +91,8 @@ function summary(total: number): UsageSummary {
       id: "claude",
       displayName: "Claude Code",
       tokens: 8_420_000,
+      reasoningTokens: 0,
+      unclassifiedTokens: 0,
       models: [
         {
           modelName: "deepseek-v2-lite",
@@ -106,6 +109,8 @@ function summary(total: number): UsageSummary {
       id: "codex",
       displayName: "Codex",
       tokens: 5_170_000,
+      reasoningTokens: 0,
+      unclassifiedTokens: 0,
       models: [
         {
           modelName: "gpt-5.6-sol",
@@ -338,28 +343,29 @@ describe("App", () => {
     render(<App />);
     await screen.findByText("Token Breakdown");
 
-    // 100 total → components 30/10/60, no other (sums exactly to 100).
+    // 100 total → components 30/10/60, with no residual categories.
     expect(screen.getByText("Input")).toBeTruthy();
     expect(screen.getByText("30%")).toBeTruthy();
     expect(screen.getByText("10%")).toBeTruthy();
     expect(screen.getByText("60%")).toBeTruthy();
-    // cacheCreation is 0 and otherTokens is 0, so neither row renders.
+    // Empty optional categories do not render.
     expect(screen.queryByText("Cache creation")).toBeNull();
-    expect(screen.queryAllByText("Other")).toHaveLength(0);
+    expect(screen.queryByText("Reasoning")).toBeNull();
+    expect(screen.queryByText("Unclassified")).toBeNull();
   });
 
-  it("folds unattributable tokens into a per-agent Other row", async () => {
-    // Claude's models account for only 300 of its 10_000_000 tokens, so the
-    // expandable detail must surface the residual as an "Other" row.
+  it("describes agent-level reasoning without presenting it as a model", async () => {
     const s = summary(100);
     s.today.agents[0] = {
-      id: "claude",
-      displayName: "Claude Code",
-      tokens: 10_000_000,
+      id: "antigravity",
+      displayName: "Antigravity",
+      tokens: 1_000,
+      reasoningTokens: 700,
+      unclassifiedTokens: 0,
       models: [
         {
-          modelName: "deepseek-v2-lite",
-          modelDisplayName: "deepseek-v2-lite",
+          modelName: "gemini-3.7-flash",
+          modelDisplayName: "gemini-3.7-flash",
           inputTokens: 100,
           outputTokens: 100,
           cacheReadTokens: 100,
@@ -372,18 +378,47 @@ describe("App", () => {
     render(<App />);
     await screen.findByText("Today");
 
-    const toggle = agentToggle("claude");
+    const toggle = agentToggle("antigravity");
     await act(async () => {
       toggle.click();
     });
-    // Model composition line renders the in/out/cache-read figures and the
-    // model's own total.
-    expect(screen.getByText("100 in · 100 out · 100 cache read")).toBeTruthy();
-    // The residual (10_000_000 − 300) renders as its own "Other" row, distinct
-    // from the agent's own 10M figure (scoped to the Other row to avoid the
-    // duplicate). Only Claude has a residual, so there is exactly one.
-    expect(screen.getAllByText("Other")).toHaveLength(1);
-    expect(document.querySelector(".model-other dd")?.textContent).toBe("10M");
+    // Model composition line renders the in/out/cache-read figures, the model's
+    // own cached-input share, and the model's total.
+    expect(
+      screen.getByText("100 in · 100 out · 100 cache read · ~50% cached input"),
+    ).toBeTruthy();
+    expect(screen.getByText("Agent total includes 700 reasoning")).toBeTruthy();
+    expect(screen.queryByText("Other")).toBeNull();
+    expect(document.querySelectorAll(".model-row")).toHaveLength(1);
+  });
+
+  it("labels unknown residuals as unclassified at both scopes", async () => {
+    const s = summary(1_000);
+    s.today.tokenBreakdown = {
+      inputTokens: 100,
+      outputTokens: 100,
+      cacheReadTokens: 100,
+      cacheCreationTokens: 0,
+      reasoningTokens: 400,
+      unclassifiedTokens: 300,
+    };
+    s.today.agents[0] = {
+      ...s.today.agents[0]!,
+      tokens: 1_000,
+      reasoningTokens: 0,
+      unclassifiedTokens: 700,
+      models: [{ ...s.today.agents[0]!.models[0]!, totalTokens: 300 }],
+    };
+    tauri.fetch.mockResolvedValueOnce(s);
+    render(<App />);
+    await screen.findByText("Token Breakdown");
+
+    expect(screen.getByText("Reasoning")).toBeTruthy();
+    expect(screen.getByText("Unclassified")).toBeTruthy();
+    await act(async () => {
+      agentToggle("claude").click();
+    });
+    expect(screen.getByText("Agent total includes 700 unclassified tokens")).toBeTruthy();
   });
 
   it("trend filter switching updates the bar series and aggregate", async () => {
@@ -414,5 +449,103 @@ describe("App", () => {
     expect(claudeSeries).toHaveLength(7);
     expect(claudeSeries!.slice(0, 6).every((t) => t === "0")).toBe(true);
     expect(claudeSeries![6]).toBe("8.42M");
+  });
+
+  it("disables Refresh and still labels it while a refresh is in flight", async () => {
+    tauri.fetch
+      .mockResolvedValueOnce(summary(13_590_000))
+      // The manual refresh never resolves, so the in-flight state is observable.
+      .mockImplementationOnce(() => new Promise<UsageSummary>(() => {}));
+    render(<App />);
+    await waitTotal("13.59M");
+
+    await act(async () => {
+      screen.getByText("Refresh").click();
+    });
+
+    const btn = screen.getByRole("button", {
+      name: /Refreshing…/,
+    }) as HTMLButtonElement;
+    // Still a visible text label + disabled, not animation-only state.
+    expect(btn.disabled).toBe(true);
+    expect(btn.classList.contains("refreshing")).toBe(true);
+    expect(btn.querySelector(".refresh-icon")).toBeTruthy();
+  });
+
+  it("renders breakdown proportion bars with unrounded widths while text stays integer", async () => {
+    const s = summary(30);
+    // 7/30, 11/30, 12/30 — only the text % is rounded; the bar width must not be.
+    s.today.tokenBreakdown = {
+      inputTokens: 7,
+      outputTokens: 11,
+      cacheReadTokens: 12,
+      cacheCreationTokens: 0,
+      reasoningTokens: 0,
+      unclassifiedTokens: 0,
+    };
+    tauri.fetch.mockResolvedValueOnce(s);
+    const { container } = render(<App />);
+    await screen.findByText("Token Breakdown");
+
+    const rows = Array.from(
+      container.querySelectorAll(".breakdown-row"),
+    ) as HTMLElement[];
+    // Input / Output / Cache read only (all optional categories are 0 → hidden).
+    expect(rows).toHaveLength(3);
+    const inputRow = rows[0]!;
+    const outputRow = rows[1]!;
+    // Unrounded width from the true share…
+    expect(inputRow.style.getPropertyValue("--bar-width")).toBe(`${(7 / 30) * 100}%`);
+    expect(outputRow.style.getPropertyValue("--bar-width")).toBe(`${(11 / 30) * 100}%`);
+    // …while the accessible text stays the rounded integer percent.
+    expect(inputRow.querySelector(".breakdown-pct")?.textContent).toBe("23%");
+    expect(outputRow.querySelector(".breakdown-pct")?.textContent).toBe("37%");
+  });
+
+  it("shows a token-weighted agent cached-input summary, never an arithmetic average", async () => {
+    tauri.fetch.mockResolvedValueOnce(summary(13_590_000));
+    render(<App />);
+    await waitTotal("13.59M");
+
+    await act(async () => {
+      agentToggle("codex").click();
+    });
+
+    // All codex tokens are covered by its two models (no residual), so the agent
+    // summary is trustworthy. Weighted: 3_320_000 / 5_040_000 ≈ 66%.
+    expect(screen.getByText("~66% cached input across 2 models")).toBeTruthy();
+    // An average of the model shares (67% and 14% → ~41%) must NOT appear.
+    expect(screen.queryByText("~41% cached input across 2 models")).toBeNull();
+  });
+
+  it("hides the agent cached-input summary when model details do not cover the agent total", async () => {
+    const s = summary(13_590_000);
+    // Codex has two models but also tokens outside them, so the model subset must
+    // not present itself as the whole agent.
+    s.today.agents = s.today.agents.map((a) =>
+      a.id === "codex"
+        ? {
+            ...a,
+            tokens: a.models.reduce((sum, m) => sum + m.totalTokens, 0) + 100_000,
+          }
+        : a,
+    );
+    tauri.fetch.mockResolvedValueOnce(s);
+    render(<App />);
+    await waitTotal("13.59M");
+
+    await act(async () => {
+      agentToggle("codex").click();
+    });
+
+    expect(document.querySelector(".model-agent-summary")).toBeNull();
+    // Each model still reports its own cached-input share.
+    const compositions = Array.from(
+      document.querySelectorAll(".model-row .model-composition"),
+    );
+    expect(compositions).toHaveLength(2);
+    expect(
+      compositions.every((el) => /cached input/.test(el.textContent ?? "")),
+    ).toBe(true);
   });
 });
