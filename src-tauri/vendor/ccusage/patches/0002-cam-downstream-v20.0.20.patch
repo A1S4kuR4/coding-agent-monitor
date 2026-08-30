@@ -1,0 +1,2164 @@
+diff --git a/rust/Cargo.lock b/rust/Cargo.lock
+index 99ef09b..3d9c513 100644
+--- a/rust/Cargo.lock
++++ b/rust/Cargo.lock
+@@ -60,12 +60,6 @@ dependencies = [
+  "pkg-config",
+ ]
+ 
+-[[package]]
+-name = "base64"
+-version = "0.23.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
+-
+ [[package]]
+ name = "bitflags"
+ version = "1.3.2"
+@@ -88,12 +82,6 @@ dependencies = [
+  "serde_core",
+ ]
+ 
+-[[package]]
+-name = "bytes"
+-version = "1.12.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+-
+ [[package]]
+ name = "castaway"
+ version = "0.2.4"
+@@ -116,11 +104,11 @@ dependencies = [
+ ]
+ 
+ [[package]]
+-name = "ccusage"
++name = "ccusage-adapter-all"
+ version = "0.0.0"
+ dependencies = [
+- "ccusage-adapter-all",
+  "ccusage-adapter-amp",
++ "ccusage-adapter-antigravity",
+  "ccusage-adapter-claude",
+  "ccusage-adapter-codebuff",
+  "ccusage-adapter-codex",
+@@ -138,55 +126,37 @@ dependencies = [
+  "ccusage-adapter-pi",
+  "ccusage-adapter-qwen",
+  "ccusage-cli",
+- "ccusage-cli-parser",
+- "ccusage-config",
+  "ccusage-core",
+  "ccusage-test-support",
+- "mimalloc",
++ "insta",
+  "serde",
+  "serde_json",
+- "ureq",
+ ]
+ 
+ [[package]]
+-name = "ccusage-adapter-all"
++name = "ccusage-adapter-amp"
+ version = "0.0.0"
+ dependencies = [
+- "ccusage-adapter-amp",
+- "ccusage-adapter-claude",
+- "ccusage-adapter-codebuff",
+- "ccusage-adapter-codex",
+  "ccusage-adapter-common",
+- "ccusage-adapter-copilot",
+- "ccusage-adapter-droid",
+- "ccusage-adapter-gemini",
+- "ccusage-adapter-goose",
+- "ccusage-adapter-grok",
+- "ccusage-adapter-hermes",
+- "ccusage-adapter-kilo",
+- "ccusage-adapter-kimi",
+- "ccusage-adapter-openclaw",
+- "ccusage-adapter-opencode",
+- "ccusage-adapter-pi",
+- "ccusage-adapter-qwen",
+- "ccusage-cli",
+  "ccusage-core",
+  "ccusage-test-support",
+- "insta",
++ "jiff",
+  "serde",
+  "serde_json",
+ ]
+ 
+ [[package]]
+-name = "ccusage-adapter-amp"
++name = "ccusage-adapter-antigravity"
+ version = "0.0.0"
+ dependencies = [
+  "ccusage-adapter-common",
++ "ccusage-cli",
+  "ccusage-core",
+  "ccusage-test-support",
+  "jiff",
+  "serde",
+  "serde_json",
++ "sqlite",
+ ]
+ 
+ [[package]]
+@@ -392,31 +362,6 @@ dependencies = [
+ name = "ccusage-cli"
+ version = "0.0.0"
+ 
+-[[package]]
+-name = "ccusage-cli-parser"
+-version = "0.0.0"
+-dependencies = [
+- "ccusage-cli",
+- "ccusage-config",
+- "ccusage-core",
+- "ccusage-test-support",
+- "insta",
+- "serde_json",
+-]
+-
+-[[package]]
+-name = "ccusage-config"
+-version = "0.0.0"
+-dependencies = [
+- "ccusage-cli",
+- "ccusage-core",
+- "ccusage-test-support",
+- "insta",
+- "schemars",
+- "serde",
+- "serde_json",
+-]
+-
+ [[package]]
+ name = "ccusage-core"
+ version = "0.0.0"
+@@ -558,12 +503,6 @@ version = "1.0.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+ 
+-[[package]]
+-name = "dyn-clone"
+-version = "1.0.20"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
+-
+ [[package]]
+ name = "encode_unicode"
+ version = "1.0.0"
+@@ -644,22 +583,6 @@ dependencies = [
+  "walkdir",
+ ]
+ 
+-[[package]]
+-name = "http"
+-version = "1.4.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6970f50e31d6fc17d3fa27329444bfa74e196cf62e95052a3f6fee181dba6425"
+-dependencies = [
+- "bytes",
+- "itoa",
+-]
+-
+-[[package]]
+-name = "httparse"
+-version = "1.10.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
+-
+ [[package]]
+ name = "ignore"
+ version = "0.4.30"
+@@ -764,15 +687,6 @@ version = "0.2.186"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
+ 
+-[[package]]
+-name = "libmimalloc-sys"
+-version = "0.1.49"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6a45a52f43e1c16f667ccfe4dd8c85b7f7c204fd5e3bf46c5b0db9a5c3c0b8e9"
+-dependencies = [
+- "cc",
+-]
+-
+ [[package]]
+ name = "linux-raw-sys"
+ version = "0.12.1"
+@@ -791,15 +705,6 @@ version = "2.8.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+ 
+-[[package]]
+-name = "mimalloc"
+-version = "0.1.52"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2d4139bb28d14ad1facf21d5eb8825051b326e172d216b39f6d31df53cc97862"
+-dependencies = [
+- "libmimalloc-sys",
+-]
+-
+ [[package]]
+ name = "miniz_oxide"
+ version = "0.8.9"
+@@ -826,12 +731,6 @@ version = "1.21.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+ 
+-[[package]]
+-name = "percent-encoding"
+-version = "2.3.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+-
+ [[package]]
+ name = "pkg-config"
+ version = "0.3.33"
+@@ -963,7 +862,6 @@ dependencies = [
+  "aws-lc-rs",
+  "log",
+  "once_cell",
+- "ring",
+  "rustls-pki-types",
+  "rustls-webpki",
+  "subtle",
+@@ -1006,30 +904,6 @@ dependencies = [
+  "winapi-util",
+ ]
+ 
+-[[package]]
+-name = "schemars"
+-version = "0.8.22"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
+-dependencies = [
+- "dyn-clone",
+- "schemars_derive",
+- "serde",
+- "serde_json",
+-]
+-
+-[[package]]
+-name = "schemars_derive"
+-version = "0.8.22"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "32e265784ad618884abaea0600a9adf15393368d840e0222d101a072f3f7534d"
+-dependencies = [
+- "proc-macro2",
+- "quote",
+- "serde_derive_internals",
+- "syn 2.0.119",
+-]
+-
+ [[package]]
+ name = "serde"
+ version = "1.0.229"
+@@ -1060,17 +934,6 @@ dependencies = [
+  "syn 3.0.2",
+ ]
+ 
+-[[package]]
+-name = "serde_derive_internals"
+-version = "0.29.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
+-dependencies = [
+- "proc-macro2",
+- "quote",
+- "syn 2.0.119",
+-]
+-
+ [[package]]
+ name = "serde_json"
+ version = "1.0.151"
+@@ -1231,40 +1094,6 @@ version = "0.9.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+ 
+-[[package]]
+-name = "ureq"
+-version = "3.4.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "972d7902c8735f2695410b8aed7df6ed12a47394aa1c8d7af49f0497b731a94d"
+-dependencies = [
+- "base64",
+- "log",
+- "percent-encoding",
+- "rustls",
+- "rustls-pki-types",
+- "ureq-proto",
+- "utf8-zero",
+- "webpki-roots",
+-]
+-
+-[[package]]
+-name = "ureq-proto"
+-version = "0.6.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "da5f78b09e6941e1a0f2e30e695e4b120377b54d5e0aec11b594bb57b3971613"
+-dependencies = [
+- "base64",
+- "http",
+- "httparse",
+- "log",
+-]
+-
+-[[package]]
+-name = "utf8-zero"
+-version = "0.8.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
+-
+ [[package]]
+ name = "walkdir"
+ version = "2.5.0"
+diff --git a/rust/Cargo.toml b/rust/Cargo.toml
+index 95ce1ac..94ca4fa 100644
+--- a/rust/Cargo.toml
++++ b/rust/Cargo.toml
+@@ -18,6 +18,7 @@ publish = false
+ [workspace.dependencies]
+ ccusage-adapter-all = { path = "crates/ccusage-adapter-all" }
+ ccusage-adapter-amp = { path = "adapters/amp" }
++ccusage-adapter-antigravity = { path = "adapters/antigravity" }
+ ccusage-adapter-claude = { path = "adapters/claude" }
+ ccusage-adapter-codebuff = { path = "adapters/codebuff" }
+ ccusage-adapter-codex = { path = "adapters/codex" }
+@@ -35,8 +36,6 @@ ccusage-adapter-opencode = { path = "adapters/opencode" }
+ ccusage-adapter-pi = { path = "adapters/pi" }
+ ccusage-adapter-qwen = { path = "adapters/qwen" }
+ ccusage-cli = { path = "crates/ccusage-cli" }
+-ccusage-cli-parser = { path = "crates/ccusage-cli-parser" }
+-ccusage-config = { path = "crates/ccusage-config" }
+ ccusage-core = { path = "crates/ccusage-core" }
+ ccusage-terminal = { path = "crates/ccusage-terminal" }
+ ccusage-test-support = { path = "crates/ccusage-test-support" }
+@@ -53,17 +52,14 @@ memchr = "2.8.3"
+ # Inflate-only consumer of the deflated pricing snapshots build.rs embeds; the
+ # compression side is a build-dependency of ccusage-core.
+ miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+-mimalloc = "0.1.52"
+ minreq = { version = "3.0.0", default-features = false, features = ["https-rustls"] }
+ rustc-hash = "2.1.3"
+-schemars = "0.8"
+ serde = { version = "1.0.229", features = ["derive"] }
+ serde_json = "1.0.151"
+ smallvec = "1.15.2"
+ sqlite = { version = "0.37.0", default-features = false, features = ["bundled", "linkage"] }
+ terminal_size = "0.4.4"
+ unicode-width = "0.2.2"
+-ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
+ 
+ [profile.release]
+ codegen-units = 1
+diff --git a/rust/adapters/antigravity/Cargo.toml b/rust/adapters/antigravity/Cargo.toml
+new file mode 100644
+index 0000000..d07301a
+--- /dev/null
++++ b/rust/adapters/antigravity/Cargo.toml
+@@ -0,0 +1,17 @@
++[package]
++name = "ccusage-adapter-antigravity"
++version.workspace = true
++edition.workspace = true
++publish.workspace = true
++
++[dependencies]
++ccusage-adapter-common.workspace = true
++ccusage-cli.workspace = true
++ccusage-core.workspace = true
++jiff.workspace = true
++serde.workspace = true
++serde_json.workspace = true
++sqlite.workspace = true
++
++[dev-dependencies]
++ccusage-test-support.workspace = true
+diff --git a/rust/adapters/antigravity/README.md b/rust/adapters/antigravity/README.md
+new file mode 100644
+index 0000000..70b2c21
+--- /dev/null
++++ b/rust/adapters/antigravity/README.md
+@@ -0,0 +1,87 @@
++# Antigravity Source
++
++Tracks [Google Antigravity](https://antigravity.google) (agentic IDE + CLI,
++Windsurf-derived) usage from local SQLite conversation databases.
++
++Data source:
++
++```text
++${ANTIGRAVITY_DATA_DIR:-~/.gemini/antigravity}/conversations/<uuid>.db
++~/.gemini/antigravity-cli/conversations/<uuid>.db
++~/.gemini/antigravity-ide/conversations/<uuid>.db
++~/.gemini/antigravity-backup/conversations/<uuid>.db
++```
++
++`ANTIGRAVITY_DATA_DIR` accepts one root or a comma-separated list of roots
++and replaces the default `~/.gemini/antigravity*` set. Missing roots are
++skipped. `*.db-wal`/`*.db-shm` sidecars and legacy `.pb` conversation files
++(compressed/encrypted, unsupported) are ignored. A database without a
++`gen_metadata` table is not an Antigravity conversation DB and yields nothing.
++
++Commands:
++
++```sh
++ccusage antigravity daily
++ccusage antigravity monthly
++ccusage antigravity session
++ccusage antigravity daily --json
++```
++
++## Protobuf field map
++
++`gen_metadata.data` (ordered by `idx`) holds one `GeneratorMetadata` message
++per generation, decoded with a hand-rolled wire-format reader (no .proto):
++
++- field 1 (LEN message) → chatModel
++  - field 19 (LEN string) → raw model id
++  - field 9 (LEN message) → generation info; its field 4 → timestamp
++    `{1: seconds varint, 2: nanos varint}` (nanos must be `0..=999_999_999`)
++  - field 4 (LEN message) → usage
++    - field 1 (varint) → fixed system-prompt input tokens
++    - field 2 (varint) → fresh (non-cached) input tokens
++    - field 5 (varint) → cache-read tokens
++    - field 9 (varint) → output (text) tokens
++    - field 10 (varint) → thinking/reasoning tokens
++    - field 11 (LEN string) → responseId (dedup key, within and across DBs)
++
++`trajectory_metadata_blob.data` (first row) holds session fallbacks:
++
++- field 2 (LEN message) → `{1: seconds, 2: nanos}` session created-at
++  (fallback when a generation has no timestamp; final fallback is file mtime)
++- field 1 (LEN message) → field 1 (LEN string) → workspace `file://` URI
++  (percent-decoded; project/session identifier)
++
++## Token semantics
++
++- `input_tokens` = system-prompt (#1) + fresh input (#2). The system-prompt
++  component is a fixed per-generation charge (~1016–1266 tokens).
++- `cache_creation_input_tokens` is always 0.
++- Thinking tokens (#10) are excluded from the displayed `output_tokens` (#9),
++  ride in `extra_total_tokens` (so they still count toward total tokens), and
++  are folded into billable output tokens for cost calculation.
++- Rows where input + output + cache-read + thinking are all 0 are skipped.
++- The source stores no cost; cost comes from the shared pricing pipeline.
++
++## Model aliases
++
++Raw ids are mapped to LiteLLM-priced names case-insensitively; unknown ids
++pass through unchanged:
++
++```text
++model_placeholder_m26 → claude-opus-4-6
++model_placeholder_m35 → claude-sonnet-4-6
++model_placeholder_m36/m37/m16 → gemini-3.1-pro
++model_placeholder_m18/m84/m47 → gemini-3-flash-preview
++model_placeholder_m132/m133 → gemini-3.5-flash-high
++model_placeholder_m187 → gemini-3.5-flash-extra-low
++model_placeholder_m20 → gemini-3.5-flash-medium
++model_openai_gpt_oss_120b_medium → gpt-oss-120b-medium
++gemini-pro-default, gemini-pro-agent → gemini-3.1-pro
++gemini-3-flash-agent/-a/-b → gemini-3.5-flash-high
++gemini-3-flash-c, gemini-3-flash → gemini-3-flash-preview
++gemini-3.5-flash-low → gemini-3.5-flash-medium
++gemini-3.1-pro-high/-low → gemini-3.1-pro
++gemini-3-pro-high/-low → gemini-3-pro
++claude-opus-4-6-thinking → claude-opus-4-6
++claude-sonnet-4-6-thinking → claude-sonnet-4-6
++```
+diff --git a/rust/adapters/antigravity/src/lib.rs b/rust/adapters/antigravity/src/lib.rs
+new file mode 100644
+index 0000000..eb3eadf
+--- /dev/null
++++ b/rust/adapters/antigravity/src/lib.rs
+@@ -0,0 +1,41 @@
++mod loader;
++mod parser;
++mod paths;
++mod proto;
++mod report;
++
++use ccusage_adapter_common::filter_loaded_entries_by_date;
++use ccusage_core::*;
++use ccusage_cli::AgentCommandArgs;
++
++pub use loader::load_entries;
++pub use report::summarize_entries;
++pub(crate) use report::report_from_rows;
++
++pub fn run(args: AgentCommandArgs) -> Result<()> {
++    let shared = args.shared;
++    let pricing = PricingMap::load_with_overrides(
++        shared.offline,
++        log_level() != Some(0),
++        shared.pricing_overrides.iter(),
++    );
++    let mut entries = load_entries(&shared, &pricing)?;
++    filter_loaded_entries_by_date(&mut entries, &shared);
++    let mut rows = summarize_entries(&entries, args.kind)?;
++    sort_summaries(&mut rows, &shared.order, summary_period);
++    if wants_json(&shared) {
++        return print_json_or_jq(
++            report_from_rows(&rows, args.kind),
++            shared.jq.as_deref(),
++            shared.no_cost,
++        );
++    }
++    print_usage_table(
++        "Antigravity Token Usage Report",
++        first_column(args.kind),
++        &rows,
++        &shared,
++        false,
++        None,
++    )
++}
+diff --git a/rust/adapters/antigravity/src/loader.rs b/rust/adapters/antigravity/src/loader.rs
+new file mode 100644
+index 0000000..9e7f2c5
+--- /dev/null
++++ b/rust/adapters/antigravity/src/loader.rs
+@@ -0,0 +1,431 @@
++use std::{
++    collections::HashSet,
++    fs,
++    path::{Path, PathBuf},
++};
++
++use jiff::tz::TimeZone as JiffTimeZone;
++
++use super::{
++    parser::{self, TrajectoryMetadata},
++    paths,
++};
++use ccusage_adapter_common::read_files_parallel;
++use ccusage_core::{
++    LoadedEntry, PricingMap, Result, debug_log, parse_tz,
++    progress::{UsageLoadAgent, track_usage_load},
++};
++use ccusage_cli::{CostMode, SharedArgs};
++
++pub fn load_entries(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<LoadedEntry>> {
++    track_usage_load(
++        UsageLoadAgent("Antigravity"),
++        shared.json,
++        || load_entries_inner(shared, pricing),
++    )
++}
++
++fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<LoadedEntry>> {
++    let roots = paths::paths()?;
++    // Fast detection: without Antigravity data roots there is nothing to do.
++    if roots.is_empty() {
++        return Ok(Vec::new());
++    }
++    load_entries_from_roots(&roots, shared, pricing)
++}
++
++pub(super) fn load_entries_from_roots(
++    roots: &[PathBuf],
++    shared: &SharedArgs,
++    pricing: &PricingMap,
++) -> Result<Vec<LoadedEntry>> {
++    let tz = parse_tz(shared.timezone.as_deref());
++    let mut db_paths = Vec::new();
++    for root in roots {
++        db_paths.extend(paths::conversation_db_paths(root));
++    }
++    // Open each database in parallel (a fresh read-only connection per DB),
++    // then run the sequential responseId dedup over the original path order so
++    // the surviving record per id matches the single-threaded read.
++    let loaded = read_files_parallel(&db_paths, shared.single_thread, |db_path| {
++        load_entries_from_database(db_path, tz.as_ref(), shared.mode, Some(pricing), shared)
++    });
++    let mut entries = Vec::new();
++    let mut seen = HashSet::new();
++    for db_entries in loaded {
++        for entry in db_entries {
++            if let Some(id) = entry.data.message.id.as_deref().filter(|id| !id.is_empty())
++                && !seen.insert(id.to_string())
++            {
++                continue;
++            }
++            entries.push(entry);
++        }
++    }
++    entries.sort_by_key(|entry| entry.timestamp);
++    Ok(entries)
++}
++
++fn load_entries_from_database(
++    db_path: &Path,
++    tz: Option<&JiffTimeZone>,
++    mode: CostMode,
++    pricing: Option<&PricingMap>,
++    shared: &SharedArgs,
++) -> Vec<LoadedEntry> {
++    let Ok(connection) =
++        sqlite::Connection::open_with_flags(db_path, sqlite::OpenFlags::new().with_read_only())
++    else {
++        debug_log(
++            shared,
++            format!("Failed to open Antigravity database: {}", db_path.display()),
++        );
++        return Vec::new();
++    };
++    // A database without gen_metadata is not an Antigravity conversation DB.
++    let Ok(mut statement) = connection.prepare("SELECT data FROM gen_metadata ORDER BY idx") else {
++        return Vec::new();
++    };
++    let trajectory = read_trajectory_metadata(&connection);
++    let context = parser::session_context(db_path, &trajectory, file_mtime_ms(db_path));
++
++    let mut entries = Vec::new();
++    loop {
++        match statement.next() {
++            Ok(sqlite::State::Row) => {
++                let Ok(blob) = statement.read::<Vec<u8>, _>(0) else {
++                    continue;
++                };
++                let record = parser::decode_generation(&blob);
++                if let Some(entry) =
++                    parser::generation_to_entry(&record, &context, tz, mode, pricing)
++                {
++                    entries.push(entry);
++                }
++            }
++            Ok(sqlite::State::Done) => break,
++            Err(_) => {
++                debug_log(
++                    shared,
++                    format!(
++                        "Failed to query Antigravity database: {}",
++                        db_path.display()
++                    ),
++                );
++                break;
++            }
++        }
++    }
++    entries
++}
++
++fn read_trajectory_metadata(connection: &sqlite::Connection) -> TrajectoryMetadata {
++    let Ok(mut statement) = connection.prepare("SELECT data FROM trajectory_metadata_blob LIMIT 1")
++    else {
++        return TrajectoryMetadata::default();
++    };
++    if let Ok(sqlite::State::Row) = statement.next()
++        && let Ok(blob) = statement.read::<Vec<u8>, _>(0)
++    {
++        return parser::decode_trajectory_metadata(&blob);
++    }
++    TrajectoryMetadata::default()
++}
++
++fn file_mtime_ms(db_path: &Path) -> Option<i64> {
++    let modified = fs::metadata(db_path).ok()?.modified().ok()?;
++    let millis = modified
++        .duration_since(std::time::UNIX_EPOCH)
++        .ok()?
++        .as_millis();
++    i64::try_from(millis).ok()
++}
++
++#[cfg(test)]
++mod tests {
++    use std::path::Path;
++
++    use super::{super::parser::encode, *};
++    use ccusage_cli::SharedArgs;
++    use ccusage_test_support::fs_fixture;
++
++    fn create_conversation_db(path: &Path, generations: &[Vec<u8>], trajectory: Option<&[u8]>) {
++        let db = sqlite::open(path).unwrap();
++        db.execute("CREATE TABLE gen_metadata (idx INTEGER, data BLOB)")
++            .unwrap();
++        let mut statement = db
++            .prepare("INSERT INTO gen_metadata (idx, data) VALUES (?1, ?2)")
++            .unwrap();
++        for (index, blob) in generations.iter().enumerate() {
++            statement.bind((1, index as i64)).unwrap();
++            statement.bind((2, blob.as_slice())).unwrap();
++            statement.next().unwrap();
++            statement.reset().unwrap();
++        }
++        if let Some(trajectory) = trajectory {
++            db.execute("CREATE TABLE trajectory_metadata_blob (data BLOB)")
++                .unwrap();
++            let mut statement = db
++                .prepare("INSERT INTO trajectory_metadata_blob (data) VALUES (?1)")
++                .unwrap();
++            statement.bind((1, trajectory)).unwrap();
++            statement.next().unwrap();
++        }
++    }
++
++    fn generation(
++        model: &'static str,
++        response_id: &'static str,
++        input: u64,
++        output: u64,
++    ) -> Vec<u8> {
++        encode::generation_blob(&encode::Generation {
++            model,
++            timestamp: Some((1_767_312_000, 0)),
++            system_input: 1000,
++            fresh_input: input,
++            cache_read: 10,
++            output,
++            thinking: 5,
++            response_id,
++        })
++    }
++
++    fn load(roots: &[PathBuf]) -> Vec<LoadedEntry> {
++        let shared = SharedArgs {
++            mode: CostMode::Display,
++            timezone: Some("UTC".to_string()),
++            ..SharedArgs::default()
++        };
++        load_entries_from_roots(roots, &shared, &PricingMap::default()).unwrap()
++    }
++
++    #[test]
++    fn loads_generation_entries_from_conversation_db() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        create_conversation_db(
++            &root.join("conv-1.db"),
++            &[generation("gemini-3.1-pro-low", "resp-1", 6321, 604)],
++            Some(&encode::trajectory_blob(
++                Some((1_767_312_000, 0)),
++                "file:///Users/test/My%20Projects/app",
++            )),
++        );
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert_eq!(entries.len(), 1);
++        let entry = &entries[0];
++        assert_eq!(entry.session_id.as_ref(), "conv-1");
++        assert_eq!(entry.project.as_ref(), "app");
++        assert_eq!(entry.project_path.as_ref(), "/Users/test/My Projects/app");
++        assert_eq!(entry.model.as_deref(), Some("gemini-3.1-pro"));
++        assert_eq!(entry.data.message.id.as_deref(), Some("resp-1"));
++        assert_eq!(entry.data.message.usage.input_tokens, 1000 + 6321);
++        assert_eq!(entry.data.message.usage.output_tokens, 604);
++        assert_eq!(entry.data.message.usage.cache_read_input_tokens, 10);
++        assert_eq!(entry.extra_total_tokens, 5);
++        assert_eq!(entry.date, "2026-01-02");
++    }
++
++    #[test]
++    fn dedupes_response_ids_within_and_across_dbs() {
++        let fixture = fs_fixture!({});
++        let root_a = fixture.create_dir_all("antigravity/conversations");
++        let root_b = fixture.create_dir_all("antigravity-cli/conversations");
++        create_conversation_db(
++            &root_a.join("conv-a.db"),
++            &[
++                generation("gemini-3.1-pro-low", "resp-1", 100, 1),
++                generation("gemini-3.1-pro-low", "resp-1", 999, 9),
++                generation("gemini-3.1-pro-low", "resp-2", 200, 2),
++            ],
++            None,
++        );
++        create_conversation_db(
++            &root_b.join("conv-b.db"),
++            &[
++                generation("gemini-pro-default", "resp-2", 888, 8),
++                generation("gemini-pro-default", "resp-3", 300, 3),
++            ],
++            None,
++        );
++
++        let entries = load(&[fixture.path("antigravity"), fixture.path("antigravity-cli")]);
++
++        assert_eq!(entries.len(), 3);
++        // First occurrence wins, both within one DB and across DBs.
++        let tokens: Vec<u64> = entries
++            .iter()
++            .map(|entry| entry.data.message.usage.input_tokens)
++            .collect();
++        assert_eq!(tokens, vec![1100, 1200, 1300]);
++    }
++
++    #[test]
++    fn keeps_generations_without_response_id() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        create_conversation_db(
++            &root.join("conv-1.db"),
++            &[
++                generation("gemini-3.1-pro-low", "", 100, 1),
++                generation("gemini-3.1-pro-low", "", 100, 1),
++            ],
++            None,
++        );
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert_eq!(entries.len(), 2);
++    }
++
++    #[test]
++    fn skips_all_zero_generations() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        create_conversation_db(
++            &root.join("conv-1.db"),
++            &[
++                encode::generation_blob(&encode::Generation {
++                    model: "gemini-3.1-pro-low",
++                    timestamp: Some((1_767_312_000, 0)),
++                    system_input: 0,
++                    fresh_input: 0,
++                    cache_read: 0,
++                    output: 0,
++                    thinking: 0,
++                    response_id: "resp-zero",
++                }),
++                generation("gemini-3.1-pro-low", "resp-1", 100, 1),
++            ],
++            None,
++        );
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert_eq!(entries.len(), 1);
++        assert_eq!(entries[0].data.message.id.as_deref(), Some("resp-1"));
++    }
++
++    #[test]
++    fn ignores_databases_without_gen_metadata() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        let db = sqlite::open(root.join("other.db")).unwrap();
++        db.execute("CREATE TABLE steps (idx INTEGER, data BLOB)")
++            .unwrap();
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert!(entries.is_empty());
++    }
++
++    #[test]
++    fn falls_back_to_trajectory_created_at_then_file_mtime() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        let no_timestamp = |response_id: &'static str| {
++            encode::generation_blob(&encode::Generation {
++                model: "gemini-3.1-pro-low",
++                timestamp: None,
++                system_input: 1000,
++                fresh_input: 100,
++                cache_read: 0,
++                output: 1,
++                thinking: 0,
++                response_id,
++            })
++        };
++        create_conversation_db(
++            &root.join("conv-with-trajectory.db"),
++            &[no_timestamp("resp-1")],
++            Some(&encode::trajectory_blob(
++                Some((1_767_312_000, 0)),
++                "file:///Users/test/app",
++            )),
++        );
++        create_conversation_db(&root.join("conv-mtime.db"), &[no_timestamp("resp-2")], None);
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert_eq!(entries.len(), 2);
++        let with_trajectory = entries
++            .iter()
++            .find(|entry| entry.session_id.as_ref() == "conv-with-trajectory")
++            .unwrap();
++        assert_eq!(
++            with_trajectory.timestamp,
++            ccusage_core::TimestampMs::from_millis(1_767_312_000_000)
++        );
++        let with_mtime = entries
++            .iter()
++            .find(|entry| entry.session_id.as_ref() == "conv-mtime")
++            .unwrap();
++        let mtime_ms = i64::try_from(
++            std::fs::metadata(root.join("conv-mtime.db"))
++                .unwrap()
++                .modified()
++                .unwrap()
++                .duration_since(std::time::UNIX_EPOCH)
++                .unwrap()
++                .as_millis(),
++        )
++        .unwrap();
++        assert_eq!(
++            with_mtime.timestamp,
++            ccusage_core::TimestampMs::from_millis(mtime_ms)
++        );
++    }
++
++    #[test]
++    fn discovers_default_roots_under_home() {
++        let fixture = fs_fixture!({
++            ".gemini/antigravity/conversations/.keep": "",
++            ".gemini/antigravity-cli/conversations/.keep": "",
++            ".gemini/antigravity-ide/conversations/.keep": "",
++        });
++        let _env = ccusage_test_support::EnvVarsGuard::set_many([
++            ("HOME", Some(fixture.root().as_os_str().to_os_string())),
++            (paths::ANTIGRAVITY_DATA_DIR_ENV, None),
++        ]);
++
++        let roots = paths::paths().unwrap();
++
++        assert_eq!(
++            roots,
++            vec![
++                fixture.path(".gemini/antigravity"),
++                fixture.path(".gemini/antigravity-cli"),
++                fixture.path(".gemini/antigravity-ide"),
++            ]
++        );
++    }
++
++    #[test]
++    fn reads_real_antigravity_data_when_present() {
++        // Skipped local-data smoke test: catches schema drift on machines that
++        // actually run Antigravity, and silently passes elsewhere.
++        if std::env::var_os(paths::ANTIGRAVITY_DATA_DIR_ENV).is_some() {
++            return;
++        }
++        let roots = paths::paths().unwrap_or_default();
++        if roots.is_empty() {
++            return;
++        }
++        let shared = SharedArgs {
++            mode: CostMode::Display,
++            offline: true,
++            json: true,
++            ..SharedArgs::default()
++        };
++        let entries = load_entries(&shared, &PricingMap::default()).unwrap();
++
++        assert!(!entries.is_empty());
++        assert!(entries.iter().all(|entry| {
++            ccusage_core::total_usage_tokens(entry.data.message.usage) + entry.extra_total_tokens
++                > 0
++        }));
++    }
++}
+diff --git a/rust/adapters/antigravity/src/parser.rs b/rust/adapters/antigravity/src/parser.rs
+new file mode 100644
+index 0000000..4e3b090
+--- /dev/null
++++ b/rust/adapters/antigravity/src/parser.rs
+@@ -0,0 +1,650 @@
++use std::{borrow::Cow, path::Path};
++
++use jiff::tz::TimeZone as JiffTimeZone;
++
++use super::proto::{FieldValue, read_fields};
++use ccusage_core::{
++    LoadedEntry, PricingMap, TimestampMs, TokenUsageRaw, UsageEntry, UsageMessage,
++    calculate_cost_for_usage, cli::CostMode, format_date_tz, format_rfc3339_millis,
++    missing_pricing_model_for_usage,
++};
++
++/// Token counts, model id, timestamp, and response id decoded from one
++/// `gen_metadata` row of an Antigravity conversation database.
++#[derive(Debug, Default)]
++pub(super) struct GenerationMetadata {
++    pub(super) raw_model: Option<String>,
++    pub(super) timestamp_ms: Option<i64>,
++    pub(super) input_tokens: u64,
++    pub(super) output_tokens: u64,
++    pub(super) cache_read_tokens: u64,
++    pub(super) thinking_tokens: u64,
++    pub(super) response_id: Option<String>,
++}
++
++/// Session-level fallbacks decoded from `trajectory_metadata_blob`.
++#[derive(Debug, Default)]
++pub(super) struct TrajectoryMetadata {
++    pub(super) created_ms: Option<i64>,
++    pub(super) workspace_uri: Option<String>,
++}
++
++/// Shared per-database context used to shape every generation entry.
++pub(super) struct SessionContext {
++    pub(super) session_id: String,
++    pub(super) project: String,
++    pub(super) project_path: String,
++    pub(super) fallback_timestamp: TimestampMs,
++}
++
++impl GenerationMetadata {
++    fn total_tokens(&self) -> u64 {
++        self.input_tokens
++            .saturating_add(self.output_tokens)
++            .saturating_add(self.cache_read_tokens)
++            .saturating_add(self.thinking_tokens)
++    }
++}
++
++/// Decodes one `GeneratorMetadata` blob. Layout (hand-verified, no .proto):
++///
++/// - field 1 (LEN message) → chatModel
++///   - field 19 (LEN string) → raw model id
++///   - field 9 (LEN message) → generation info; its field 4 → timestamp
++///     message `{1: seconds varint, 2: nanos varint}`
++///   - field 4 (LEN message) → usage
++///     - field 1 (varint) → fixed system-prompt input tokens
++///     - field 2 (varint) → fresh (non-cached) input tokens
++///     - field 5 (varint) → cache-read tokens
++///     - field 9 (varint) → output (text) tokens
++///     - field 10 (varint) → thinking/reasoning tokens
++///     - field 11 (LEN string) → responseId (dedup key)
++pub(super) fn decode_generation(bytes: &[u8]) -> GenerationMetadata {
++    let mut metadata = GenerationMetadata::default();
++    for (number, value) in read_fields(bytes) {
++        if number != 1 {
++            continue;
++        }
++        let FieldValue::LengthDelimited(chat_model) = value else {
++            continue;
++        };
++        for (number, value) in read_fields(chat_model) {
++            match (number, value) {
++                (19, FieldValue::LengthDelimited(model)) => {
++                    metadata.raw_model = utf8_string(model);
++                }
++                (9, FieldValue::LengthDelimited(info)) => {
++                    metadata.timestamp_ms = decode_generation_timestamp(info);
++                }
++                (4, FieldValue::LengthDelimited(usage)) => decode_usage(usage, &mut metadata),
++                _ => {}
++            }
++        }
++    }
++    metadata
++}
++
++fn decode_generation_timestamp(info: &[u8]) -> Option<i64> {
++    for (number, value) in read_fields(info) {
++        if number == 4
++            && let FieldValue::LengthDelimited(timestamp) = value
++        {
++            return decode_timestamp(timestamp);
++        }
++    }
++    None
++}
++
++/// Decodes `{1: seconds varint, 2: nanos varint}` into Unix epoch
++/// milliseconds. Nanos outside `0..=999_999_999` reject the timestamp.
++fn decode_timestamp(bytes: &[u8]) -> Option<i64> {
++    let mut seconds = None;
++    let mut nanos = None;
++    for (number, value) in read_fields(bytes) {
++        let FieldValue::Varint(value) = value else {
++            continue;
++        };
++        match number {
++            1 => seconds = Some(clamp_varint(value)),
++            2 => nanos = Some(value),
++            _ => {}
++        }
++    }
++    let seconds = i64::try_from(seconds?).ok()?;
++    let nanos = nanos.unwrap_or(0);
++    if nanos > 999_999_999 {
++        return None;
++    }
++    let millis = i64::try_from(nanos / 1_000_000).ok()?;
++    seconds.checked_mul(1_000)?.checked_add(millis)
++}
++
++fn decode_usage(usage: &[u8], metadata: &mut GenerationMetadata) {
++    let mut system_input = 0_u64;
++    let mut fresh_input = 0_u64;
++    for (number, value) in read_fields(usage) {
++        match (number, value) {
++            (1, FieldValue::Varint(value)) => system_input = clamp_varint(value),
++            (2, FieldValue::Varint(value)) => fresh_input = clamp_varint(value),
++            (5, FieldValue::Varint(value)) => metadata.cache_read_tokens = clamp_varint(value),
++            (9, FieldValue::Varint(value)) => metadata.output_tokens = clamp_varint(value),
++            (10, FieldValue::Varint(value)) => metadata.thinking_tokens = clamp_varint(value),
++            (11, FieldValue::LengthDelimited(id)) => metadata.response_id = utf8_string(id),
++            _ => {}
++        }
++    }
++    metadata.input_tokens = system_input.saturating_add(fresh_input);
++}
++
++/// Decodes a `trajectory_metadata_blob` row: field 2 holds the session
++/// created-at timestamp, field 1 → field 1 holds the workspace `file://` URI.
++pub(super) fn decode_trajectory_metadata(bytes: &[u8]) -> TrajectoryMetadata {
++    let mut metadata = TrajectoryMetadata::default();
++    for (number, value) in read_fields(bytes) {
++        match (number, value) {
++            (2, FieldValue::LengthDelimited(timestamp)) => {
++                metadata.created_ms = decode_timestamp(timestamp);
++            }
++            (1, FieldValue::LengthDelimited(inner)) => {
++                for (number, value) in read_fields(inner) {
++                    if number == 1
++                        && let FieldValue::LengthDelimited(uri) = value
++                    {
++                        metadata.workspace_uri = utf8_string(uri);
++                    }
++                }
++            }
++            _ => {}
++        }
++    }
++    metadata
++}
++
++fn utf8_string(bytes: &[u8]) -> Option<String> {
++    std::str::from_utf8(bytes)
++        .ok()
++        .filter(|value| !value.is_empty())
++        .map(str::to_string)
++}
++
++/// Token varints are clamped to `i64::MAX` so corrupt blobs cannot wrap the
++/// counters into negative or overflowing values downstream.
++fn clamp_varint(value: u64) -> u64 {
++    value.min(i64::MAX as u64)
++}
++
++/// Maps Antigravity's raw model ids to LiteLLM-priced names
++/// (case-insensitive). Unknown ids pass through unchanged; the pricing lookup
++/// handles misses gracefully.
++pub(super) fn resolve_model_name(raw: &str) -> Cow<'_, str> {
++    let resolved = match raw.to_ascii_lowercase().as_str() {
++        "model_placeholder_m26" => "claude-opus-4-6",
++        "model_placeholder_m35" => "claude-sonnet-4-6",
++        "model_placeholder_m36" | "model_placeholder_m37" | "model_placeholder_m16" => {
++            "gemini-3.1-pro"
++        }
++        "model_placeholder_m18" | "model_placeholder_m84" | "model_placeholder_m47" => {
++            "gemini-3-flash-preview"
++        }
++        "model_placeholder_m132" | "model_placeholder_m133" => "gemini-3.5-flash-high",
++        "model_placeholder_m187" => "gemini-3.5-flash-extra-low",
++        "model_placeholder_m20" => "gemini-3.5-flash-medium",
++        "model_openai_gpt_oss_120b_medium" => "gpt-oss-120b-medium",
++        "gemini-pro-default" | "gemini-pro-agent" => "gemini-3.1-pro",
++        "gemini-3-flash-agent" | "gemini-3-flash-a" | "gemini-3-flash-b" => "gemini-3.5-flash-high",
++        "gemini-3-flash-c" | "gemini-3-flash" => "gemini-3-flash-preview",
++        "gemini-3.5-flash-low" => "gemini-3.5-flash-medium",
++        "gemini-3.1-pro-high" | "gemini-3.1-pro-low" => "gemini-3.1-pro",
++        "gemini-3-pro-high" | "gemini-3-pro-low" => "gemini-3-pro",
++        "claude-opus-4-6-thinking" => "claude-opus-4-6",
++        "claude-sonnet-4-6-thinking" => "claude-sonnet-4-6",
++        _ => return Cow::Borrowed(raw),
++    };
++    Cow::Borrowed(resolved)
++}
++
++/// Builds the per-database context: conversation id from the file name,
++/// project from the percent-decoded workspace URI, and the timestamp fallback
++/// chain (session created-at, then file mtime).
++pub(super) fn session_context(
++    db_path: &Path,
++    trajectory: &TrajectoryMetadata,
++    file_mtime_ms: Option<i64>,
++) -> SessionContext {
++    let session_id = db_path
++        .file_stem()
++        .and_then(|stem| stem.to_str())
++        .unwrap_or("unknown")
++        .to_string();
++    let workspace_path = trajectory
++        .workspace_uri
++        .as_deref()
++        .and_then(workspace_path_from_uri);
++    let project = workspace_path
++        .as_deref()
++        .and_then(|path| {
++            Path::new(path)
++                .file_name()
++                .and_then(|name| name.to_str())
++                .map(str::to_string)
++        })
++        .unwrap_or_else(|| "unknown".to_string());
++    let fallback_ms = trajectory.created_ms.or(file_mtime_ms).unwrap_or_default();
++    SessionContext {
++        session_id,
++        project,
++        project_path: workspace_path.unwrap_or_else(|| "unknown".to_string()),
++        fallback_timestamp: TimestampMs::from_millis(fallback_ms),
++    }
++}
++
++/// Decodes a `file://` workspace URI into a filesystem path. Only `%XX`
++/// sequences are decoded; the URI authority (always empty for local
++/// workspaces) is skipped.
++pub(super) fn workspace_path_from_uri(uri: &str) -> Option<String> {
++    let path = uri.strip_prefix("file://")?;
++    if path.is_empty() {
++        return None;
++    }
++    Some(percent_decode(path))
++}
++
++fn percent_decode(input: &str) -> String {
++    let bytes = input.as_bytes();
++    let mut decoded = Vec::with_capacity(bytes.len());
++    let mut index = 0;
++    while index < bytes.len() {
++        if bytes[index] == b'%'
++            && index + 2 < bytes.len()
++            && let (Some(high), Some(low)) =
++                (hex_digit(bytes[index + 1]), hex_digit(bytes[index + 2]))
++        {
++            decoded.push(high << 4 | low);
++            index += 3;
++        } else {
++            decoded.push(bytes[index]);
++            index += 1;
++        }
++    }
++    String::from_utf8_lossy(&decoded).into_owned()
++}
++
++fn hex_digit(byte: u8) -> Option<u8> {
++    match byte {
++        b'0'..=b'9' => Some(byte - b'0'),
++        b'a'..=b'f' => Some(byte - b'a' + 10),
++        b'A'..=b'F' => Some(byte - b'A' + 10),
++        _ => None,
++    }
++}
++
++/// Shapes one decoded generation into a [`LoadedEntry`]. Rows whose input,
++/// output, cache-read, and thinking tokens are all zero carry no usage and
++/// are skipped. Thinking tokens ride in `extra_total_tokens` (like other
++/// agents with reasoning tokens) and are folded into billable output tokens
++/// for pricing.
++pub(super) fn generation_to_entry(
++    record: &GenerationMetadata,
++    context: &SessionContext,
++    tz: Option<&JiffTimeZone>,
++    mode: CostMode,
++    pricing: Option<&PricingMap>,
++) -> Option<LoadedEntry> {
++    if record.total_tokens() == 0 {
++        return None;
++    }
++    let timestamp = record
++        .timestamp_ms
++        .map(TimestampMs::from_millis)
++        .unwrap_or(context.fallback_timestamp);
++    let timestamp_text = format_rfc3339_millis(timestamp);
++    let usage = TokenUsageRaw {
++        input_tokens: record.input_tokens,
++        output_tokens: record.output_tokens,
++        cache_creation_input_tokens: 0,
++        cache_read_input_tokens: record.cache_read_tokens,
++        speed: None,
++        cache_creation: None,
++    };
++    let billable_usage = TokenUsageRaw {
++        output_tokens: record.output_tokens.saturating_add(record.thinking_tokens),
++        ..usage
++    };
++    let model = record
++        .raw_model
++        .as_deref()
++        .map(|raw| resolve_model_name(raw).into_owned());
++    let cost = calculate_cost_for_usage(model.as_deref(), billable_usage, None, mode, pricing);
++    let missing_pricing_model =
++        missing_pricing_model_for_usage(model.as_deref(), billable_usage, None, mode, pricing);
++    let data = UsageEntry {
++        session_id: Some(context.session_id.clone()),
++        timestamp: timestamp_text,
++        version: None,
++        message: UsageMessage {
++            usage,
++            model: model.clone(),
++            id: record.response_id.clone(),
++        },
++        cost_usd: None,
++        request_id: None,
++        is_api_error_message: None,
++        is_sidechain: None,
++    };
++    Some(LoadedEntry {
++        date: format_date_tz(timestamp, tz),
++        timestamp,
++        project: std::sync::Arc::from(context.project.as_str()),
++        session_id: std::sync::Arc::from(context.session_id.as_str()),
++        project_path: std::sync::Arc::from(context.project_path.as_str()),
++        cost,
++        extra_total_tokens: record.thinking_tokens,
++        credits: None,
++        message_count: None,
++        model,
++        data,
++        usage_limit_reset_time: None,
++        missing_pricing_model,
++    })
++}
++
++#[cfg(test)]
++pub(super) mod encode {
++    //! Tiny test-only protobuf encoder (varint + length-delimited fields).
++
++    pub fn varint_field(out: &mut Vec<u8>, field: u64, value: u64) {
++        key(out, field, 0);
++        varint(out, value);
++    }
++
++    pub fn len_field(out: &mut Vec<u8>, field: u64, bytes: &[u8]) {
++        key(out, field, 2);
++        varint(out, bytes.len() as u64);
++        out.extend_from_slice(bytes);
++    }
++
++    fn key(out: &mut Vec<u8>, field: u64, wire: u64) {
++        varint(out, field << 3 | wire);
++    }
++
++    fn varint(out: &mut Vec<u8>, mut value: u64) {
++        loop {
++            let mut byte = (value & 0x7f) as u8;
++            value >>= 7;
++            if value != 0 {
++                byte |= 0x80;
++            }
++            out.push(byte);
++            if value == 0 {
++                break;
++            }
++        }
++    }
++
++    pub struct Generation {
++        pub model: &'static str,
++        pub timestamp: Option<(u64, u64)>,
++        pub system_input: u64,
++        pub fresh_input: u64,
++        pub cache_read: u64,
++        pub output: u64,
++        pub thinking: u64,
++        pub response_id: &'static str,
++    }
++
++    pub fn generation_blob(generation: &Generation) -> Vec<u8> {
++        let mut chat_model = Vec::new();
++        len_field(&mut chat_model, 19, generation.model.as_bytes());
++        if let Some((seconds, nanos)) = generation.timestamp {
++            let mut timestamp = Vec::new();
++            varint_field(&mut timestamp, 1, seconds);
++            varint_field(&mut timestamp, 2, nanos);
++            let mut info = Vec::new();
++            len_field(&mut info, 4, &timestamp);
++            len_field(&mut chat_model, 9, &info);
++        }
++        let mut usage = Vec::new();
++        varint_field(&mut usage, 1, generation.system_input);
++        varint_field(&mut usage, 2, generation.fresh_input);
++        varint_field(&mut usage, 5, generation.cache_read);
++        varint_field(&mut usage, 9, generation.output);
++        varint_field(&mut usage, 10, generation.thinking);
++        len_field(&mut usage, 11, generation.response_id.as_bytes());
++        len_field(&mut chat_model, 4, &usage);
++        let mut blob = Vec::new();
++        len_field(&mut blob, 1, &chat_model);
++        blob
++    }
++
++    pub fn trajectory_blob(created: Option<(u64, u64)>, workspace_uri: &str) -> Vec<u8> {
++        let mut blob = Vec::new();
++        if let Some((seconds, nanos)) = created {
++            let mut timestamp = Vec::new();
++            varint_field(&mut timestamp, 1, seconds);
++            varint_field(&mut timestamp, 2, nanos);
++            len_field(&mut blob, 2, &timestamp);
++        }
++        let mut inner = Vec::new();
++        len_field(&mut inner, 1, workspace_uri.as_bytes());
++        len_field(&mut blob, 1, &inner);
++        blob
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::{encode::*, *};
++
++    fn sample_generation() -> Generation {
++        Generation {
++            model: "gemini-3.1-pro-low",
++            timestamp: Some((1_767_312_000, 429_476_000)),
++            system_input: 1036,
++            fresh_input: 6321,
++            cache_read: 36491,
++            output: 604,
++            thinking: 117,
++            response_id: "resp-1",
++        }
++    }
++
++    #[test]
++    fn decodes_all_generation_fields() {
++        let metadata = decode_generation(&generation_blob(&sample_generation()));
++
++        assert_eq!(metadata.raw_model.as_deref(), Some("gemini-3.1-pro-low"));
++        assert_eq!(metadata.timestamp_ms, Some(1_767_312_000_429));
++        assert_eq!(metadata.input_tokens, 1036 + 6321);
++        assert_eq!(metadata.output_tokens, 604);
++        assert_eq!(metadata.cache_read_tokens, 36491);
++        assert_eq!(metadata.thinking_tokens, 117);
++        assert_eq!(metadata.response_id.as_deref(), Some("resp-1"));
++    }
++
++    #[test]
++    fn rejects_timestamp_with_out_of_range_nanos() {
++        let generation = Generation {
++            timestamp: Some((1_767_312_000, 1_000_000_000)),
++            ..sample_generation()
++        };
++        let metadata = decode_generation(&generation_blob(&generation));
++
++        assert_eq!(metadata.timestamp_ms, None);
++    }
++
++    #[test]
++    fn decodes_trajectory_metadata() {
++        let blob = trajectory_blob(
++            Some((1_767_312_000, 207_595_000)),
++            "file:///Users/test/My%20Projects/app",
++        );
++        let metadata = decode_trajectory_metadata(&blob);
++
++        assert_eq!(metadata.created_ms, Some(1_767_312_000_207));
++        assert_eq!(
++            metadata.workspace_uri.as_deref(),
++            Some("file:///Users/test/My%20Projects/app")
++        );
++    }
++
++    #[test]
++    fn workspace_uri_decodes_percent_escapes() {
++        assert_eq!(
++            workspace_path_from_uri("file:///Users/test/My%20Projects/app").as_deref(),
++            Some("/Users/test/My Projects/app")
++        );
++        assert_eq!(
++            workspace_path_from_uri("file:///home/user/%E2%82%ACrates").as_deref(),
++            Some("/home/user/€rates")
++        );
++        assert_eq!(
++            workspace_path_from_uri("file:///trailing%2").as_deref(),
++            Some("/trailing%2")
++        );
++        assert_eq!(workspace_path_from_uri("vscode://file/app"), None);
++    }
++
++    #[test]
++    fn session_context_uses_workspace_basename_as_project() {
++        let trajectory = TrajectoryMetadata {
++            created_ms: Some(1_767_312_000_207),
++            workspace_uri: Some("file:///Users/test/My%20Projects/app".to_string()),
++        };
++        let context = session_context(
++            Path::new("/data/conversations/conv-1.db"),
++            &trajectory,
++            Some(1_700_000_000_000),
++        );
++
++        assert_eq!(context.session_id, "conv-1");
++        assert_eq!(context.project, "app");
++        assert_eq!(context.project_path, "/Users/test/My Projects/app");
++        assert_eq!(
++            context.fallback_timestamp,
++            TimestampMs::from_millis(1_767_312_000_207)
++        );
++    }
++
++    #[test]
++    fn session_context_falls_back_to_file_mtime_and_unknown_project() {
++        let context = session_context(
++            Path::new("/data/conversations/conv-2.db"),
++            &TrajectoryMetadata::default(),
++            Some(1_700_000_000_000),
++        );
++
++        assert_eq!(context.project, "unknown");
++        assert_eq!(context.project_path, "unknown");
++        assert_eq!(
++            context.fallback_timestamp,
++            TimestampMs::from_millis(1_700_000_000_000)
++        );
++    }
++
++    #[test]
++    fn maps_model_aliases_case_insensitively() {
++        let cases = [
++            ("model_placeholder_m26", "claude-opus-4-6"),
++            ("MODEL_PLACEHOLDER_M26", "claude-opus-4-6"),
++            ("model_placeholder_m35", "claude-sonnet-4-6"),
++            ("model_placeholder_m36", "gemini-3.1-pro"),
++            ("model_placeholder_m37", "gemini-3.1-pro"),
++            ("model_placeholder_m16", "gemini-3.1-pro"),
++            ("MODEL_PLACEHOLDER_M16", "gemini-3.1-pro"),
++            ("model_placeholder_m18", "gemini-3-flash-preview"),
++            ("model_placeholder_m84", "gemini-3-flash-preview"),
++            ("model_placeholder_m47", "gemini-3-flash-preview"),
++            ("model_placeholder_m132", "gemini-3.5-flash-high"),
++            ("model_placeholder_m133", "gemini-3.5-flash-high"),
++            ("model_placeholder_m187", "gemini-3.5-flash-extra-low"),
++            ("model_placeholder_m20", "gemini-3.5-flash-medium"),
++            ("model_openai_gpt_oss_120b_medium", "gpt-oss-120b-medium"),
++            ("gemini-pro-default", "gemini-3.1-pro"),
++            ("gemini-pro-agent", "gemini-3.1-pro"),
++            ("gemini-3-flash-agent", "gemini-3.5-flash-high"),
++            ("gemini-3-flash-a", "gemini-3.5-flash-high"),
++            ("gemini-3-flash-b", "gemini-3.5-flash-high"),
++            ("gemini-3-flash-c", "gemini-3-flash-preview"),
++            ("gemini-3-flash", "gemini-3-flash-preview"),
++            ("gemini-3.5-flash-low", "gemini-3.5-flash-medium"),
++            ("gemini-3.1-pro-high", "gemini-3.1-pro"),
++            ("gemini-3.1-pro-low", "gemini-3.1-pro"),
++            ("gemini-3-pro-high", "gemini-3-pro"),
++            ("gemini-3-pro-low", "gemini-3-pro"),
++            ("claude-opus-4-6-thinking", "claude-opus-4-6"),
++            ("claude-sonnet-4-6-thinking", "claude-sonnet-4-6"),
++        ];
++        for (raw, expected) in cases {
++            assert_eq!(resolve_model_name(raw), expected, "raw: {raw}");
++        }
++    }
++
++    #[test]
++    fn passes_unknown_models_through_unchanged() {
++        assert_eq!(resolve_model_name("gemini-9-ultra"), "gemini-9-ultra");
++        assert_eq!(resolve_model_name("Some-Custom-Model"), "Some-Custom-Model");
++    }
++
++    #[test]
++    fn skips_generation_with_all_zero_tokens() {
++        let record = decode_generation(&generation_blob(&Generation {
++            system_input: 0,
++            fresh_input: 0,
++            cache_read: 0,
++            output: 0,
++            thinking: 0,
++            ..sample_generation()
++        }));
++        let context = session_context(
++            Path::new("/data/conversations/conv.db"),
++            &TrajectoryMetadata::default(),
++            None,
++        );
++
++        assert!(generation_to_entry(&record, &context, None, CostMode::Display, None).is_none());
++    }
++
++    #[test]
++    fn entry_carries_thinking_tokens_as_extra_total() {
++        let record = decode_generation(&generation_blob(&sample_generation()));
++        let context = session_context(
++            Path::new("/data/conversations/conv.db"),
++            &TrajectoryMetadata::default(),
++            None,
++        );
++        let tz = ccusage_core::parse_tz(Some("UTC"));
++
++        let entry =
++            generation_to_entry(&record, &context, tz.as_ref(), CostMode::Display, None).unwrap();
++
++        assert_eq!(entry.data.message.usage.input_tokens, 7357);
++        assert_eq!(entry.data.message.usage.output_tokens, 604);
++        assert_eq!(entry.data.message.usage.cache_read_input_tokens, 36491);
++        assert_eq!(entry.data.message.usage.cache_creation_input_tokens, 0);
++        assert_eq!(entry.extra_total_tokens, 117);
++        assert_eq!(entry.model.as_deref(), Some("gemini-3.1-pro"));
++        assert_eq!(entry.data.message.id.as_deref(), Some("resp-1"));
++        assert_eq!(entry.data.timestamp, "2026-01-02T00:00:00.429Z");
++        assert_eq!(entry.date, "2026-01-02");
++    }
++
++    #[test]
++    fn entry_falls_back_to_context_timestamp() {
++        let record = decode_generation(&generation_blob(&Generation {
++            timestamp: None,
++            ..sample_generation()
++        }));
++        let trajectory = TrajectoryMetadata {
++            created_ms: Some(1_767_312_000_207),
++            workspace_uri: None,
++        };
++        let context = session_context(Path::new("/data/conversations/conv.db"), &trajectory, None);
++        let tz = ccusage_core::parse_tz(Some("UTC"));
++
++        let entry =
++            generation_to_entry(&record, &context, tz.as_ref(), CostMode::Display, None).unwrap();
++
++        assert_eq!(entry.timestamp, TimestampMs::from_millis(1_767_312_000_207));
++        assert_eq!(entry.date, "2026-01-02");
++    }
++}
+diff --git a/rust/adapters/antigravity/src/paths.rs b/rust/adapters/antigravity/src/paths.rs
+new file mode 100644
+index 0000000..34922c8
+--- /dev/null
++++ b/rust/adapters/antigravity/src/paths.rs
+@@ -0,0 +1,120 @@
++use std::{
++    collections::HashSet,
++    env,
++    path::{Path, PathBuf},
++};
++
++use ccusage_adapter_common::collect_files_with_extension;
++use ccusage_core::{Result, home::home_dir};
++
++pub(super) const ANTIGRAVITY_DATA_DIR_ENV: &str = "ANTIGRAVITY_DATA_DIR";
++
++/// Default Antigravity data roots under `~/.gemini`. The CLI, IDE, and backup
++/// variants share the same `<root>/conversations/<uuid>.db` layout.
++const DEFAULT_ROOT_NAMES: [&str; 4] = [
++    "antigravity",
++    "antigravity-cli",
++    "antigravity-ide",
++    "antigravity-backup",
++];
++
++/// Returns the Antigravity data roots that exist. `ANTIGRAVITY_DATA_DIR`
++/// overrides the defaults with one root or a comma-separated list of roots.
++pub(super) fn paths() -> Result<Vec<PathBuf>> {
++    let mut paths = Vec::new();
++    let mut seen = HashSet::new();
++    if let Ok(env_paths) = env::var(ANTIGRAVITY_DATA_DIR_ENV) {
++        for raw in env_paths
++            .split(',')
++            .map(str::trim)
++            .filter(|path| !path.is_empty())
++        {
++            let path = PathBuf::from(raw);
++            if path.is_dir() && seen.insert(path.clone()) {
++                paths.push(path);
++            }
++        }
++        return Ok(paths);
++    }
++
++    if let Some(home) = home_dir() {
++        for root_name in DEFAULT_ROOT_NAMES {
++            let path = home.join(".gemini").join(root_name);
++            if path.is_dir() && seen.insert(path.clone()) {
++                paths.push(path);
++            }
++        }
++    }
++    Ok(paths)
++}
++
++/// Lists conversation databases under `<root>/conversations`. The `.db`
++/// extension filter already skips `*.db-wal`/`*.db-shm` sidecars and the
++/// legacy compressed/encrypted `.pb` conversation files, which are
++/// unsupported.
++pub(super) fn conversation_db_paths(root: &Path) -> Vec<PathBuf> {
++    let mut files = Vec::new();
++    collect_files_with_extension(&root.join("conversations"), "db", &mut files);
++    files.sort();
++    files
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use ccusage_test_support::{EnvVarGuard, fs_fixture};
++
++    #[test]
++    fn env_override_accepts_comma_separated_roots() {
++        let fixture = fs_fixture!({
++            "first/conversations/a.db": "",
++            "second/conversations/b.db": "",
++        });
++        let raw = format!(
++            " {}, {}, {}",
++            fixture.path("first").display(),
++            fixture.path("missing").display(),
++            fixture.path("second").display()
++        );
++        let _guard = EnvVarGuard::set(ANTIGRAVITY_DATA_DIR_ENV, &raw);
++
++        let paths = paths().unwrap();
++
++        assert_eq!(paths, vec![fixture.path("first"), fixture.path("second")]);
++    }
++
++    #[test]
++    fn env_override_dedupes_roots() {
++        let fixture = fs_fixture!({
++            "root/conversations/a.db": "",
++        });
++        let raw = format!("{0},{0}", fixture.path("root").display());
++        let _guard = EnvVarGuard::set(ANTIGRAVITY_DATA_DIR_ENV, &raw);
++
++        let paths = paths().unwrap();
++
++        assert_eq!(paths, vec![fixture.path("root")]);
++    }
++
++    #[test]
++    fn discovers_conversation_dbs_and_skips_sidecars_and_pb_files() {
++        let fixture = fs_fixture!({
++            "conversations/a.db": "",
++            "conversations/b.db": "",
++            "conversations/b.db-wal": "",
++            "conversations/b.db-shm": "",
++            "conversations/legacy.pb": "",
++            "conversations/notes.txt": "",
++        });
++
++        let files = conversation_db_paths(fixture.root());
++
++        assert_eq!(
++            files,
++            vec![
++                fixture.path("conversations/a.db"),
++                fixture.path("conversations/b.db")
++            ]
++        );
++    }
++}
+diff --git a/rust/adapters/antigravity/src/proto.rs b/rust/adapters/antigravity/src/proto.rs
+new file mode 100644
+index 0000000..3cf91a2
+--- /dev/null
++++ b/rust/adapters/antigravity/src/proto.rs
+@@ -0,0 +1,149 @@
++//! Minimal protobuf wire-format reader for Antigravity's `GeneratorMetadata`
++//! and trajectory metadata blobs. Supports varint, fixed64, length-delimited,
++//! and fixed32 fields; group wire types terminate parsing (Antigravity does
++//! not emit them) and truncated input stops iteration instead of failing.
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub(super) enum FieldValue<'a> {
++    Varint(u64),
++    Fixed64(u64),
++    LengthDelimited(&'a [u8]),
++    Fixed32(u32),
++}
++
++/// Reads all top-level fields of a protobuf message. Malformed or unsupported
++/// wire types end the read and return the fields decoded so far.
++pub(super) fn read_fields(bytes: &[u8]) -> Vec<(u32, FieldValue<'_>)> {
++    let mut fields = Vec::new();
++    let mut rest = bytes;
++    while !rest.is_empty() {
++        let Some((key, tail)) = read_varint(rest) else {
++            break;
++        };
++        rest = tail;
++        let field_number = u32::try_from(key >> 3).unwrap_or(u32::MAX);
++        match key & 0x7 {
++            0 => {
++                let Some((value, tail)) = read_varint(rest) else {
++                    break;
++                };
++                fields.push((field_number, FieldValue::Varint(value)));
++                rest = tail;
++            }
++            1 => {
++                if rest.len() < 8 {
++                    break;
++                }
++                let (value, tail) = rest.split_at(8);
++                fields.push((
++                    field_number,
++                    FieldValue::Fixed64(u64::from_le_bytes(value.try_into().unwrap_or([0; 8]))),
++                ));
++                rest = tail;
++            }
++            2 => {
++                let Some((length, tail)) = read_varint(rest) else {
++                    break;
++                };
++                let Ok(length) = usize::try_from(length) else {
++                    break;
++                };
++                if tail.len() < length {
++                    break;
++                }
++                let (value, tail) = tail.split_at(length);
++                fields.push((field_number, FieldValue::LengthDelimited(value)));
++                rest = tail;
++            }
++            5 => {
++                if rest.len() < 4 {
++                    break;
++                }
++                let (value, tail) = rest.split_at(4);
++                fields.push((
++                    field_number,
++                    FieldValue::Fixed32(u32::from_le_bytes(value.try_into().unwrap_or([0; 4]))),
++                ));
++                rest = tail;
++            }
++            // Groups (3, 4) and padding wire types are unsupported; stop here.
++            _ => break,
++        }
++    }
++    fields
++}
++
++fn read_varint(bytes: &[u8]) -> Option<(u64, &[u8])> {
++    let mut value = 0_u64;
++    let mut shift = 0_u32;
++    for (index, byte) in bytes.iter().enumerate() {
++        value |= u64::from(byte & 0x7f) << shift;
++        if byte & 0x80 == 0 {
++            return Some((value, &bytes[index + 1..]));
++        }
++        shift += 7;
++        if shift >= 64 {
++            return None;
++        }
++    }
++    None
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn reads_varint_and_length_delimited_fields() {
++        // field 1 varint 150, field 2 LEN "ab"
++        let bytes = [0x08, 0x96, 0x01, 0x12, 0x02, b'a', b'b'];
++        let fields = read_fields(&bytes);
++
++        assert_eq!(
++            fields,
++            vec![
++                (1, FieldValue::Varint(150)),
++                (2, FieldValue::LengthDelimited(b"ab")),
++            ]
++        );
++    }
++
++    #[test]
++    fn stops_on_group_wire_type() {
++        // field 1 varint 1, then field 2 with wire type 3 (start group)
++        let bytes = [0x08, 0x01, 0x13, 0x08, 0x02];
++        let fields = read_fields(&bytes);
++
++        assert_eq!(fields, vec![(1, FieldValue::Varint(1))]);
++    }
++
++    #[test]
++    fn stops_on_truncated_length_delimited_field() {
++        let bytes = [0x12, 0x05, b'a'];
++        let fields = read_fields(&bytes);
++
++        assert!(fields.is_empty());
++    }
++
++    #[test]
++    fn stops_on_unterminated_varint() {
++        let bytes = [0x08, 0x80];
++        let fields = read_fields(&bytes);
++
++        assert!(fields.is_empty());
++    }
++
++    #[test]
++    fn reads_fixed_width_fields() {
++        let mut bytes = vec![0x09];
++        bytes.extend_from_slice(&42_u64.to_le_bytes());
++        bytes.push(0x15);
++        bytes.extend_from_slice(&7_u32.to_le_bytes());
++        let fields = read_fields(&bytes);
++
++        assert_eq!(
++            fields,
++            vec![(1, FieldValue::Fixed64(42)), (2, FieldValue::Fixed32(7))]
++        );
++    }
++}
+diff --git a/rust/adapters/antigravity/src/report.rs b/rust/adapters/antigravity/src/report.rs
+new file mode 100644
+index 0000000..485c4a8
+--- /dev/null
++++ b/rust/adapters/antigravity/src/report.rs
+@@ -0,0 +1,71 @@
++use std::collections::BTreeMap;
++
++use serde_json::{Value, json};
++
++use ccusage_core::{
++    BucketKind, LoadedEntry, Result, SessionAccumulator, UsageSummary, agent_summary_json,
++    cli::{AgentReportKind, WeekDay},
++    summarize_by_key, summarize_summaries_by_bucket, totals_json,
++};
++
++pub fn report_from_rows(rows: &[UsageSummary], kind: AgentReportKind) -> Value {
++    let rows_json = rows
++        .iter()
++        .map(|row| agent_summary_json(row, kind, kind == AgentReportKind::Session))
++        .collect::<Vec<_>>();
++    json!({
++        rows_key(kind): rows_json,
++        "totals": if rows.is_empty() { Value::Null } else { totals_json(rows) },
++    })
++}
++
++pub fn summarize_entries(
++    entries: &[LoadedEntry],
++    kind: AgentReportKind,
++) -> Result<Vec<UsageSummary>> {
++    match kind {
++        AgentReportKind::Daily => summarize_by_key(
++            entries,
++            |entry| entry.date.clone(),
++            |date| (date.to_string(), None),
++        ),
++        AgentReportKind::Monthly => {
++            let daily = summarize_entries(entries, AgentReportKind::Daily)?;
++            Ok(summarize_summaries_by_bucket(
++                &daily,
++                BucketKind::Monthly,
++                WeekDay::Sunday,
++            ))
++        }
++        AgentReportKind::Session => {
++            let mut groups = BTreeMap::<String, SessionAccumulator>::new();
++            for entry in entries {
++                groups
++                    .entry(entry.session_id.to_string())
++                    .or_default()
++                    .add_entry(entry);
++            }
++            groups
++                .into_values()
++                .map(|group| group.into_summary())
++                .collect()
++        }
++        AgentReportKind::Weekly => {
++            let daily = summarize_entries(entries, AgentReportKind::Daily)?;
++            Ok(summarize_summaries_by_bucket(
++                &daily,
++                BucketKind::Weekly,
++                WeekDay::Sunday,
++            ))
++        }
++    }
++}
++
++fn rows_key(kind: AgentReportKind) -> &'static str {
++    match kind {
++        AgentReportKind::Daily => "daily",
++        AgentReportKind::Weekly => "weekly",
++        AgentReportKind::Monthly => "monthly",
++        AgentReportKind::Session => "sessions",
++    }
++}
+diff --git a/rust/crates/ccusage-adapter-all/Cargo.toml b/rust/crates/ccusage-adapter-all/Cargo.toml
+index 88aae66..c7c44c5 100644
+--- a/rust/crates/ccusage-adapter-all/Cargo.toml
++++ b/rust/crates/ccusage-adapter-all/Cargo.toml
+@@ -6,6 +6,7 @@ publish.workspace = true
+ 
+ [dependencies]
+ ccusage-adapter-amp.workspace = true
++ccusage-adapter-antigravity.workspace = true
+ ccusage-adapter-claude.workspace = true
+ ccusage-adapter-codebuff.workspace = true
+ ccusage-adapter-codex.workspace = true
+diff --git a/rust/crates/ccusage-adapter-all/src/lib.rs b/rust/crates/ccusage-adapter-all/src/lib.rs
+index c9e42ef..7425678 100644
+--- a/rust/crates/ccusage-adapter-all/src/lib.rs
++++ b/rust/crates/ccusage-adapter-all/src/lib.rs
+@@ -10,6 +10,7 @@ use ccusage_core::*;
+ 
+ mod adapter {
+     pub use ccusage_adapter_amp as amp;
++    pub use ccusage_adapter_antigravity as antigravity;
+     pub use ccusage_adapter_claude as claude;
+     pub use ccusage_adapter_codebuff as codebuff;
+     pub use ccusage_adapter_codex as codex;
+@@ -29,7 +30,7 @@ mod adapter {
+ 
+ use crate::{
+     Result,
+-    cli::{AgentCommandArgs, AgentReportKind},
++    cli::{AgentCommandArgs, AgentReportKind, SharedArgs},
+     print_json_or_jq, wants_json,
+ };
+ 
+@@ -67,6 +68,20 @@ pub fn run(args: AgentCommandArgs) -> Result<()> {
+     report::print_table(&result.rows, kind, &shared, &result.detected_agents)
+ }
+ 
++/// Downstream (Coding Agent Monitor) collector entry point: loads the unified
++/// daily report rows in-process and returns the same JSON report shape that
++/// `ccusage daily --json --by-agent` prints - without going through the CLI
++/// parser, terminal rendering, or stdout. Callers are expected to set
++/// `json: true` and `offline: true` on `shared`.
++pub fn daily_report_json_by_agent(shared: &SharedArgs) -> Result<serde_json::Value> {
++    let result = loader::load_rows(AgentReportKind::Daily, shared)?;
++    Ok(report::report_json_with_agents(
++        &result.rows,
++        AgentReportKind::Daily,
++        true,
++    ))
++}
++
+ fn requested_sections(
+     command_kind: AgentReportKind,
+     sections: Vec<AgentReportKind>,
+diff --git a/rust/crates/ccusage-adapter-all/src/loader.rs b/rust/crates/ccusage-adapter-all/src/loader.rs
+index c2ece6c..f21b9dc 100644
+--- a/rust/crates/ccusage-adapter-all/src/loader.rs
++++ b/rust/crates/ccusage-adapter-all/src/loader.rs
+@@ -11,8 +11,8 @@ use crate::{
+     BUILT_IN_AGENT_NAMES, CodexGroup, LoadedEntry, ModelBreakdown, PricingMap, Result,
+     SessionAccumulator, UsageSummary,
+     adapter::{
+-        amp, claude, codebuff, codex, copilot, droid, gemini, goose, grok, hermes, kilo, kimi,
+-        openclaw, opencode, pi, qwen,
++        amp, antigravity, claude, codebuff, codex, copilot, droid, gemini, goose, grok, hermes,
++        kilo, kimi, openclaw, opencode, pi, qwen,
+     },
+     cli::{AgentReportKind, CodexSpeed, NamedPiStore, SharedArgs, WeekDay},
+     filter_loaded_entries_by_date, json_float,
+@@ -325,6 +325,21 @@ fn load_base_rows(
+                 Ok(rows)
+             }),
+         },
++        AgentLoadSpec {
++            index: 16,
++            agent: BUILT_IN_AGENT_NAMES[16],
++            progress_agent: crate::progress::UsageLoadAgent("Antigravity"),
++            load: Box::new(|| {
++                load_priced_summary_agent_rows(
++                    "antigravity",
++                    load_kind,
++                    &loader_shared,
++                    pricing,
++                    antigravity::load_entries,
++                    antigravity::summarize_entries,
++                )
++            }),
++        },
+     ];
+     let named_pi_stores = resolve_named_pi_store_paths(&shared.pi_stores)?;
+     for store in named_pi_stores {
+diff --git a/rust/crates/ccusage-adapter-all/src/report.rs b/rust/crates/ccusage-adapter-all/src/report.rs
+index 601461c..64077b2 100644
+--- a/rust/crates/ccusage-adapter-all/src/report.rs
++++ b/rust/crates/ccusage-adapter-all/src/report.rs
+@@ -590,6 +590,7 @@ fn agent_label(agent: &str) -> &str {
+         "kimi" => "Kimi",
+         "qwen" => "Qwen",
+         "grok" => "Grok",
++        "antigravity" => "Antigravity",
+         _ => agent,
+     }
+ }
+diff --git a/rust/crates/ccusage-adapter-all/src/tests.rs b/rust/crates/ccusage-adapter-all/src/tests.rs
+index e7db150..a948bc5 100644
+--- a/rust/crates/ccusage-adapter-all/src/tests.rs
++++ b/rust/crates/ccusage-adapter-all/src/tests.rs
+@@ -560,6 +560,7 @@ fn isolated_agent_env(
+         "KIMI_DATA_DIR",
+         "QWEN_DATA_DIR",
+         "GROK_HOME",
++        "ANTIGRAVITY_DATA_DIR",
+     ]
+     .into_iter()
+     .map(|key| (key, None::<OsString>))
+diff --git a/rust/crates/ccusage-core/build.rs b/rust/crates/ccusage-core/build.rs
+index 0783b82..fff5b1c 100644
+--- a/rust/crates/ccusage-core/build.rs
++++ b/rust/crates/ccusage-core/build.rs
+@@ -23,8 +23,22 @@ fn main() {
+         println!("cargo:rerun-if-changed={}", path.display());
+         fs::read_to_string(path).expect("read pricing snapshot from CCUSAGE_PRICING_JSON_PATH")
+     } else {
+-        println!("cargo:rerun-if-changed={FLAKE_LOCK_JSON}");
+-        fetch_pricing_json()
++        // Downstream (Coding Agent Monitor) default: the pinned LiteLLM
++        // snapshot committed under the vendor root. Plain `cargo build` on the
++        // product must never hit the network or panic for a missing env var;
++        // the fetch feature stays off.
++        let manifest_dir =
++            PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
++        let vendored = manifest_dir.join("../../../pricing/litellm-pricing.json");
++        if vendored.is_file() {
++            println!("cargo:rerun-if-changed={}", vendored.display());
++            fs::read_to_string(&vendored).unwrap_or_else(|error| {
++                panic!("read vendored pricing snapshot {}: {error}", vendored.display())
++            })
++        } else {
++            println!("cargo:rerun-if-changed={FLAKE_LOCK_JSON}");
++            fetch_pricing_json()
++        }
+     };
+     let pricing_json = compact_pricing_json(&pricing_json).expect("compact LiteLLM pricing JSON");
+ 
+diff --git a/rust/crates/ccusage-core/src/lib.rs b/rust/crates/ccusage-core/src/lib.rs
+index a1e2a89..f7a70e6 100644
+--- a/rust/crates/ccusage-core/src/lib.rs
++++ b/rust/crates/ccusage-core/src/lib.rs
+@@ -56,7 +56,7 @@ pub const USAGE_COMPACT_WIDTH_THRESHOLD: usize = 100;
+ 
+ pub const BUILT_IN_AGENT_NAMES: &[&str] = &[
+     "claude", "codex", "opencode", "amp", "droid", "codebuff", "hermes", "pi", "goose", "openclaw",
+-    "kilo", "copilot", "gemini", "kimi", "qwen", "grok",
++    "kilo", "copilot", "gemini", "kimi", "qwen", "grok", "antigravity",
+ ];
+ 
+ pub type Result<T> = std::result::Result<T, CliError>;
+diff --git a/rust/crates/ccusage-core/src/models-dev-pricing.json b/rust/crates/ccusage-core/src/models-dev-pricing.json
+index 1d4a722..cc26d18 100644
+--- a/rust/crates/ccusage-core/src/models-dev-pricing.json
++++ b/rust/crates/ccusage-core/src/models-dev-pricing.json
+@@ -9268,6 +9268,17 @@
+ 			"context": 1048576
+ 		}
+ 	},
++	"gemini-3.1-pro": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 0.375,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
+ 	"gemini-3.1-pro-preview": {
+ 		"cost": {
+ 			"cache_read": 0.2,
+diff --git a/rust/crates/ccusage-core/src/pricing.rs b/rust/crates/ccusage-core/src/pricing.rs
+index f080002..6ad6603 100644
+--- a/rust/crates/ccusage-core/src/pricing.rs
++++ b/rust/crates/ccusage-core/src/pricing.rs
+@@ -3931,7 +3931,9 @@ mod tests {
+ 
+         assert!(pricing.find("claude-opus-4.8-20260528").is_none());
+         assert!(pricing.find("claude-opus-4-9").is_none());
+-        assert!(pricing.find("claude-opus-5").is_none());
++        // claude-opus-5 is priced by the embedded models.dev snapshot; use a
++        // version no source publishes yet for the unknown-version assertion.
++        assert!(pricing.find("claude-opus-6").is_none());
+         assert!(pricing.find("claude-opus-4.70").is_none());
+         assert!(pricing.find("claude-opus-4-20250514").is_some());
+     }

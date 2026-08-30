@@ -1,4 +1,5 @@
-// Import the pinned ccusage Rust source baseline into src-tauri/vendor/ccusage.
+// Rebuild the vendored ccusage tree (src-tauri/vendor/ccusage) from the pinned
+// upstream baselines and the CAM downstream patch series.
 //
 // This is the ONLY step that talks to the network for the vendored sources.
 // It is meant to run explicitly during a vendor upgrade (see
@@ -6,11 +7,31 @@
 // `cargo build` / `pnpm tauri build`. Everything it fetches is pinned to an
 // immutable commit SHA and verified before it lands in the vendor tree.
 //
-// Downstream modifications (the CAM patch series) are NOT applied by this
-// script; they live as committed edits in the vendor tree and as patch files
-// in vendor/ccusage/patches/. Re-running this script resets the vendored
-// files to pristine upstream - the patch series must then be re-applied and
-// re-reviewed.
+// Rebuild pipeline (all inside a scratch work dir; the live vendor tree is
+// only touched after every check below has passed):
+//   1. shallow-fetch the pinned ccusage v20.0.20 commit and the PR #1487 fork
+//      commit, verify commit+tree identity;
+//   2. export the pristine v20.0.20 rust subset into the staging tree;
+//   3. regenerate the reference PR diff (patches/0001-*.patch, audit-only,
+//      NOT applied);
+//   4. apply the CAM downstream patch series (patches/0002-*.patch) with
+//      `git apply` — this reproduces the split-architecture antigravity
+//      port, the offline pricing build.rs fallback, the additive
+//      models.dev pricing entry and the in-process PoC seam;
+//   5. fetch the pinned LiteLLM pricing snapshot (SHA-256 verified);
+//   6. copy the committed PATCHES.md (never regenerated here) and write
+//      UPSTREAM.toml / pricing-manifest.json / MANIFEST.sha256;
+//   7. byte-compare every staged file against the committed vendor blobs —
+//      any mismatch aborts before the swap;
+//   8. swap staging into the vendor tree (old tree backed up and restored
+//      on failure).
+//
+// Preconditions enforced by this script:
+//   - the committed vendor tree is git-clean (no uncommitted vendor edits);
+//   - patches/0002-cam-downstream-v20.0.20.patch applies cleanly to the
+//     pristine export. If vendor edits were made without regenerating that
+//     patch, step 7 fails: regenerate the patch first (see PATCHES.md
+//     "Regression risk & upgrade path").
 //
 // Usage: node scripts/vendor-ccusage-import.mjs [--work-dir <scratch dir>]
 
@@ -46,8 +67,18 @@ const BASELINE = {
 		sha256: "a74538d2edc13e1eb4f67870fbc2ee05035326e6eaed0dc5bce11d372cff6e60",
 		license: "MIT (per repository licensing outside the enterprise directory), copyright Berri AI",
 	},
-	importedAt: new Date().toISOString().slice(0, 10),
+	// Date of the original v20.0.20 import. Deliberately fixed per baseline (not
+	// stamped at run time) so a rebuild reproduces the committed UPSTREAM.toml
+	// byte-for-byte; bump it only when the baseline itself moves.
+	importedAt: "2026-08-29",
 };
+
+// The CAM downstream patch series applied on top of the pristine export, in
+// order. 0001 is the verbatim upstream PR diff (audit reference only — it does
+// not apply to the v20.0.20 split architecture). 0002 is the generated,
+// apply-able representation of every committed downstream edit.
+const CAM_PATCHES = ["0002-cam-downstream-v20.0.20.patch"];
+const REFERENCE_PATCHES = ["0001-antigravity-c58c1b3.patch"];
 
 // v20.0.20 archive digests observed during the 2026-08-29 import. GitHub
 // archive byte representations are not a long-term identity (the plan records
@@ -124,6 +155,40 @@ function fetchCommit(workDir, repoUrl, commit, expectedTree, extraCommits = []) 
 	return dir;
 }
 
+function walkFiles(root) {
+	const out = [];
+	const visit = (dir) => {
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			const full = path.join(dir, entry.name);
+			if (entry.isDirectory()) visit(full);
+			else out.push(full);
+		}
+	};
+	visit(root);
+	return out.sort();
+}
+
+function readCommittedBlobs() {
+	// Committed content of every tracked file under the vendor root: the
+	// rebuild target. Read from git objects (not the working tree) so the
+	// comparison is independent of checkout line-ending smudging.
+	const ls = git(repoRoot, "-c", "core.autocrlf=false", "ls-files", "-s", "--", "src-tauri/vendor/ccusage");
+	const blobs = new Map();
+	for (const line of ls.split("\n")) {
+		if (!line.trim()) continue;
+		// `<mode> <blob hash> <stage>\t<path>` — split metadata from path on the tab.
+		const tab = line.indexOf("\t");
+		const [, hash] = line.slice(0, tab).trim().split(/\s+/);
+		const rel = path.relative(vendorRoot, path.join(repoRoot, line.slice(tab + 1).trim()));
+		const content = execFileSync("git", ["-c", "core.autocrlf=false", "cat-file", "blob", hash], {
+			cwd: repoRoot,
+			maxBuffer: 256 * 1024 * 1024,
+		});
+		blobs.set(rel.split(path.sep).join("/"), content);
+	}
+	return blobs;
+}
+
 function main() {
 	const argv = process.argv.slice(2);
 	const workDirFlag = argv.indexOf("--work-dir");
@@ -131,8 +196,27 @@ function main() {
 		workDirFlag >= 0 && argv[workDirFlag + 1]
 			? path.resolve(argv[workDirFlag + 1])
 			: fs.mkdtempSync(path.join(os.tmpdir(), "ccusage-vendor-"));
+	// --adopt-generated: first rebuild after the patch-flow bootstrap. The two
+	// generator-owned manifests (UPSTREAM.toml, pricing-manifest.json) are
+	// downgraded from strict byte-compare to "reported and adopted"; every
+	// other file still must match the committed blobs exactly. Later rebuilds
+	// must run WITHOUT this flag.
+	const adoptGenerated = argv.includes("--adopt-generated");
+	// Generator-owned files whose content is fully determined by this script.
+	const GENERATED = new Set(["UPSTREAM.toml", "pricing/pricing-manifest.json"]);
 
 	console.log(`work dir: ${workDir}`);
+
+	// 0. Preconditions: the committed vendor tree must be clean so the swap
+	// below cannot discard uncommitted vendor edits.
+	const dirty = git(repoRoot, "status", "--porcelain", "--", "src-tauri/vendor/ccusage").trim();
+	if (dirty) {
+		throw new Error(
+			`vendor tree has uncommitted changes; commit or revert them before rebuilding:\n${dirty}`,
+		);
+	}
+	const committed = readCommittedBlobs();
+
 	const upstreamDir = fetchCommit(workDir, BASELINE.upstream.repo, BASELINE.upstream.commit, BASELINE.upstream.tree);
 	const patchDir = fetchCommit(
 		workDir,
@@ -143,14 +227,14 @@ function main() {
 		[BASELINE.antigravityPatch.baseCommit],
 	);
 
-	// Reset the vendor tree. Downstream-owned files (patches/, PATCHES.md,
-	// pricing manifest) are preserved by being re-generated below.
-	fs.rmSync(vendorRoot, { recursive: true, force: true });
-	fs.mkdirSync(path.join(vendorRoot, "rust"), { recursive: true });
-	fs.mkdirSync(path.join(vendorRoot, "patches"), { recursive: true });
-	fs.mkdirSync(path.join(vendorRoot, "pricing"), { recursive: true });
+	// Staging tree — everything is built here first.
+	const staging = path.join(workDir, "staging");
+	fs.rmSync(staging, { recursive: true, force: true });
+	fs.mkdirSync(path.join(staging, "rust"), { recursive: true });
+	fs.mkdirSync(path.join(staging, "patches"), { recursive: true });
+	fs.mkdirSync(path.join(staging, "pricing"), { recursive: true });
 
-	// 1. Export the pristine v20.0.20 subset into vendor/ccusage/rust.
+	// 1. Export the pristine v20.0.20 subset into staging/rust.
 	// core.autocrlf=false keeps blob bytes (LF) intact: the vendor tree must
 	// match the upstream git blobs so recorded digests stay meaningful.
 	const tar = execFileSync(
@@ -162,29 +246,63 @@ function main() {
 		},
 	);
 	// Extract with tar into a staging dir first, then move: git archive emits
-	// `rust/...` prefixed paths, and we want the vendor root to *be* `rust/`.
+	// `rust/...` prefixed paths, and we want the staging root to *be* `rust/`.
 	const stage = path.join(workDir, "stage");
 	fs.rmSync(stage, { recursive: true, force: true });
 	fs.mkdirSync(stage, { recursive: true });
 	fs.writeFileSync(path.join(stage, "export.tar"), tar);
 	execFileSync("tar", ["-xf", "export.tar"], { cwd: stage });
-	fs.renameSync(path.join(stage, "rust", "Cargo.toml"), path.join(vendorRoot, "rust", "Cargo.toml"));
-	fs.renameSync(path.join(stage, "rust", "Cargo.lock"), path.join(vendorRoot, "rust", "Cargo.lock"));
 	for (const entry of fs.readdirSync(path.join(stage, "rust"))) {
-		fs.renameSync(path.join(stage, "rust", entry), path.join(vendorRoot, "rust", entry));
+		fs.renameSync(path.join(stage, "rust", entry), path.join(staging, "rust", entry));
 	}
 
 	// LICENSE (the repo root LICENSE is a symlink to apps/ccusage/LICENSE).
 	fs.writeFileSync(
-		path.join(vendorRoot, "LICENSE"),
+		path.join(staging, "LICENSE"),
 		execFileSync("git", ["show", `HEAD:apps/ccusage/LICENSE`], { cwd: upstreamDir }),
 	);
 
-	// 2. Record PR #1487 as a reference patch (base..head, verbatim upstream).
-	const prDiff = git(patchDir, "diff", BASELINE.antigravityPatch.baseCommit, BASELINE.antigravityPatch.commit);
-	fs.writeFileSync(path.join(vendorRoot, "patches", "0001-antigravity-c58c1b3.patch"), prDiff);
+	// Pristine models.dev snapshot digest, recorded before the CAM patch adds
+	// its one additive entry (audit reference for the divergence fields below).
+	const pristineModelsDevSha256 = sha256(
+		fs.readFileSync(path.join(staging, "rust", "crates", "ccusage-core", "src", "models-dev-pricing.json")),
+	);
 
-	// 3. LiteLLM pricing snapshot at the pinned commit.
+	// 2. Record PR #1487 as a reference patch (base..head, verbatim upstream).
+	// Audit reference only: it was written against the v20.0.18 monolithic
+	// crate and does NOT apply to the v20.0.20 split architecture.
+	const prDiff = git(patchDir, "diff", BASELINE.antigravityPatch.baseCommit, BASELINE.antigravityPatch.commit);
+	fs.writeFileSync(path.join(staging, "patches", "0001-antigravity-c58c1b3.patch"), prDiff);
+
+	// 3. Apply the CAM downstream patch series to the pristine export.
+	for (const patchFile of CAM_PATCHES) {
+		const repoPatch = path.join(vendorRoot, "patches", patchFile);
+		if (!fs.existsSync(repoPatch)) {
+			throw new Error(`CAM patch missing from the repository: ${repoPatch}`);
+		}
+		execFileSync("git", ["apply", "--check", path.join("patches", patchFile)], {
+			cwd: staging,
+			maxBuffer: 64 * 1024 * 1024,
+		});
+		execFileSync("git", ["apply", path.join("patches", patchFile)], {
+			cwd: staging,
+			maxBuffer: 64 * 1024 * 1024,
+		});
+		// Keep the applied patch in the staged patches/ dir so the committed
+		// set matches what the rebuild used.
+		fs.copyFileSync(repoPatch, path.join(staging, "patches", patchFile));
+	}
+	for (const patchFile of REFERENCE_PATCHES) {
+		if (!fs.existsSync(path.join(vendorRoot, "patches", patchFile))) {
+			throw new Error(`reference patch missing from the repository: ${patchFile}`);
+		}
+		fs.copyFileSync(
+			path.join(vendorRoot, "patches", patchFile),
+			path.join(staging, "patches", patchFile),
+		);
+	}
+
+	// 4. LiteLLM pricing snapshot at the pinned commit.
 	const litellmUrl = `${BASELINE.litellm.repo}/raw/${BASELINE.litellm.commit}/${BASELINE.litellm.file}`;
 	const pricingBuffer = execFileSync("curl", ["-sL", "-o", "-", litellmUrl], { maxBuffer: 64 * 1024 * 1024 });
 	if (sha256(pricingBuffer) !== BASELINE.litellm.sha256) {
@@ -192,11 +310,24 @@ function main() {
 			`LiteLLM pricing SHA-256 mismatch: got ${sha256(pricingBuffer)}, expected ${BASELINE.litellm.sha256}`,
 		);
 	}
-	fs.writeFileSync(path.join(vendorRoot, "pricing", "litellm-pricing.json"), pricingBuffer);
+	fs.writeFileSync(path.join(staging, "pricing", "litellm-pricing.json"), pricingBuffer);
 
-	// 4. Auditable manifests.
+	// 5. Preserve the committed PATCHES.md (hand-written; never regenerated).
+	const patchesDoc = path.join(vendorRoot, "PATCHES.md");
+	if (!fs.existsSync(patchesDoc)) {
+		throw new Error("vendor/ccusage/PATCHES.md is missing; it is not generated by this script");
+	}
+	fs.copyFileSync(patchesDoc, path.join(staging, "PATCHES.md"));
+
+	// 6. Auditable manifests. models-dev digest is taken from the post-patch
+	// snapshot (pristine upstream + the one additive entry from PR #1487).
+	const modelsDevPath = path.join(staging, "rust", "crates", "ccusage-core", "src", "models-dev-pricing.json");
+	const modelsDevBuffer = fs.readFileSync(modelsDevPath);
+	const modelsDevSha256 = sha256(modelsDevBuffer);
+	const modelsDevEntries = Object.keys(JSON.parse(modelsDevBuffer.toString("utf8"))).length;
+
 	fs.writeFileSync(
-		path.join(vendorRoot, "pricing", "pricing-manifest.json"),
+		path.join(staging, "pricing", "pricing-manifest.json"),
 		`${JSON.stringify(
 			{
 				litellm: {
@@ -208,8 +339,13 @@ function main() {
 					license: BASELINE.litellm.license,
 				},
 				modelsDev: {
-					source:
-						"ccusage v20.0.20 vendored snapshot (rust/crates/ccusage-core/src/models-dev-pricing.json), replaced by the 0001 patch series entry with the PR #1487 Gemini-extended snapshot",
+					source: "ccusage v20.0.20 vendored snapshot (rust/crates/ccusage-core/src/models-dev-pricing.json)",
+					upstream: `${BASELINE.upstream.repo}/blob/${BASELINE.upstream.commit}/rust/crates/ccusage-core/src/models-dev-pricing.json`,
+					entries: modelsDevEntries,
+					sha256: modelsDevSha256,
+					sha256_upstream_pristine: pristineModelsDevSha256,
+					divergence:
+						"0002 patch: additive merge of the antigravity alias entry \"gemini-3.1-pro\" from the PR #1487 snapshot (fork c58c1b3aab2eacc82add250c8229bb6192e4489b); everything else is the pristine upstream blob. Antigravity model ids gemini-3.5-flash-high/-medium/-extra-low, gpt-oss-120b-medium and gemini-3-flash-a/b/c have no entry in either snapshot and intentionally stay unpriced (null cost), see PATCHES.md.",
 				},
 			},
 			null,
@@ -236,13 +372,22 @@ tree = "${BASELINE.antigravityPatch.tree}"
 base_commit = "${BASELINE.antigravityPatch.baseCommit}"
 patch_file = "patches/0001-antigravity-c58c1b3.patch"
 license = "MIT"
-note = "closed, unmerged downstream patch; ported manually onto the split-adapter v20.0.20 architecture (see PATCHES.md)"
+note = "closed, unmerged downstream patch; ported manually onto the split-adapter v20.0.20 architecture; the apply-able representation of every committed downstream edit is patches/0002-cam-downstream-v20.0.20.patch (see PATCHES.md)"
 
 [litellm_pricing]
 repo = "${BASELINE.litellm.repo}"
 commit = "${BASELINE.litellm.commit}"
 file = "${BASELINE.litellm.file}"
 sha256 = "${BASELINE.litellm.sha256}"
+
+[models_dev_pricing]
+# Embedded pricing snapshot consumed by ccusage-core (src/models-dev-pricing.json).
+# See PATCHES.md 0001 for the one additive entry and pricing/pricing-manifest.json.
+upstream = "${BASELINE.upstream.repo}/blob/${BASELINE.upstream.commit}/rust/crates/ccusage-core/src/models-dev-pricing.json"
+entries = ${modelsDevEntries}
+sha256 = "${modelsDevSha256}"
+sha256_upstream_pristine = "${pristineModelsDevSha256}"
+divergence = "0002 patch: additive merge of 'gemini-3.1-pro' from PR #1487 fork c58c1b3aab2eacc82add250c8229bb6192e4489b; all other entries pristine upstream"
 
 [archive_digests]
 # SHA-512 of the GitHub codeload tar.gz archives observed during the import.
@@ -256,11 +401,94 @@ imported_at = "${BASELINE.importedAt}"
 imported_by = "scripts/vendor-ccusage-import.mjs"
 scope = "rust workspace subset required for unified daily collection (core, all agent adapters, unified adapter, pricing); CLI bin/parser/config, npm launcher, docs site and benchmarks excluded"
 `;
-	fs.writeFileSync(path.join(vendorRoot, "UPSTREAM.toml"), upstreamToml);
+	fs.writeFileSync(path.join(staging, "UPSTREAM.toml"), upstreamToml);
 
-	console.log(`vendored ccusage baseline imported to ${vendorRoot}`);
-	console.log("NOTE: downstream patches (see PATCHES.md) are NOT applied by the import;");
-	console.log("      they are committed edits in this repository.");
+	// 7. Prove the rebuild reproduces the committed vendor tree byte-for-byte
+	// BEFORE touching the live tree. Staged bytes must equal the committed
+	// git blobs; the committed blob set must equal the staged file set.
+	const stagedRel = walkFiles(staging)
+		.map((file) => path.relative(staging, file).split(path.sep).join("/"))
+		.sort();
+	const expected = [...committed.keys()].filter((rel) => rel !== "MANIFEST.sha256").sort();
+	const onlyStaged = stagedRel.filter((rel) => !expected.includes(rel));
+	const onlyCommitted = expected.filter((rel) => !stagedRel.includes(rel));
+	if (onlyStaged.length || onlyCommitted.length) {
+		throw new Error(
+			`rebuilt tree does not match the committed vendor file set.\n` +
+				`only in rebuilt: ${JSON.stringify(onlyStaged)}\n` +
+				`only in committed: ${JSON.stringify(onlyCommitted)}\n` +
+				`Regenerate patches/0002-cam-downstream-v20.0.20.patch (see PATCHES.md) before re-running the import.`,
+		);
+	}
+	const drifted = [];
+	const adoptedGenerated = [];
+	for (const rel of stagedRel) {
+		const staged = fs.readFileSync(path.join(staging, ...rel.split("/")));
+		if (sha256(staged) === sha256(committed.get(rel))) continue;
+		if (GENERATED.has(rel)) {
+			if (adoptGenerated) {
+				adoptedGenerated.push(rel);
+				continue;
+			}
+			throw new Error(
+				`generator-owned manifest ${rel} differs from the committed version. ` +
+					`If this rebuild intentionally updates the import flow, re-run with --adopt-generated; otherwise regenerate the committed manifests from the current script.`,
+			);
+		}
+		drifted.push(rel);
+	}
+	if (drifted.length) {
+		throw new Error(
+			`rebuilt files differ from the committed vendor blobs:\n  ${drifted.join("\n  ")}\n` +
+				`Regenerate patches/0002-cam-downstream-v20.0.20.patch (see PATCHES.md) before re-running the import.`,
+		);
+	}
+	for (const rel of adoptedGenerated) {
+		console.log(`adopted regenerated manifest: ${rel}`);
+	}
+
+	// 8. MANIFEST.sha256 over the rebuilt tree (committed content identity,
+	// independent of checkout line-ending smudging). Verified by
+	// scripts/vendor-verify.mjs.
+	const manifestLines = stagedRel.map((rel) => {
+		const content = fs.readFileSync(path.join(staging, ...rel.split("/")));
+		return `${sha256(content)}  ${rel}`;
+	});
+	fs.writeFileSync(path.join(staging, "MANIFEST.sha256"), `${manifestLines.join("\n")}\n`);
+
+	// 9. Swap staging into the live vendor tree. Back up first; roll back on
+	// any failure so the existing vendor is never left destroyed.
+	const backup = path.join(workDir, "backup");
+	fs.mkdirSync(backup, { recursive: true });
+	const swapEntries = ["rust", "patches", "pricing", "LICENSE", "PATCHES.md", "UPSTREAM.toml"];
+	const movedToBackup = [];
+	try {
+		for (const entry of swapEntries) {
+			const live = path.join(vendorRoot, entry);
+			if (fs.existsSync(live)) {
+				fs.renameSync(live, path.join(backup, entry));
+				movedToBackup.push(entry);
+			}
+		}
+		for (const entry of swapEntries) {
+			fs.renameSync(path.join(staging, entry), path.join(vendorRoot, entry));
+		}
+		fs.copyFileSync(path.join(staging, "MANIFEST.sha256"), path.join(vendorRoot, "MANIFEST.sha256"));
+	} catch (error) {
+		// Roll back: restore whatever was moved out, remove half-swapped staging.
+		for (const entry of swapEntries) {
+			const live = path.join(vendorRoot, entry);
+			fs.rmSync(live, { recursive: true, force: true });
+			if (movedToBackup.includes(entry)) {
+				fs.renameSync(path.join(backup, entry), live);
+			}
+		}
+		throw new Error(`swap failed; vendor tree restored from backup. Cause: ${error.message}`);
+	}
+
+	console.log(`vendored ccusage baseline rebuilt and verified against the committed tree (${stagedRel.length + 1} files)`);
+	console.log("next: cargo test --workspace in src-tauri/vendor/ccusage/rust, then pnpm vendor:verify");
+	console.log("review the git diff of src-tauri/vendor/ccusage before committing.");
 }
 
 main();
