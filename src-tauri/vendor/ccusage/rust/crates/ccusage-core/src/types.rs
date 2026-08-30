@@ -101,7 +101,9 @@ pub struct ModelBreakdown {
     #[serde(skip_serializing)]
     pub extra_total_tokens: u64,
     pub cost: f64,
-    #[serde(skip_serializing)]
+    // Downstream (Coding Agent Monitor) 0002 patch: serialized so in-process
+    // collectors can distinguish "priced at zero" from "no pricing entry"
+    // (the product null-vs-zero cost contract). Upstream skips this field.
     pub missing_pricing: bool,
 }
 

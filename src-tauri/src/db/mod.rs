@@ -49,9 +49,7 @@ mod tests {
             .prepare("PRAGMA journal_mode")
             .expect("prepare journal_mode pragma");
         assert!(matches!(pragma.next(), Ok(sqlite::State::Row)));
-        let journal_mode: String = pragma
-            .read(0)
-            .expect("read journal_mode pragma value");
+        let journal_mode: String = pragma.read(0).expect("read journal_mode pragma value");
         assert_eq!(journal_mode.to_ascii_lowercase(), "wal");
         drop(pragma);
         drop(connection);

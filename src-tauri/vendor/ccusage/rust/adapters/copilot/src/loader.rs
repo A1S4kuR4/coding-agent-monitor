@@ -277,7 +277,10 @@ mod tests {
                 "outputTokens": 50,
                 "cacheCreationTokens": 20,
                 "cacheReadTokens": 10,
-                "cost": 300.0
+                "cost": 300.0,
+                // Downstream (Coding Agent Monitor) 0002 patch: missingPricing
+                // is now serialized on model breakdowns.
+                "missingPricing": false
             }])
         );
     }

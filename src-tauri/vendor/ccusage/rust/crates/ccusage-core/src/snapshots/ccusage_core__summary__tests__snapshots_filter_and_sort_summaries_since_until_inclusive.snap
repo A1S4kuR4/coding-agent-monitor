@@ -1,5 +1,5 @@
 ---
-source: crates/ccusage/src/summary.rs
+source: crates/ccusage-core/src/summary.rs
 expression: rows
 ---
 [
@@ -22,7 +22,8 @@ expression: rows
         "outputTokens": 10,
         "cacheCreationTokens": 1,
         "cacheReadTokens": 2,
-        "cost": 0.5
+        "cost": 0.5,
+        "missingPricing": false
       }
     ]
   },
@@ -45,7 +46,8 @@ expression: rows
         "outputTokens": 10,
         "cacheCreationTokens": 1,
         "cacheReadTokens": 2,
-        "cost": 0.25
+        "cost": 0.25,
+        "missingPricing": false
       }
     ]
   }

@@ -1,5 +1,5 @@
 ---
-source: crates/ccusage/src/adapter/opencode/report.rs
+source: adapters/opencode/src/report.rs
 expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, AgentReportKind::Daily, false),\n    \"weekly\": agent_summary_json(&weekly, AgentReportKind::Weekly, false),\n    \"monthly\": agent_summary_json(&monthly, AgentReportKind::Monthly, false),\n    \"session\": agent_summary_json(&session, AgentReportKind::Session, true),\n    \"dailyReport\":\n    report_from_rows(std::slice::from_ref(&daily), AgentReportKind::Daily),\n    \"sessionReport\": report_from_rows(&[session], AgentReportKind::Session),\n})"
 ---
 {
@@ -16,6 +16,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
         "cacheReadTokens": 5,
         "cost": 0.25,
         "inputTokens": 100,
+        "missingPricing": false,
         "modelName": "gpt-5.2-codex",
         "outputTokens": 50
       }
@@ -43,6 +44,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
             "cacheReadTokens": 5,
             "cost": 0.25,
             "inputTokens": 100,
+            "missingPricing": false,
             "modelName": "gpt-5.2-codex",
             "outputTokens": 50
           }
@@ -78,6 +80,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
         "cacheReadTokens": 5,
         "cost": 0.25,
         "inputTokens": 100,
+        "missingPricing": false,
         "modelName": "gpt-5.2-codex",
         "outputTokens": 50
       }
@@ -105,6 +108,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
         "cacheReadTokens": 5,
         "cost": 0.25,
         "inputTokens": 100,
+        "missingPricing": false,
         "modelName": "gpt-5.2-codex",
         "outputTokens": 50
       }
@@ -133,6 +137,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
             "cacheReadTokens": 5,
             "cost": 0.25,
             "inputTokens": 100,
+            "missingPricing": false,
             "modelName": "gpt-5.2-codex",
             "outputTokens": 50
           }
@@ -169,6 +174,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
         "cacheReadTokens": 5,
         "cost": 0.25,
         "inputTokens": 100,
+        "missingPricing": false,
         "modelName": "gpt-5.2-codex",
         "outputTokens": 50
       }

@@ -1,5 +1,5 @@
 ---
-source: crates/ccusage/src/summary.rs
+source: crates/ccusage-core/src/summary.rs
 expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
 ---
 {
@@ -16,6 +16,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "cacheReadTokens": 2,
           "cost": 0.125,
           "inputTokens": 100,
+          "missingPricing": false,
           "modelName": "gpt-5.2-codex",
           "outputTokens": 10
         }
@@ -39,6 +40,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "cacheReadTokens": 2,
           "cost": 0.5,
           "inputTokens": 300,
+          "missingPricing": false,
           "modelName": "gpt-5.2-codex",
           "outputTokens": 10
         },
@@ -47,6 +49,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "cacheReadTokens": 2,
           "cost": 0.25,
           "inputTokens": 200,
+          "missingPricing": false,
           "modelName": "claude-sonnet-4-20250514",
           "outputTokens": 10
         }
@@ -71,6 +74,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "cacheReadTokens": 2,
           "cost": 0.0,
           "inputTokens": 1,
+          "missingPricing": false,
           "modelName": "unknown-model",
           "outputTokens": 10
         }
@@ -96,6 +100,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "cacheReadTokens": 2,
           "cost": 0.25,
           "inputTokens": 200,
+          "missingPricing": false,
           "modelName": "claude-sonnet-4-20250514",
           "outputTokens": 10
         },
@@ -104,6 +109,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "cacheReadTokens": 2,
           "cost": 0.125,
           "inputTokens": 100,
+          "missingPricing": false,
           "modelName": "gpt-5.2-codex",
           "outputTokens": 10
         }
@@ -128,6 +134,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "cacheReadTokens": 2,
           "cost": 0.5,
           "inputTokens": 300,
+          "missingPricing": false,
           "modelName": "gpt-5.2-codex",
           "outputTokens": 10
         }
@@ -151,6 +158,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "cacheReadTokens": 2,
           "cost": 0.0,
           "inputTokens": 1,
+          "missingPricing": false,
           "modelName": "unknown-model",
           "outputTokens": 10
         }

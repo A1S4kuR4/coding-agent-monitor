@@ -1,5 +1,5 @@
 ---
-source: crates/ccusage/src/summary.rs
+source: crates/ccusage-core/src/summary.rs
 expression: row
 ---
 {
@@ -25,7 +25,8 @@ expression: row
       "outputTokens": 10,
       "cacheCreationTokens": 0,
       "cacheReadTokens": 0,
-      "cost": 0.25
+      "cost": 0.25,
+      "missingPricing": false
     },
     {
       "modelName": "gpt-5.2-codex",
@@ -33,7 +34,8 @@ expression: row
       "outputTokens": 50,
       "cacheCreationTokens": 10,
       "cacheReadTokens": 5,
-      "cost": 0.125
+      "cost": 0.125,
+      "missingPricing": false
     }
   ],
   "versions": [

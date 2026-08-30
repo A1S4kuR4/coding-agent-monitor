@@ -1,3 +1,4 @@
+pub mod collector;
 mod commands;
 mod db;
 mod error;

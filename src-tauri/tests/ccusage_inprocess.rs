@@ -90,7 +90,9 @@ fn temp_fixture_root() -> PathBuf {
 fn daily_report_json_by_agent_collects_claude_fixture_in_process() {
     // Held for the whole test: guards both the fixture env writes and the
     // vendored loaders' env reads.
-    let _serial = ENV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _serial = ENV_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let root = temp_fixture_root();
     fs::create_dir_all(root.join("claude/projects/cam")).expect("create claude fixture");
     fs::create_dir_all(root.join("antigravity")).expect("create antigravity fixture");
@@ -131,8 +133,7 @@ fn daily_report_json_by_agent_collects_claude_fixture_in_process() {
         ..SharedArgs::default()
     };
 
-    let report =
-        daily_report_json_by_agent(&shared).expect("in-process unified daily report");
+    let report = daily_report_json_by_agent(&shared).expect("in-process unified daily report");
 
     let daily = report["daily"].as_array().expect("daily rows");
     assert_eq!(daily.len(), 1, "exactly one daily row from the fixture");

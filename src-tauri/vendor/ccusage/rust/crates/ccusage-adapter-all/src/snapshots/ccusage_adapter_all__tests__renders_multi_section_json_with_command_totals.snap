@@ -1,6 +1,5 @@
 ---
-source: crates/ccusage/src/adapter/all/tests.rs
-assertion_line: 466
+source: crates/ccusage-adapter-all/src/tests.rs
 expression: "serde_json::to_string_pretty(&report).unwrap()"
 ---
 {

@@ -131,6 +131,17 @@ through the CLI parser, terminal rendering, or stdout. Callers set
 the seam the Gate 0 PoC test in `src-tauri/` exercises; the production
 sidecar collection path is **not** switched to it by this patch series.
 
+### `rust/crates/ccusage-core/src/types.rs` — serialize `missingPricing` on model breakdowns
+
+Upstream keeps `ModelBreakdown::missing_pricing` behind
+`#[serde(skip_serializing)]`, so a model with no pricing entry is
+indistinguishable from a model priced at exactly $0 in the unified JSON
+(both render `"cost": 0.0`). That breaks the CAM null-vs-zero cost contract.
+The patch removes the skip attribute so each model breakdown serializes
+`"missingPricing": true|false` (purely additive field). Downstream tests
+updated accordingly (copilot/qwen inline JSON expectations, core insta
+snapshots) — those hunks are part of this patch file.
+
 ### Import-scope filtering (part of the import, not upstream code)
 
 Per `UPSTREAM.toml [import] scope`, the vendored workspace excludes the CLI

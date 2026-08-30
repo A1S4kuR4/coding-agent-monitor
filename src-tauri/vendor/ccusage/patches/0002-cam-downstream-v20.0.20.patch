@@ -1968,6 +1968,97 @@ index 0000000..485c4a8
 +        AgentReportKind::Session => "sessions",
 +    }
 +}
+diff --git a/rust/adapters/copilot/src/loader.rs b/rust/adapters/copilot/src/loader.rs
+index 54758a6..37f0bdb 100644
+--- a/rust/adapters/copilot/src/loader.rs
++++ b/rust/adapters/copilot/src/loader.rs
+@@ -277,7 +277,10 @@ mod tests {
+                 "outputTokens": 50,
+                 "cacheCreationTokens": 20,
+                 "cacheReadTokens": 10,
+-                "cost": 300.0
++                "cost": 300.0,
++                // Downstream (Coding Agent Monitor) 0002 patch: missingPricing
++                // is now serialized on model breakdowns.
++                "missingPricing": false
+             }])
+         );
+     }
+diff --git a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap b/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap
+index 0b4c67f..12866d4 100644
+--- a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap
++++ b/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/adapter/opencode/report.rs
++source: adapters/opencode/src/report.rs
+ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, AgentReportKind::Daily, false),\n    \"weekly\": agent_summary_json(&weekly, AgentReportKind::Weekly, false),\n    \"monthly\": agent_summary_json(&monthly, AgentReportKind::Monthly, false),\n    \"session\": agent_summary_json(&session, AgentReportKind::Session, true),\n    \"dailyReport\":\n    report_from_rows(std::slice::from_ref(&daily), AgentReportKind::Daily),\n    \"sessionReport\": report_from_rows(&[session], AgentReportKind::Session),\n})"
+ ---
+ {
+@@ -16,6 +16,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+         "cacheReadTokens": 5,
+         "cost": 0.25,
+         "inputTokens": 100,
++        "missingPricing": false,
+         "modelName": "gpt-5.2-codex",
+         "outputTokens": 50
+       }
+@@ -43,6 +44,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+             "cacheReadTokens": 5,
+             "cost": 0.25,
+             "inputTokens": 100,
++            "missingPricing": false,
+             "modelName": "gpt-5.2-codex",
+             "outputTokens": 50
+           }
+@@ -78,6 +80,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+         "cacheReadTokens": 5,
+         "cost": 0.25,
+         "inputTokens": 100,
++        "missingPricing": false,
+         "modelName": "gpt-5.2-codex",
+         "outputTokens": 50
+       }
+@@ -105,6 +108,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+         "cacheReadTokens": 5,
+         "cost": 0.25,
+         "inputTokens": 100,
++        "missingPricing": false,
+         "modelName": "gpt-5.2-codex",
+         "outputTokens": 50
+       }
+@@ -133,6 +137,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+             "cacheReadTokens": 5,
+             "cost": 0.25,
+             "inputTokens": 100,
++            "missingPricing": false,
+             "modelName": "gpt-5.2-codex",
+             "outputTokens": 50
+           }
+@@ -169,6 +174,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+         "cacheReadTokens": 5,
+         "cost": 0.25,
+         "inputTokens": 100,
++        "missingPricing": false,
+         "modelName": "gpt-5.2-codex",
+         "outputTokens": 50
+       }
+diff --git a/rust/adapters/qwen/src/lib.rs b/rust/adapters/qwen/src/lib.rs
+index cccf5dc..c9fb8fc 100644
+--- a/rust/adapters/qwen/src/lib.rs
++++ b/rust/adapters/qwen/src/lib.rs
+@@ -140,7 +140,10 @@ mod tests {
+                 "outputTokens": 50,
+                 "cacheCreationTokens": 0,
+                 "cacheReadTokens": 5,
+-                "cost": 0.0
++                "cost": 0.0,
++                // Downstream (Coding Agent Monitor) 0002 patch: missingPricing
++                // is now serialized on model breakdowns.
++                "missingPricing": false
+             }])
+         );
+     }
 diff --git a/rust/crates/ccusage-adapter-all/Cargo.toml b/rust/crates/ccusage-adapter-all/Cargo.toml
 index 88aae66..c7c44c5 100644
 --- a/rust/crates/ccusage-adapter-all/Cargo.toml
@@ -2071,6 +2162,18 @@ index 601461c..64077b2 100644
          _ => agent,
      }
  }
+diff --git a/rust/crates/ccusage-adapter-all/src/snapshots/ccusage_adapter_all__tests__renders_multi_section_json_with_command_totals.snap b/rust/crates/ccusage-adapter-all/src/snapshots/ccusage_adapter_all__tests__renders_multi_section_json_with_command_totals.snap
+index 79604f2..2e77696 100644
+--- a/rust/crates/ccusage-adapter-all/src/snapshots/ccusage_adapter_all__tests__renders_multi_section_json_with_command_totals.snap
++++ b/rust/crates/ccusage-adapter-all/src/snapshots/ccusage_adapter_all__tests__renders_multi_section_json_with_command_totals.snap
+@@ -1,6 +1,5 @@
+ ---
+-source: crates/ccusage/src/adapter/all/tests.rs
+-assertion_line: 466
++source: crates/ccusage-adapter-all/src/tests.rs
+ expression: "serde_json::to_string_pretty(&report).unwrap()"
+ ---
+ {
 diff --git a/rust/crates/ccusage-adapter-all/src/tests.rs b/rust/crates/ccusage-adapter-all/src/tests.rs
 index e7db150..a948bc5 100644
 --- a/rust/crates/ccusage-adapter-all/src/tests.rs
@@ -2162,3 +2265,321 @@ index f080002..6ad6603 100644
          assert!(pricing.find("claude-opus-4.70").is_none());
          assert!(pricing.find("claude-opus-4-20250514").is_some());
      }
+diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_group_project_output_orders_named_projects_and_unknown_bucket.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_group_project_output_orders_named_projects_and_unknown_bucket.snap
+index 14ac4eb..e2efabc 100644
+--- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_group_project_output_orders_named_projects_and_unknown_bucket.snap
++++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_group_project_output_orders_named_projects_and_unknown_bucket.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/output.rs
++source: crates/ccusage-core/src/output.rs
+ expression: "group_project_output(&[named, unknown, other])"
+ ---
+ {
+@@ -15,6 +15,7 @@ expression: "group_project_output(&[named, unknown, other])"
+           "cacheReadTokens": 10,
+           "cost": 0.3,
+           "inputTokens": 900,
++          "missingPricing": false,
+           "modelName": "gpt-5.2-codex",
+           "outputTokens": 300
+         },
+@@ -23,6 +24,7 @@ expression: "group_project_output(&[named, unknown, other])"
+           "cacheReadTokens": 0,
+           "cost": 0.12,
+           "inputTokens": 334,
++          "missingPricing": false,
+           "modelName": "claude-sonnet-4-20250514",
+           "outputTokens": 267
+         }
+@@ -49,6 +51,7 @@ expression: "group_project_output(&[named, unknown, other])"
+           "cacheReadTokens": 10,
+           "cost": 0.3,
+           "inputTokens": 900,
++          "missingPricing": false,
+           "modelName": "gpt-5.2-codex",
+           "outputTokens": 300
+         },
+@@ -57,6 +60,7 @@ expression: "group_project_output(&[named, unknown, other])"
+           "cacheReadTokens": 0,
+           "cost": 0.12,
+           "inputTokens": 334,
++          "missingPricing": false,
+           "modelName": "claude-sonnet-4-20250514",
+           "outputTokens": 267
+         }
+@@ -83,6 +87,7 @@ expression: "group_project_output(&[named, unknown, other])"
+           "cacheReadTokens": 10,
+           "cost": 0.3,
+           "inputTokens": 900,
++          "missingPricing": false,
+           "modelName": "gpt-5.2-codex",
+           "outputTokens": 300
+         },
+@@ -91,6 +96,7 @@ expression: "group_project_output(&[named, unknown, other])"
+           "cacheReadTokens": 0,
+           "cost": 0.12,
+           "inputTokens": 334,
++          "missingPricing": false,
+           "modelName": "claude-sonnet-4-20250514",
+           "outputTokens": 267
+         }
+diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_model_multiline_formatting_sorts_dedupes_and_shortens_names.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_model_multiline_formatting_sorts_dedupes_and_shortens_names.snap
+index 3047436..50da0b6 100644
+--- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_model_multiline_formatting_sorts_dedupes_and_shortens_names.snap
++++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_model_multiline_formatting_sorts_dedupes_and_shortens_names.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/output.rs
++source: crates/ccusage-core/src/output.rs
+ expression: format_models_multiline(&models)
+ ---
+ - gpt-5.2-codex
+diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_session_summary_json_with_present_and_missing_options.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_session_summary_json_with_present_and_missing_options.snap
+index 1940024..5efcaaa 100644
+--- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_session_summary_json_with_present_and_missing_options.snap
++++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_session_summary_json_with_present_and_missing_options.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/output.rs
++source: crates/ccusage-core/src/output.rs
+ expression: session_summary_json(&row)
+ ---
+ {
+@@ -14,6 +14,7 @@ expression: session_summary_json(&row)
+       "cacheReadTokens": 10,
+       "cost": 0.3,
+       "inputTokens": 900,
++      "missingPricing": false,
+       "modelName": "gpt-5.2-codex",
+       "outputTokens": 300
+     },
+@@ -22,6 +23,7 @@ expression: session_summary_json(&row)
+       "cacheReadTokens": 0,
+       "cost": 0.12,
+       "inputTokens": 334,
++      "missingPricing": false,
+       "modelName": "claude-sonnet-4-20250514",
+       "outputTokens": 267
+     }
+diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_summary_json_with_optional_fields_and_model_breakdowns.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_summary_json_with_optional_fields_and_model_breakdowns.snap
+index c1b5d7e..b5abfe7 100644
+--- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_summary_json_with_optional_fields_and_model_breakdowns.snap
++++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_summary_json_with_optional_fields_and_model_breakdowns.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/output.rs
++source: crates/ccusage-core/src/output.rs
+ expression: summary_json(&row)
+ ---
+ {
+@@ -14,6 +14,7 @@ expression: summary_json(&row)
+       "cacheReadTokens": 10,
+       "cost": 0.3,
+       "inputTokens": 900,
++      "missingPricing": false,
+       "modelName": "gpt-5.2-codex",
+       "outputTokens": 300
+     },
+@@ -22,6 +23,7 @@ expression: summary_json(&row)
+       "cacheReadTokens": 0,
+       "cost": 0.12,
+       "inputTokens": 334,
++      "missingPricing": false,
+       "modelName": "claude-sonnet-4-20250514",
+       "outputTokens": 267
+     }
+diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_totals_json_with_extra_tokens_credits_and_zero_credit_omission.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_totals_json_with_extra_tokens_credits_and_zero_credit_omission.snap
+index a65f5c8..16427cc 100644
+--- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_totals_json_with_extra_tokens_credits_and_zero_credit_omission.snap
++++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_totals_json_with_extra_tokens_credits_and_zero_credit_omission.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/output.rs
++source: crates/ccusage-core/src/output.rs
+ expression: "totals_json(&[first, second])"
+ ---
+ {
+diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_bucket_aggregation_for_week_boundaries_invalid_dates_and_model_merging.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_bucket_aggregation_for_week_boundaries_invalid_dates_and_model_merging.snap
+index 1a4be51..ba79b92 100644
+--- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_bucket_aggregation_for_week_boundaries_invalid_dates_and_model_merging.snap
++++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_bucket_aggregation_for_week_boundaries_invalid_dates_and_model_merging.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/summary.rs
++source: crates/ccusage-core/src/summary.rs
+ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+ ---
+ {
+@@ -16,6 +16,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+           "cacheReadTokens": 2,
+           "cost": 0.125,
+           "inputTokens": 100,
++          "missingPricing": false,
+           "modelName": "gpt-5.2-codex",
+           "outputTokens": 10
+         }
+@@ -39,6 +40,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+           "cacheReadTokens": 2,
+           "cost": 0.5,
+           "inputTokens": 300,
++          "missingPricing": false,
+           "modelName": "gpt-5.2-codex",
+           "outputTokens": 10
+         },
+@@ -47,6 +49,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+           "cacheReadTokens": 2,
+           "cost": 0.25,
+           "inputTokens": 200,
++          "missingPricing": false,
+           "modelName": "claude-sonnet-4-20250514",
+           "outputTokens": 10
+         }
+@@ -71,6 +74,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+           "cacheReadTokens": 2,
+           "cost": 0.0,
+           "inputTokens": 1,
++          "missingPricing": false,
+           "modelName": "unknown-model",
+           "outputTokens": 10
+         }
+@@ -96,6 +100,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+           "cacheReadTokens": 2,
+           "cost": 0.25,
+           "inputTokens": 200,
++          "missingPricing": false,
+           "modelName": "claude-sonnet-4-20250514",
+           "outputTokens": 10
+         },
+@@ -104,6 +109,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+           "cacheReadTokens": 2,
+           "cost": 0.125,
+           "inputTokens": 100,
++          "missingPricing": false,
+           "modelName": "gpt-5.2-codex",
+           "outputTokens": 10
+         }
+@@ -128,6 +134,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+           "cacheReadTokens": 2,
+           "cost": 0.5,
+           "inputTokens": 300,
++          "missingPricing": false,
+           "modelName": "gpt-5.2-codex",
+           "outputTokens": 10
+         }
+@@ -151,6 +158,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+           "cacheReadTokens": 2,
+           "cost": 0.0,
+           "inputTokens": 1,
++          "missingPricing": false,
+           "modelName": "unknown-model",
+           "outputTokens": 10
+         }
+diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_filter_and_sort_summaries_since_until_inclusive.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_filter_and_sort_summaries_since_until_inclusive.snap
+index 19dc21d..4c33ed3 100644
+--- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_filter_and_sort_summaries_since_until_inclusive.snap
++++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_filter_and_sort_summaries_since_until_inclusive.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/summary.rs
++source: crates/ccusage-core/src/summary.rs
+ expression: rows
+ ---
+ [
+@@ -22,7 +22,8 @@ expression: rows
+         "outputTokens": 10,
+         "cacheCreationTokens": 1,
+         "cacheReadTokens": 2,
+-        "cost": 0.5
++        "cost": 0.5,
++        "missingPricing": false
+       }
+     ]
+   },
+@@ -45,7 +46,8 @@ expression: rows
+         "outputTokens": 10,
+         "cacheCreationTokens": 1,
+         "cacheReadTokens": 2,
+-        "cost": 0.25
++        "cost": 0.25,
++        "missingPricing": false
+       }
+     ]
+   }
+diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_session_accumulator_latest_metadata_versions_and_timezone.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_session_accumulator_latest_metadata_versions_and_timezone.snap
+index 731d68e..698d634 100644
+--- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_session_accumulator_latest_metadata_versions_and_timezone.snap
++++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_session_accumulator_latest_metadata_versions_and_timezone.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/summary.rs
++source: crates/ccusage-core/src/summary.rs
+ expression: row
+ ---
+ {
+@@ -25,7 +25,8 @@ expression: row
+       "outputTokens": 10,
+       "cacheCreationTokens": 0,
+       "cacheReadTokens": 0,
+-      "cost": 0.25
++      "cost": 0.25,
++      "missingPricing": false
+     },
+     {
+       "modelName": "gpt-5.2-codex",
+@@ -33,7 +34,8 @@ expression: row
+       "outputTokens": 50,
+       "cacheCreationTokens": 10,
+       "cacheReadTokens": 5,
+-      "cost": 0.125
++      "cost": 0.125,
++      "missingPricing": false
+     }
+   ],
+   "versions": [
+diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_summarize_by_key_aggregates_counts_costs_and_breakdowns.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_summarize_by_key_aggregates_counts_costs_and_breakdowns.snap
+index af1eccb..3d05f5c 100644
+--- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_summarize_by_key_aggregates_counts_costs_and_breakdowns.snap
++++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_summarize_by_key_aggregates_counts_costs_and_breakdowns.snap
+@@ -1,5 +1,5 @@
+ ---
+-source: crates/ccusage/src/summary.rs
++source: crates/ccusage-core/src/summary.rs
+ expression: rows
+ ---
+ [
+@@ -23,7 +23,8 @@ expression: rows
+         "outputTokens": 80,
+         "cacheCreationTokens": 20,
+         "cacheReadTokens": 8,
+-        "cost": 0.25
++        "cost": 0.25,
++        "missingPricing": false
+       },
+       {
+         "modelName": "gpt-5.2-codex",
+@@ -31,7 +32,8 @@ expression: rows
+         "outputTokens": 50,
+         "cacheCreationTokens": 10,
+         "cacheReadTokens": 5,
+-        "cost": 0.125
++        "cost": 0.125,
++        "missingPricing": false
+       }
+     ],
+     "project": "/workspace/api"
+diff --git a/rust/crates/ccusage-core/src/types.rs b/rust/crates/ccusage-core/src/types.rs
+index ce23b69..8e93078 100644
+--- a/rust/crates/ccusage-core/src/types.rs
++++ b/rust/crates/ccusage-core/src/types.rs
+@@ -101,7 +101,9 @@ pub struct ModelBreakdown {
+     #[serde(skip_serializing)]
+     pub extra_total_tokens: u64,
+     pub cost: f64,
+-    #[serde(skip_serializing)]
++    // Downstream (Coding Agent Monitor) 0002 patch: serialized so in-process
++    // collectors can distinguish "priced at zero" from "no pricing entry"
++    // (the product null-vs-zero cost contract). Upstream skips this field.
+     pub missing_pricing: bool,
+ }
+ 
