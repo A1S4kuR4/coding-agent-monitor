@@ -78,8 +78,8 @@ impl From<std::io::Error> for AppError {
     }
 }
 
-impl From<rusqlite::Error> for AppError {
-    fn from(error: rusqlite::Error) -> Self {
+impl From<sqlite::Error> for AppError {
+    fn from(error: sqlite::Error) -> Self {
         Self {
             code: "database_error".into(),
             message: error.to_string(),

@@ -1,6 +1,5 @@
 use std::{fs, path::Path};
 
-use rusqlite::Connection;
 use tauri::{AppHandle, Manager};
 
 use crate::error::AppError;
@@ -20,8 +19,9 @@ pub fn initialize(app: &AppHandle) -> Result<(), AppError> {
 }
 
 fn initialize_at(app_data_dir: &Path) -> Result<(), AppError> {
-    let connection = Connection::open(app_data_dir.join(DATABASE_FILE))?;
-    connection.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")?;
+    let connection = sqlite::open(app_data_dir.join(DATABASE_FILE))?;
+    connection.execute("PRAGMA journal_mode = WAL")?;
+    connection.execute("PRAGMA foreign_keys = ON")?;
     Ok(())
 }
 
@@ -44,11 +44,16 @@ mod tests {
         let database = directory.join(DATABASE_FILE);
         assert!(database.is_file());
 
-        let connection = Connection::open(&database).expect("reopen test database");
-        let journal_mode: String = connection
-            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
-            .expect("read journal_mode pragma");
+        let connection = sqlite::open(&database).expect("reopen test database");
+        let mut pragma = connection
+            .prepare("PRAGMA journal_mode")
+            .expect("prepare journal_mode pragma");
+        assert!(matches!(pragma.next(), Ok(sqlite::State::Row)));
+        let journal_mode: String = pragma
+            .read(0)
+            .expect("read journal_mode pragma value");
         assert_eq!(journal_mode.to_ascii_lowercase(), "wal");
+        drop(pragma);
         drop(connection);
 
         fs::remove_file(database).expect("remove test database");

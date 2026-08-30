@@ -1,0 +1,18 @@
+{
+  "litellm": {
+    "source": "https://github.com/BerriAI/litellm/raw/1a183efaa1a2108aed7e1bed8d445d93bd1aa60d/model_prices_and_context_window.json",
+    "commit": "1a183efaa1a2108aed7e1bed8d445d93bd1aa60d",
+    "file": "model_prices_and_context_window.json",
+    "sha256": "a74538d2edc13e1eb4f67870fbc2ee05035326e6eaed0dc5bce11d372cff6e60",
+    "bytes": 1746957,
+    "license": "MIT (per repository licensing outside the enterprise directory), copyright Berri AI"
+  },
+  "modelsDev": {
+    "source": "ccusage v20.0.20 vendored snapshot (rust/crates/ccusage-core/src/models-dev-pricing.json)",
+    "upstream": "https://github.com/ccusage/ccusage/blob/bd7f89b469aee5635fb2e6722dd6d70f2d113ac1/rust/crates/ccusage-core/src/models-dev-pricing.json",
+    "entries": 2275,
+    "sha256": "719203dac7ed169af7288449eb6dc0b89026fa4ebdb609b27eeb0c5adf98e528",
+    "sha256_upstream_pristine": "be347bd498cb046c2045e018e068aa228a76b34485613e2254f21a48b889eecd",
+    "divergence": "0001 patch: additive merge of the antigravity alias entry \"gemini-3.1-pro\" from the PR #1487 snapshot (fork c58c1b3aab2eacc82add250c8229bb6192e4489b); everything else is the pristine upstream blob. Antigravity model ids gemini-3.5-flash-high/-medium/-extra-low, gpt-oss-120b-medium and gemini-3-flash-a/b/c have no entry in either snapshot and intentionally stay unpriced (null cost), see PATCHES.md."
+  }
+}

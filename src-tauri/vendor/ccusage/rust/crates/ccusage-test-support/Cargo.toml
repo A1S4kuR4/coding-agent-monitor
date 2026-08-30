@@ -1,0 +1,8 @@
+[package]
+name = "ccusage-test-support"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+assert_fs.workspace = true

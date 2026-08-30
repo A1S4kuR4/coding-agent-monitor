@@ -1,0 +1,228 @@
+use std::{env, fs, path::PathBuf};
+
+use serde_json::{Map, Value};
+
+const FLAKE_LOCK_JSON: &str = "../../../flake.lock";
+#[cfg(feature = "fetch-litellm-pricing")]
+const LITELLM_PRICING_JSON: &str = "model_prices_and_context_window.json";
+const OUT_PRICING_JSON: &str = "litellm-pricing.json.deflate";
+const MODELS_DEV_PRICING_JSON: &str = "src/models-dev-pricing.json";
+const OUT_MODELS_DEV_PRICING_JSON: &str = "models-dev-pricing.json.deflate";
+const MODELS_DEV_CATALOG_RULES_JSON: &str = "src/models-dev-catalog-rules.json";
+const OUT_MODELS_DEV_CATALOG_RULES_JSON: &str = "models-dev-catalog-rules.json.deflate";
+const PRICING_JSON_PATH_ENV: &str = "CCUSAGE_PRICING_JSON_PATH";
+#[cfg(feature = "fetch-litellm-pricing")]
+const PRICING_FETCH_TIMEOUT_SECONDS: u64 = 10;
+
+fn main() {
+    println!("cargo:rerun-if-env-changed={PRICING_JSON_PATH_ENV}");
+
+    let out_path = out_dir_path(OUT_PRICING_JSON);
+    let pricing_json = if let Some(path) = env::var_os(PRICING_JSON_PATH_ENV) {
+        let path = PathBuf::from(path);
+        println!("cargo:rerun-if-changed={}", path.display());
+        fs::read_to_string(path).expect("read pricing snapshot from CCUSAGE_PRICING_JSON_PATH")
+    } else {
+        // Downstream (Coding Agent Monitor) default: the pinned LiteLLM
+        // snapshot committed under the vendor root. Plain `cargo build` on the
+        // product must never hit the network or panic for a missing env var;
+        // the fetch feature stays off.
+        let manifest_dir =
+            PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
+        let vendored = manifest_dir.join("../../../pricing/litellm-pricing.json");
+        if vendored.is_file() {
+            println!("cargo:rerun-if-changed={}", vendored.display());
+            fs::read_to_string(&vendored).unwrap_or_else(|error| {
+                panic!("read vendored pricing snapshot {}: {error}", vendored.display())
+            })
+        } else {
+            println!("cargo:rerun-if-changed={FLAKE_LOCK_JSON}");
+            fetch_pricing_json()
+        }
+    };
+    let pricing_json = compact_pricing_json(&pricing_json).expect("compact LiteLLM pricing JSON");
+
+    fs::write(out_path, deflate(pricing_json.as_bytes()))
+        .expect("write build-time pricing snapshot");
+
+    embed_snapshot(MODELS_DEV_PRICING_JSON, OUT_MODELS_DEV_PRICING_JSON);
+    embed_snapshot(
+        MODELS_DEV_CATALOG_RULES_JSON,
+        OUT_MODELS_DEV_CATALOG_RULES_JSON,
+    );
+}
+
+/// The committed snapshots stay indented so their regeneration diffs stay
+/// reviewable, but they are embedded verbatim, so the indentation - and, at
+/// 2K+ models, most of the JSON itself - would ship in the binary. Minify and
+/// deflate on the way in; the runtime inflates once on first use.
+fn embed_snapshot(source: &str, out_name: &str) {
+    println!("cargo:rerun-if-changed={source}");
+    let snapshot =
+        fs::read_to_string(source).unwrap_or_else(|error| panic!("read {source}: {error}"));
+    let value = serde_json::from_str::<Value>(&snapshot)
+        .unwrap_or_else(|error| panic!("parse {source}: {error}"));
+    let minified =
+        serde_json::to_string(&value).unwrap_or_else(|error| panic!("serialize {source}: {error}"));
+    fs::write(out_dir_path(out_name), deflate(minified.as_bytes()))
+        .unwrap_or_else(|error| panic!("write {out_name}: {error}"));
+}
+
+/// Raw deflate at maximum effort: the cost is paid once per changed snapshot at
+/// build time, and the level only matters there.
+fn deflate(bytes: &[u8]) -> Vec<u8> {
+    miniz_oxide::deflate::compress_to_vec(bytes, 10)
+}
+
+fn out_dir_path(file_name: &str) -> PathBuf {
+    PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is set by cargo")).join(file_name)
+}
+
+// The snapshot is normally handed to the build by CCUSAGE_PRICING_JSON_PATH, which
+// every Nix build sets from the pinned litellm input — and which is the only way
+// to get the snapshot inside the network-free Nix sandbox. Downloading it is for
+// plain `cargo build` on platforms Nix cannot target, so the HTTPS client that
+// download needs is behind this feature instead of on every build's critical
+// path: rustls and its C crypto backend are the single most expensive
+// build-dependency in the workspace.
+#[cfg(not(feature = "fetch-litellm-pricing"))]
+fn fetch_pricing_json() -> String {
+    panic!(
+        "no LiteLLM pricing snapshot available: set {PRICING_JSON_PATH_ENV} to a \
+         model_prices_and_context_window.json, or build with \
+         --features fetch-litellm-pricing to download it"
+    );
+}
+
+#[cfg(feature = "fetch-litellm-pricing")]
+fn fetch_pricing_json() -> String {
+    download_pricing_json().expect("fetch LiteLLM pricing for embed")
+}
+
+#[cfg(feature = "fetch-litellm-pricing")]
+fn download_pricing_json() -> std::io::Result<String> {
+    let response = minreq::get(litellm_pricing_url()?)
+        .with_timeout(PRICING_FETCH_TIMEOUT_SECONDS)
+        .send()
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    if response.status_code != 200 {
+        return Err(std::io::Error::other(format!(
+            "HTTP {}",
+            response.status_code
+        )));
+    }
+    Ok(response
+        .as_str()
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string()))?
+        .to_string())
+}
+
+#[cfg(feature = "fetch-litellm-pricing")]
+fn litellm_pricing_url() -> std::io::Result<String> {
+    let flake_lock = fs::read_to_string(FLAKE_LOCK_JSON)?;
+    let Value::Object(root) = serde_json::from_str::<Value>(&flake_lock)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string()))?
+    else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "flake.lock must be a JSON object",
+        ));
+    };
+    let locked = root
+        .get("nodes")
+        .and_then(|nodes| nodes.get("litellm"))
+        .and_then(|litellm| litellm.get("locked"))
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "flake.lock is missing nodes.litellm.locked",
+            )
+        })?;
+    let owner = required_flake_lock_string_field(locked, "owner")?;
+    let repo = required_flake_lock_string_field(locked, "repo")?;
+    let rev = required_flake_lock_string_field(locked, "rev")?;
+
+    Ok(format!(
+        "https://raw.githubusercontent.com/{owner}/{repo}/{rev}/{LITELLM_PRICING_JSON}"
+    ))
+}
+
+#[cfg(feature = "fetch-litellm-pricing")]
+fn required_flake_lock_string_field(
+    object: &Map<String, Value>,
+    field: &str,
+) -> std::io::Result<String> {
+    object
+        .get(field)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("flake.lock nodes.litellm.locked.{field} must be a string"),
+            )
+        })
+}
+
+fn compact_pricing_json(json: &str) -> Option<String> {
+    let Value::Object(raw) = serde_json::from_str::<Value>(json).ok()? else {
+        return None;
+    };
+    let mut compact = Map::new();
+    for (model, pricing) in raw {
+        if !is_embedded_model(&model) {
+            continue;
+        }
+        let Value::Object(pricing) = pricing else {
+            continue;
+        };
+        let mut fields = Map::new();
+        for (source, target) in [
+            ("input_cost_per_token", "i"),
+            ("output_cost_per_token", "o"),
+            ("cache_creation_input_token_cost", "cc"),
+            ("cache_read_input_token_cost", "cr"),
+            ("input_cost_per_token_above_200k_tokens", "ia"),
+            ("output_cost_per_token_above_200k_tokens", "oa"),
+            ("cache_creation_input_token_cost_above_200k_tokens", "cca"),
+            ("cache_read_input_token_cost_above_200k_tokens", "cra"),
+            ("max_input_tokens", "ctx"),
+        ] {
+            let Some(value) = pricing.get(source) else {
+                continue;
+            };
+            if !value.is_null() {
+                fields.insert(target.to_string(), value.clone());
+            }
+        }
+        if let Some(fast) = pricing
+            .get("provider_specific_entry")
+            .and_then(Value::as_object)
+            .and_then(|entry| entry.get("fast"))
+            .filter(|value| !value.is_null())
+        {
+            fields.insert("fast".to_string(), fast.clone());
+        }
+        if fields.contains_key("i") && fields.contains_key("o") {
+            compact.insert(model, Value::Object(fields));
+        }
+    }
+    serde_json::to_string(&Value::Object(compact)).ok()
+}
+
+fn is_embedded_model(model: &str) -> bool {
+    model.starts_with("claude-")
+        || model.starts_with("anthropic.")
+        || model.starts_with("anthropic/")
+        || model.starts_with("us.anthropic.")
+        || model.starts_with("eu.anthropic.")
+        || model.starts_with("global.anthropic.")
+        || model.starts_with("jp.anthropic.")
+        || model.starts_with("au.anthropic.")
+        || model.starts_with("gpt-")
+        || model.starts_with("openai/")
+        || model.starts_with("azure/")
+        || model.starts_with("zai/")
+        || model.starts_with("openrouter/openai/")
+}

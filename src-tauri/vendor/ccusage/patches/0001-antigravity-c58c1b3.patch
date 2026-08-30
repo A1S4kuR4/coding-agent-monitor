@@ -1,0 +1,4952 @@
+diff --git a/apps/ccusage/README.md b/apps/ccusage/README.md
+index 835291b..a25cdd5 100644
+--- a/apps/ccusage/README.md
++++ b/apps/ccusage/README.md
+@@ -61,23 +61,24 @@ npx ccusage@latest
+ 
+ ccusage reads local usage data from coding agent CLIs and turns it into daily, weekly, monthly, and session reports.
+ 
+-| Source             | Focused command example  |
+-| ------------------ | ------------------------ |
+-| Claude Code        | `ccusage claude daily`   |
+-| Codex              | `ccusage codex daily`    |
+-| OpenCode           | `ccusage opencode daily` |
+-| Amp                | `ccusage amp daily`      |
+-| Droid              | `ccusage droid daily`    |
+-| Codebuff           | `ccusage codebuff daily` |
+-| Hermes Agent       | `ccusage hermes daily`   |
+-| pi-agent           | `ccusage pi daily`       |
+-| Goose              | `ccusage goose daily`    |
+-| OpenClaw           | `ccusage openclaw daily` |
+-| Kilo               | `ccusage kilo daily`     |
+-| Kimi               | `ccusage kimi daily`     |
+-| Qwen               | `ccusage qwen daily`     |
+-| GitHub Copilot CLI | `ccusage copilot daily`  |
+-| Gemini CLI         | `ccusage gemini daily`   |
++| Source             | Focused command example     |
++| ------------------ | --------------------------- |
++| Claude Code        | `ccusage claude daily`      |
++| Codex              | `ccusage codex daily`       |
++| OpenCode           | `ccusage opencode daily`    |
++| Amp                | `ccusage amp daily`         |
++| Droid              | `ccusage droid daily`       |
++| Codebuff           | `ccusage codebuff daily`    |
++| Hermes Agent       | `ccusage hermes daily`      |
++| pi-agent           | `ccusage pi daily`          |
++| Goose              | `ccusage goose daily`       |
++| OpenClaw           | `ccusage openclaw daily`    |
++| Kilo               | `ccusage kilo daily`        |
++| Kimi               | `ccusage kimi daily`        |
++| Qwen               | `ccusage qwen daily`        |
++| GitHub Copilot CLI | `ccusage copilot daily`     |
++| Gemini CLI         | `ccusage gemini daily`      |
++| Antigravity        | `ccusage antigravity daily` |
+ 
+ Use `ccusage daily`, `ccusage weekly`, `ccusage monthly`, or `ccusage session` to include every detected source in one report.
+ 
+@@ -132,6 +133,7 @@ bunx ccusage kimi daily
+ bunx ccusage qwen daily
+ bunx ccusage copilot daily
+ bunx ccusage gemini daily
++bunx ccusage antigravity daily
+ bunx ccusage pi daily --pi-path /path/to/sessions
+ bunx ccusage pi daily --pi-path /path/to/sessions,/archive/pi/sessions
+ 
+@@ -161,7 +163,7 @@ bunx ccusage monthly --compact  # Compact monthly report
+ - 📊 **Daily Report**: View token usage and costs aggregated by date
+ - 📅 **Monthly Report**: View token usage and costs aggregated by month
+ - 💬 **Session Report**: View usage grouped by conversation sessions
+-- 🤖 **Unified CLI Reports**: View Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, and Gemini CLI usage from one CLI
++- 🤖 **Unified CLI Reports**: View Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, Gemini CLI, and Antigravity usage from one CLI
+ - ⏰ **5-Hour Blocks Report**: Track usage within Claude's billing windows with active block monitoring
+ - 🚀 **Statusline Integration**: Compact usage display for Claude Code status bar hooks (Beta)
+ - 🤖 **Model Tracking**: See which models are used across supported sources
+diff --git a/apps/ccusage/config-schema.json b/apps/ccusage/config-schema.json
+index f51341e..26bc2ca 100644
+--- a/apps/ccusage/config-schema.json
++++ b/apps/ccusage/config-schema.json
+@@ -690,6 +690,684 @@
+ 					},
+ 					"type": "object"
+ 				},
++				"antigravity": {
++					"additionalProperties": false,
++					"description": "Antigravity configuration.",
++					"markdownDescription": "Antigravity configuration.",
++					"properties": {
++						"commands": {
++							"additionalProperties": false,
++							"properties": {
++								"daily": {
++									"additionalProperties": false,
++									"properties": {
++										"all": {
++											"default": false,
++											"description": "Accepted for compatibility; all detected supported agents are included by default.",
++											"markdownDescription": "Accepted for compatibility; all detected supported agents are included by default.",
++											"type": "boolean"
++										},
++										"breakdown": {
++											"default": false,
++											"description": "Show per-model cost breakdown.",
++											"markdownDescription": "Show per-model cost breakdown.",
++											"type": "boolean"
++										},
++										"color": {
++											"default": false,
++											"description": "Enable colored output.",
++											"markdownDescription": "Enable colored output.",
++											"type": "boolean"
++										},
++										"compact": {
++											"default": false,
++											"description": "Force compact table layout for narrow terminals.",
++											"markdownDescription": "Force compact table layout for narrow terminals.",
++											"type": "boolean"
++										},
++										"debug": {
++											"default": false,
++											"description": "Show pricing mismatch information for debugging.",
++											"markdownDescription": "Show pricing mismatch information for debugging.",
++											"type": "boolean"
++										},
++										"debugSamples": {
++											"default": 5,
++											"description": "Number of sample discrepancies to show in debug output.",
++											"format": "uint",
++											"markdownDescription": "Number of sample discrepancies to show in debug output.",
++											"minimum": 0.0,
++											"type": "integer"
++										},
++										"jq": {
++											"description": "jq filter to apply to JSON output.",
++											"markdownDescription": "jq filter to apply to JSON output.",
++											"type": "string"
++										},
++										"json": {
++											"default": false,
++											"description": "Output in JSON format.",
++											"markdownDescription": "Output in JSON format.",
++											"type": "boolean"
++										},
++										"mode": {
++											"default": "auto",
++											"description": "Cost calculation mode.",
++											"enum": ["auto", "calculate", "display"],
++											"markdownDescription": "Cost calculation mode.",
++											"type": "string"
++										},
++										"noColor": {
++											"default": false,
++											"description": "Disable colored output.",
++											"markdownDescription": "Disable colored output.",
++											"type": "boolean"
++										},
++										"noCost": {
++											"default": false,
++											"description": "Hide cost information in table and JSON output.",
++											"markdownDescription": "Hide cost information in table and JSON output.",
++											"type": "boolean"
++										},
++										"noOffline": {
++											"default": false,
++											"description": "Disable cached pricing data where supported.",
++											"markdownDescription": "Disable cached pricing data where supported.",
++											"type": "boolean"
++										},
++										"offline": {
++											"default": false,
++											"description": "Use cached pricing data where supported.",
++											"markdownDescription": "Use cached pricing data where supported.",
++											"type": "boolean"
++										},
++										"order": {
++											"default": "asc",
++											"description": "Sort order.",
++											"enum": ["desc", "asc"],
++											"markdownDescription": "Sort order.",
++											"type": "string"
++										},
++										"pricingOverrides": {
++											"additionalProperties": {
++												"additionalProperties": false,
++												"properties": {
++													"cacheCreationInputTokenCost": {
++														"format": "double",
++														"type": "number"
++													},
++													"cacheCreationInputTokenCostAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													},
++													"cacheReadInputTokenCost": {
++														"format": "double",
++														"type": "number"
++													},
++													"cacheReadInputTokenCostAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													},
++													"fastMultiplier": {
++														"format": "double",
++														"type": "number"
++													},
++													"inputCostPerToken": {
++														"format": "double",
++														"type": "number"
++													},
++													"inputCostPerTokenAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													},
++													"maxInputTokens": {
++														"format": "uint64",
++														"minimum": 0.0,
++														"type": "integer"
++													},
++													"outputCostPerToken": {
++														"format": "double",
++														"type": "number"
++													},
++													"outputCostPerTokenAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													}
++												},
++												"type": "object"
++											},
++											"description": "Runtime pricing overrides keyed by raw model name.",
++											"markdownDescription": "Runtime pricing overrides keyed by raw model name.",
++											"type": "object"
++										},
++										"since": {
++											"description": "Filter from date (YYYY-MM-DD or YYYYMMDD).",
++											"markdownDescription": "Filter from date (YYYY-MM-DD or YYYYMMDD).",
++											"type": "string"
++										},
++										"singleThread": {
++											"default": false,
++											"description": "Disable parallel file processing.",
++											"markdownDescription": "Disable parallel file processing.",
++											"type": "boolean"
++										},
++										"timezone": {
++											"description": "Timezone for date grouping (IANA).",
++											"markdownDescription": "Timezone for date grouping (IANA).",
++											"type": "string"
++										},
++										"until": {
++											"description": "Filter until date (inclusive).",
++											"markdownDescription": "Filter until date (inclusive).",
++											"type": "string"
++										}
++									},
++									"type": "object"
++								},
++								"monthly": {
++									"additionalProperties": false,
++									"properties": {
++										"all": {
++											"default": false,
++											"description": "Accepted for compatibility; all detected supported agents are included by default.",
++											"markdownDescription": "Accepted for compatibility; all detected supported agents are included by default.",
++											"type": "boolean"
++										},
++										"breakdown": {
++											"default": false,
++											"description": "Show per-model cost breakdown.",
++											"markdownDescription": "Show per-model cost breakdown.",
++											"type": "boolean"
++										},
++										"color": {
++											"default": false,
++											"description": "Enable colored output.",
++											"markdownDescription": "Enable colored output.",
++											"type": "boolean"
++										},
++										"compact": {
++											"default": false,
++											"description": "Force compact table layout for narrow terminals.",
++											"markdownDescription": "Force compact table layout for narrow terminals.",
++											"type": "boolean"
++										},
++										"debug": {
++											"default": false,
++											"description": "Show pricing mismatch information for debugging.",
++											"markdownDescription": "Show pricing mismatch information for debugging.",
++											"type": "boolean"
++										},
++										"debugSamples": {
++											"default": 5,
++											"description": "Number of sample discrepancies to show in debug output.",
++											"format": "uint",
++											"markdownDescription": "Number of sample discrepancies to show in debug output.",
++											"minimum": 0.0,
++											"type": "integer"
++										},
++										"jq": {
++											"description": "jq filter to apply to JSON output.",
++											"markdownDescription": "jq filter to apply to JSON output.",
++											"type": "string"
++										},
++										"json": {
++											"default": false,
++											"description": "Output in JSON format.",
++											"markdownDescription": "Output in JSON format.",
++											"type": "boolean"
++										},
++										"mode": {
++											"default": "auto",
++											"description": "Cost calculation mode.",
++											"enum": ["auto", "calculate", "display"],
++											"markdownDescription": "Cost calculation mode.",
++											"type": "string"
++										},
++										"noColor": {
++											"default": false,
++											"description": "Disable colored output.",
++											"markdownDescription": "Disable colored output.",
++											"type": "boolean"
++										},
++										"noCost": {
++											"default": false,
++											"description": "Hide cost information in table and JSON output.",
++											"markdownDescription": "Hide cost information in table and JSON output.",
++											"type": "boolean"
++										},
++										"noOffline": {
++											"default": false,
++											"description": "Disable cached pricing data where supported.",
++											"markdownDescription": "Disable cached pricing data where supported.",
++											"type": "boolean"
++										},
++										"offline": {
++											"default": false,
++											"description": "Use cached pricing data where supported.",
++											"markdownDescription": "Use cached pricing data where supported.",
++											"type": "boolean"
++										},
++										"order": {
++											"default": "asc",
++											"description": "Sort order.",
++											"enum": ["desc", "asc"],
++											"markdownDescription": "Sort order.",
++											"type": "string"
++										},
++										"pricingOverrides": {
++											"additionalProperties": {
++												"additionalProperties": false,
++												"properties": {
++													"cacheCreationInputTokenCost": {
++														"format": "double",
++														"type": "number"
++													},
++													"cacheCreationInputTokenCostAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													},
++													"cacheReadInputTokenCost": {
++														"format": "double",
++														"type": "number"
++													},
++													"cacheReadInputTokenCostAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													},
++													"fastMultiplier": {
++														"format": "double",
++														"type": "number"
++													},
++													"inputCostPerToken": {
++														"format": "double",
++														"type": "number"
++													},
++													"inputCostPerTokenAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													},
++													"maxInputTokens": {
++														"format": "uint64",
++														"minimum": 0.0,
++														"type": "integer"
++													},
++													"outputCostPerToken": {
++														"format": "double",
++														"type": "number"
++													},
++													"outputCostPerTokenAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													}
++												},
++												"type": "object"
++											},
++											"description": "Runtime pricing overrides keyed by raw model name.",
++											"markdownDescription": "Runtime pricing overrides keyed by raw model name.",
++											"type": "object"
++										},
++										"since": {
++											"description": "Filter from date (YYYY-MM-DD or YYYYMMDD).",
++											"markdownDescription": "Filter from date (YYYY-MM-DD or YYYYMMDD).",
++											"type": "string"
++										},
++										"singleThread": {
++											"default": false,
++											"description": "Disable parallel file processing.",
++											"markdownDescription": "Disable parallel file processing.",
++											"type": "boolean"
++										},
++										"timezone": {
++											"description": "Timezone for date grouping (IANA).",
++											"markdownDescription": "Timezone for date grouping (IANA).",
++											"type": "string"
++										},
++										"until": {
++											"description": "Filter until date (inclusive).",
++											"markdownDescription": "Filter until date (inclusive).",
++											"type": "string"
++										}
++									},
++									"type": "object"
++								},
++								"session": {
++									"additionalProperties": false,
++									"properties": {
++										"all": {
++											"default": false,
++											"description": "Accepted for compatibility; all detected supported agents are included by default.",
++											"markdownDescription": "Accepted for compatibility; all detected supported agents are included by default.",
++											"type": "boolean"
++										},
++										"breakdown": {
++											"default": false,
++											"description": "Show per-model cost breakdown.",
++											"markdownDescription": "Show per-model cost breakdown.",
++											"type": "boolean"
++										},
++										"color": {
++											"default": false,
++											"description": "Enable colored output.",
++											"markdownDescription": "Enable colored output.",
++											"type": "boolean"
++										},
++										"compact": {
++											"default": false,
++											"description": "Force compact table layout for narrow terminals.",
++											"markdownDescription": "Force compact table layout for narrow terminals.",
++											"type": "boolean"
++										},
++										"debug": {
++											"default": false,
++											"description": "Show pricing mismatch information for debugging.",
++											"markdownDescription": "Show pricing mismatch information for debugging.",
++											"type": "boolean"
++										},
++										"debugSamples": {
++											"default": 5,
++											"description": "Number of sample discrepancies to show in debug output.",
++											"format": "uint",
++											"markdownDescription": "Number of sample discrepancies to show in debug output.",
++											"minimum": 0.0,
++											"type": "integer"
++										},
++										"jq": {
++											"description": "jq filter to apply to JSON output.",
++											"markdownDescription": "jq filter to apply to JSON output.",
++											"type": "string"
++										},
++										"json": {
++											"default": false,
++											"description": "Output in JSON format.",
++											"markdownDescription": "Output in JSON format.",
++											"type": "boolean"
++										},
++										"mode": {
++											"default": "auto",
++											"description": "Cost calculation mode.",
++											"enum": ["auto", "calculate", "display"],
++											"markdownDescription": "Cost calculation mode.",
++											"type": "string"
++										},
++										"noColor": {
++											"default": false,
++											"description": "Disable colored output.",
++											"markdownDescription": "Disable colored output.",
++											"type": "boolean"
++										},
++										"noCost": {
++											"default": false,
++											"description": "Hide cost information in table and JSON output.",
++											"markdownDescription": "Hide cost information in table and JSON output.",
++											"type": "boolean"
++										},
++										"noOffline": {
++											"default": false,
++											"description": "Disable cached pricing data where supported.",
++											"markdownDescription": "Disable cached pricing data where supported.",
++											"type": "boolean"
++										},
++										"offline": {
++											"default": false,
++											"description": "Use cached pricing data where supported.",
++											"markdownDescription": "Use cached pricing data where supported.",
++											"type": "boolean"
++										},
++										"order": {
++											"default": "asc",
++											"description": "Sort order.",
++											"enum": ["desc", "asc"],
++											"markdownDescription": "Sort order.",
++											"type": "string"
++										},
++										"pricingOverrides": {
++											"additionalProperties": {
++												"additionalProperties": false,
++												"properties": {
++													"cacheCreationInputTokenCost": {
++														"format": "double",
++														"type": "number"
++													},
++													"cacheCreationInputTokenCostAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													},
++													"cacheReadInputTokenCost": {
++														"format": "double",
++														"type": "number"
++													},
++													"cacheReadInputTokenCostAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													},
++													"fastMultiplier": {
++														"format": "double",
++														"type": "number"
++													},
++													"inputCostPerToken": {
++														"format": "double",
++														"type": "number"
++													},
++													"inputCostPerTokenAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													},
++													"maxInputTokens": {
++														"format": "uint64",
++														"minimum": 0.0,
++														"type": "integer"
++													},
++													"outputCostPerToken": {
++														"format": "double",
++														"type": "number"
++													},
++													"outputCostPerTokenAbove200kTokens": {
++														"format": "double",
++														"type": "number"
++													}
++												},
++												"type": "object"
++											},
++											"description": "Runtime pricing overrides keyed by raw model name.",
++											"markdownDescription": "Runtime pricing overrides keyed by raw model name.",
++											"type": "object"
++										},
++										"since": {
++											"description": "Filter from date (YYYY-MM-DD or YYYYMMDD).",
++											"markdownDescription": "Filter from date (YYYY-MM-DD or YYYYMMDD).",
++											"type": "string"
++										},
++										"singleThread": {
++											"default": false,
++											"description": "Disable parallel file processing.",
++											"markdownDescription": "Disable parallel file processing.",
++											"type": "boolean"
++										},
++										"timezone": {
++											"description": "Timezone for date grouping (IANA).",
++											"markdownDescription": "Timezone for date grouping (IANA).",
++											"type": "string"
++										},
++										"until": {
++											"description": "Filter until date (inclusive).",
++											"markdownDescription": "Filter until date (inclusive).",
++											"type": "string"
++										}
++									},
++									"type": "object"
++								}
++							},
++							"type": "object"
++						},
++						"defaults": {
++							"additionalProperties": false,
++							"properties": {
++								"all": {
++									"default": false,
++									"description": "Accepted for compatibility; all detected supported agents are included by default.",
++									"markdownDescription": "Accepted for compatibility; all detected supported agents are included by default.",
++									"type": "boolean"
++								},
++								"breakdown": {
++									"default": false,
++									"description": "Show per-model cost breakdown.",
++									"markdownDescription": "Show per-model cost breakdown.",
++									"type": "boolean"
++								},
++								"color": {
++									"default": false,
++									"description": "Enable colored output.",
++									"markdownDescription": "Enable colored output.",
++									"type": "boolean"
++								},
++								"compact": {
++									"default": false,
++									"description": "Force compact table layout for narrow terminals.",
++									"markdownDescription": "Force compact table layout for narrow terminals.",
++									"type": "boolean"
++								},
++								"debug": {
++									"default": false,
++									"description": "Show pricing mismatch information for debugging.",
++									"markdownDescription": "Show pricing mismatch information for debugging.",
++									"type": "boolean"
++								},
++								"debugSamples": {
++									"default": 5,
++									"description": "Number of sample discrepancies to show in debug output.",
++									"format": "uint",
++									"markdownDescription": "Number of sample discrepancies to show in debug output.",
++									"minimum": 0.0,
++									"type": "integer"
++								},
++								"jq": {
++									"description": "jq filter to apply to JSON output.",
++									"markdownDescription": "jq filter to apply to JSON output.",
++									"type": "string"
++								},
++								"json": {
++									"default": false,
++									"description": "Output in JSON format.",
++									"markdownDescription": "Output in JSON format.",
++									"type": "boolean"
++								},
++								"mode": {
++									"default": "auto",
++									"description": "Cost calculation mode.",
++									"enum": ["auto", "calculate", "display"],
++									"markdownDescription": "Cost calculation mode.",
++									"type": "string"
++								},
++								"noColor": {
++									"default": false,
++									"description": "Disable colored output.",
++									"markdownDescription": "Disable colored output.",
++									"type": "boolean"
++								},
++								"noCost": {
++									"default": false,
++									"description": "Hide cost information in table and JSON output.",
++									"markdownDescription": "Hide cost information in table and JSON output.",
++									"type": "boolean"
++								},
++								"noOffline": {
++									"default": false,
++									"description": "Disable cached pricing data where supported.",
++									"markdownDescription": "Disable cached pricing data where supported.",
++									"type": "boolean"
++								},
++								"offline": {
++									"default": false,
++									"description": "Use cached pricing data where supported.",
++									"markdownDescription": "Use cached pricing data where supported.",
++									"type": "boolean"
++								},
++								"order": {
++									"default": "asc",
++									"description": "Sort order.",
++									"enum": ["desc", "asc"],
++									"markdownDescription": "Sort order.",
++									"type": "string"
++								},
++								"pricingOverrides": {
++									"additionalProperties": {
++										"additionalProperties": false,
++										"properties": {
++											"cacheCreationInputTokenCost": {
++												"format": "double",
++												"type": "number"
++											},
++											"cacheCreationInputTokenCostAbove200kTokens": {
++												"format": "double",
++												"type": "number"
++											},
++											"cacheReadInputTokenCost": {
++												"format": "double",
++												"type": "number"
++											},
++											"cacheReadInputTokenCostAbove200kTokens": {
++												"format": "double",
++												"type": "number"
++											},
++											"fastMultiplier": {
++												"format": "double",
++												"type": "number"
++											},
++											"inputCostPerToken": {
++												"format": "double",
++												"type": "number"
++											},
++											"inputCostPerTokenAbove200kTokens": {
++												"format": "double",
++												"type": "number"
++											},
++											"maxInputTokens": {
++												"format": "uint64",
++												"minimum": 0.0,
++												"type": "integer"
++											},
++											"outputCostPerToken": {
++												"format": "double",
++												"type": "number"
++											},
++											"outputCostPerTokenAbove200kTokens": {
++												"format": "double",
++												"type": "number"
++											}
++										},
++										"type": "object"
++									},
++									"description": "Runtime pricing overrides keyed by raw model name.",
++									"markdownDescription": "Runtime pricing overrides keyed by raw model name.",
++									"type": "object"
++								},
++								"since": {
++									"description": "Filter from date (YYYY-MM-DD or YYYYMMDD).",
++									"markdownDescription": "Filter from date (YYYY-MM-DD or YYYYMMDD).",
++									"type": "string"
++								},
++								"singleThread": {
++									"default": false,
++									"description": "Disable parallel file processing.",
++									"markdownDescription": "Disable parallel file processing.",
++									"type": "boolean"
++								},
++								"timezone": {
++									"description": "Timezone for date grouping (IANA).",
++									"markdownDescription": "Timezone for date grouping (IANA).",
++									"type": "string"
++								},
++								"until": {
++									"description": "Filter until date (inclusive).",
++									"markdownDescription": "Filter until date (inclusive).",
++									"type": "string"
++								}
++							},
++							"type": "object"
++						}
++					},
++					"type": "object"
++				},
+ 				"claude": {
+ 					"additionalProperties": false,
+ 					"description": "Claude Code configuration.",
+diff --git a/docs/.vitepress/config.ts b/docs/.vitepress/config.ts
+index db1a975..8430dcb 100644
+--- a/docs/.vitepress/config.ts
++++ b/docs/.vitepress/config.ts
+@@ -83,6 +83,7 @@ export default defineConfig({
+ 						{ text: 'Gemini CLI', link: '/guide/gemini/' },
+ 						{ text: 'Kimi', link: '/guide/kimi/' },
+ 						{ text: 'OpenClaw', link: '/guide/openclaw/' },
++						{ text: 'Antigravity', link: '/guide/antigravity/' },
+ 						{ text: 'Source Support Q&A', link: '/guide/source-support-qa' },
+ 					],
+ 				},
+diff --git a/docs/guide/all-reports.md b/docs/guide/all-reports.md
+index 82bb780..5f707c5 100644
+--- a/docs/guide/all-reports.md
++++ b/docs/guide/all-reports.md
+@@ -34,7 +34,7 @@ ccusage daily --by-agent --json
+ 
+ ## How Unified Views Work
+ 
+-ccusage detects local usage files from Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, and Gemini CLI. The same daily, weekly, monthly, and session views can run in two modes:
++ccusage detects local usage files from Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, Gemini CLI, and Antigravity. The same daily, weekly, monthly, and session views can run in two modes:
+ 
+ | Mode    | Command example        | What it shows                           |
+ | ------- | ---------------------- | --------------------------------------- |
+@@ -46,23 +46,24 @@ Unified tables include an **Agent** column so you can compare sources in one vie
+ 
+ ## Supported Sources
+ 
+-| Source       | Namespace  | Example focused view      |
+-| ------------ | ---------- | ------------------------- |
+-| Claude Code  | `claude`   | `ccusage claude daily`    |
+-| Codex        | `codex`    | `ccusage codex daily`     |
+-| OpenCode     | `opencode` | `ccusage opencode weekly` |
+-| Amp          | `amp`      | `ccusage amp session`     |
+-| Droid        | `droid`    | `ccusage droid daily`     |
+-| Codebuff     | `codebuff` | `ccusage codebuff daily`  |
+-| Hermes Agent | `hermes`   | `ccusage hermes daily`    |
+-| pi-agent     | `pi`       | `ccusage pi monthly`      |
+-| Goose        | `goose`    | `ccusage goose daily`     |
+-| OpenClaw     | `openclaw` | `ccusage openclaw daily`  |
+-| Kilo         | `kilo`     | `ccusage kilo daily`      |
+-| Kimi         | `kimi`     | `ccusage kimi daily`      |
+-| Qwen         | `qwen`     | `ccusage qwen daily`      |
+-| Copilot CLI  | `copilot`  | `ccusage copilot daily`   |
+-| Gemini CLI   | `gemini`   | `ccusage gemini daily`    |
++| Source       | Namespace     | Example focused view        |
++| ------------ | ------------- | --------------------------- |
++| Claude Code  | `claude`      | `ccusage claude daily`      |
++| Codex        | `codex`       | `ccusage codex daily`       |
++| OpenCode     | `opencode`    | `ccusage opencode weekly`   |
++| Amp          | `amp`         | `ccusage amp session`       |
++| Droid        | `droid`       | `ccusage droid daily`       |
++| Codebuff     | `codebuff`    | `ccusage codebuff daily`    |
++| Hermes Agent | `hermes`      | `ccusage hermes daily`      |
++| pi-agent     | `pi`          | `ccusage pi monthly`        |
++| Goose        | `goose`       | `ccusage goose daily`       |
++| OpenClaw     | `openclaw`    | `ccusage openclaw daily`    |
++| Kilo         | `kilo`        | `ccusage kilo daily`        |
++| Kimi         | `kimi`        | `ccusage kimi daily`        |
++| Qwen         | `qwen`        | `ccusage qwen daily`        |
++| Copilot CLI  | `copilot`     | `ccusage copilot daily`     |
++| Gemini CLI   | `gemini`      | `ccusage gemini daily`      |
++| Antigravity  | `antigravity` | `ccusage antigravity daily` |
+ 
+ ## When to Focus a Source
+ 
+@@ -81,6 +82,7 @@ ccusage kilo session
+ ccusage qwen daily
+ ccusage copilot daily --json
+ ccusage gemini session --json
++ccusage antigravity daily
+ ```
+ 
+ ## Next Steps
+diff --git a/docs/guide/antigravity/index.md b/docs/guide/antigravity/index.md
+new file mode 100644
+index 0000000..6bef08a
+--- /dev/null
++++ b/docs/guide/antigravity/index.md
+@@ -0,0 +1,159 @@
++# Antigravity Data Source (Beta)
++
++ccusage can read [Google Antigravity](https://antigravity.google) usage data as one of its supported local data sources. Antigravity is Google's agentic IDE and CLI (Windsurf-derived), and it stores usage data in local SQLite conversation databases.
++
++## What is Antigravity?
++
++Antigravity is Google's agentic coding IDE and CLI. Each conversation is stored as a SQLite database with per-generation token counts (input, cache read, output, and thinking tokens), model identifiers, and timestamps. ccusage decodes these records offline — no credentials or live services are read.
++
++## Focused Views
++
++```bash
++# Recommended
++bunx ccusage antigravity --help
++
++# Alternative package runners
++npx ccusage@latest antigravity --help
++pnpm dlx ccusage antigravity --help
++pnpx ccusage antigravity --help
++```
++
++## Data Source
++
++The CLI reads conversation databases from Antigravity:
++
++| Source      | Default path                                                | Override               |
++| ----------- | ----------------------------------------------------------- | ---------------------- |
++| Antigravity | `~/.gemini/antigravity*/conversations/<conversation-id>.db` | `ANTIGRAVITY_DATA_DIR` |
++
++The default roots are `~/.gemini/antigravity`, `~/.gemini/antigravity-cli`, `~/.gemini/antigravity-ide`, and `~/.gemini/antigravity-backup`; missing roots are skipped. `ANTIGRAVITY_DATA_DIR` accepts one root or a comma-separated list of roots.
++
++Legacy `.pb` conversation files are compressed/encrypted and unsupported, and `*.db-wal`/`*.db-shm` sidecars are ignored.
++
++## Report Views
++
++```bash
++# Show daily Antigravity usage
++ccusage antigravity daily
++
++# Show monthly Antigravity usage
++ccusage antigravity monthly
++
++# Show session-based Antigravity usage
++ccusage antigravity session
++
++# JSON output for automation
++ccusage antigravity daily --json
++
++# Filter by date range
++ccusage antigravity daily --since 2026-05-01 --until 2026-05-16
++
++# Show model breakdown
++ccusage antigravity daily --breakdown
++```
++
++## Environment Variables
++
++| Variable               | Description                                                      |
++| ---------------------- | ---------------------------------------------------------------- |
++| `ANTIGRAVITY_DATA_DIR` | Custom path, or comma-separated paths, to Antigravity data roots |
++| `LOG_LEVEL`            | Adjust logging verbosity (0 silent … 5 trace)                    |
++
++## Daily View
++
++This view shows daily usage from Antigravity.
++
++```bash
++# Recommended (fastest)
++bunx ccusage antigravity daily
++
++# Using npx
++npx ccusage@latest antigravity daily
++```
++
++### Options
++
++| Flag          | Short | Description                                      |
++| ------------- | ----- | ------------------------------------------------ |
++| `--since`     |       | Start date filter (YYYY-MM-DD or YYYYMMDD)       |
++| `--until`     |       | End date filter (YYYY-MM-DD or YYYYMMDD)         |
++| `--timezone`  | `-z`  | Override timezone for date grouping              |
++| `--json`      |       | Emit structured JSON instead of a table          |
++| `--breakdown` | `-b`  | Show per-model token breakdown                   |
++| `--order`     |       | Sort order: `asc` or `desc` (default: `desc`)    |
++
++### JSON Output
++
++Use `--json` for automation and scripting:
++
++```bash
++ccusage antigravity daily --json
++```
++
++Returns structured data:
++
++<!-- eslint-skip -->
++
++```json
++{
++  "daily": [
++    {
++      "date": "2026-05-16",
++      "inputTokens": 567890,
++      "outputTokens": 123456,
++      "cacheCreationTokens": 0,
++      "cacheReadTokens": 45678,
++      "totalCost": 0.89,
++      "modelsUsed": ["gemini-3.1-pro"],
++      "modelBreakdowns": [...]
++    }
++  ],
++  "totals": {
++    "inputTokens": 567890,
++    "outputTokens": 123456,
++    "cacheCreationTokens": 0,
++    "cacheReadTokens": 45678,
++    "totalCost": 0.89
++  }
++}
++```
++
++## Monthly View
++
++This view shows monthly usage from Antigravity.
++
++```bash
++# Recommended (fastest)
++bunx ccusage antigravity monthly
++
++# Using npx
++npx ccusage@latest antigravity monthly
++```
++
++## Session View
++
++This view shows usage grouped by individual Antigravity conversations.
++
++```bash
++# Recommended (fastest)
++bunx ccusage antigravity session
++
++# Using npx
++npx ccusage@latest antigravity session
++```
++
++### Session Identification
++
++Sessions are identified by the conversation database name (`<conversation-id>.db`). The project name comes from the workspace URI recorded in the conversation metadata.
++
++## Token Semantics
++
++- Input tokens include Antigravity's fixed system-prompt component plus fresh (non-cached) input.
++- Cache-write tokens are always zero; cache-read tokens are reported separately.
++- Thinking (reasoning) tokens are excluded from the displayed output column but included in total tokens and billed as output for cost calculation.
++- Antigravity records no cost; costs are estimated from LiteLLM model pricing. Internal model ids (for example `MODEL_PLACEHOLDER_M16`) are mapped to priced names such as `gemini-3.1-pro`.
++
++## Related
++
++- [ccusage](https://github.com/ccusage/ccusage) - Main usage analysis tool for coding (agent) CLIs
++- [Antigravity](https://antigravity.google) - Google's agentic IDE and CLI
+diff --git a/docs/guide/config-files.md b/docs/guide/config-files.md
+index bbef24b..abb0916 100644
+--- a/docs/guide/config-files.md
++++ b/docs/guide/config-files.md
+@@ -180,7 +180,7 @@ Override shared defaults for specific unified reports and legacy Claude commands
+ 
+ ### Source-Specific Configuration
+ 
+-Use data source namespaces to set defaults and report overrides. Supported namespaces are `claude`, `codex`, `opencode`, `amp`, `droid`, `codebuff`, `hermes`, `pi`, `goose`, `openclaw`, `kilo`, `kimi`, `qwen`, `copilot`, and `gemini`.
++Use data source namespaces to set defaults and report overrides. Supported namespaces are `claude`, `codex`, `opencode`, `amp`, `droid`, `codebuff`, `hermes`, `pi`, `goose`, `openclaw`, `kilo`, `kimi`, `qwen`, `copilot`, `gemini`, and `antigravity`.
+ 
+ ```json
+ {
+diff --git a/docs/guide/configuration.md b/docs/guide/configuration.md
+index e41e27c..dcc6cd8 100644
+--- a/docs/guide/configuration.md
++++ b/docs/guide/configuration.md
+@@ -109,7 +109,7 @@ For individual developers working on multiple projects:
+ 
+ ### Multiple Sources
+ 
+-Configure Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, and Gemini CLI separately with data source namespaces:
++Configure Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, Gemini CLI, and Antigravity separately with data source namespaces:
+ 
+ ```json
+ // ~/.config/claude/ccusage.json
+diff --git a/docs/guide/environment-variables.md b/docs/guide/environment-variables.md
+index 206711e..7f686e3 100644
+--- a/docs/guide/environment-variables.md
++++ b/docs/guide/environment-variables.md
+@@ -23,6 +23,7 @@ ccusage detects supported data source files from conventional locations by defau
+ | `QWEN_DATA_DIR`                   | Qwen         | `~/.qwen`                          |
+ | `COPILOT_OTEL_FILE_EXPORTER_PATH` | Copilot CLI  | Explicit `.jsonl` file             |
+ | `GEMINI_DATA_DIR`                 | Gemini CLI   | `~/.gemini/tmp`                    |
++| `ANTIGRAVITY_DATA_DIR`            | Antigravity  | `~/.gemini/antigravity*`           |
+ 
+ Example:
+ 
+@@ -41,6 +42,7 @@ export KIMI_DATA_DIR="/path/to/kimi,/archive/kimi"
+ export QWEN_DATA_DIR="/path/to/qwen,/archive/qwen"
+ export COPILOT_OTEL_FILE_EXPORTER_PATH="/path/to/copilot-otel.jsonl"
+ export GEMINI_DATA_DIR="/path/to/gemini/tmp,/archive/gemini/tmp"
++export ANTIGRAVITY_DATA_DIR="/path/to/antigravity,/archive/antigravity"
+ ccusage daily
+ ```
+ 
+@@ -210,7 +212,7 @@ To see which environment variables are being used:
+ 
+ ```bash
+ # Show all environment variables
+-env | grep -E "CLAUDE|CODEX|OPENCODE|AMP|DROID|CODEBUFF|HERMES|PI_AGENT|GOOSE|OPENCLAW|KILO|KIMI|QWEN|COPILOT|GEMINI|CCUSAGE|LOG_LEVEL"
++env | grep -E "CLAUDE|CODEX|OPENCODE|AMP|DROID|CODEBUFF|HERMES|PI_AGENT|GOOSE|OPENCLAW|KILO|KIMI|QWEN|COPILOT|GEMINI|ANTIGRAVITY|CCUSAGE|LOG_LEVEL"
+ 
+ # Debug mode shows environment variable usage
+ LOG_LEVEL=4 ccusage daily --debug
+diff --git a/docs/guide/getting-started.md b/docs/guide/getting-started.md
+index fdf101f..b8c16a3 100644
+--- a/docs/guide/getting-started.md
++++ b/docs/guide/getting-started.md
+@@ -176,6 +176,7 @@ If ccusage shows no data, check:
+    - OpenClaw: `${OPENCLAW_DIR:-~/.openclaw}` (also scans `~/.clawdbot`, `~/.moltbot`, `~/.moldbot`)
+    - Qwen: `${QWEN_DATA_DIR:-~/.qwen}`
+    - GitHub Copilot CLI: `~/.copilot/otel/*.jsonl` or `COPILOT_OTEL_FILE_EXPORTER_PATH`
++   - Antigravity: `${ANTIGRAVITY_DATA_DIR:-~/.gemini/antigravity*}/conversations`
+ 
+ ### Custom Data Directory
+ 
+@@ -196,6 +197,7 @@ export KILO_DATA_DIR="/path/to/kilo"
+ export KIMI_DATA_DIR="/path/to/kimi"
+ export QWEN_DATA_DIR="/path/to/qwen"
+ export COPILOT_OTEL_FILE_EXPORTER_PATH="/path/to/copilot-otel.jsonl"
++export ANTIGRAVITY_DATA_DIR="/path/to/antigravity"
+ ```
+ 
+ Each source-specific path variable can also contain comma-separated directories:
+diff --git a/docs/guide/index.md b/docs/guide/index.md
+index c0e969c..e181deb 100644
+--- a/docs/guide/index.md
++++ b/docs/guide/index.md
+@@ -2,7 +2,7 @@
+ 
+ ![ccusage daily report showing token usage and costs by date](/screenshot.png)
+ 
+-**ccusage** is a local CLI for understanding coding (agent) CLI token usage and estimated costs across Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, and Gemini CLI.
++**ccusage** is a local CLI for understanding coding (agent) CLI token usage and estimated costs across Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, Gemini CLI, and Antigravity.
+ 
+ The original **“cc”** came from **C**laude **C**ode usage and now also fits **C**odex **C**LI usage. As OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, Gemini CLI, and other coding (agent) CLIs became part of the same workflow, ccusage expanded into a general name for local coding CLI usage analysis.
+ 
+@@ -19,7 +19,7 @@ Modern coding (agent) CLI usage is split across several local data formats. That
+ 
+ ccusage reads the local usage files that coding CLIs already generate and provides:
+ 
+-- **All Sources by Default** - Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, and Gemini CLI in one CLI
++- **All Sources by Default** - Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, Gemini CLI, and Antigravity in one CLI
+ - **Usage Views** - Daily, weekly, monthly, and session-based breakdowns
+ - **Cost Analysis** - Estimated costs based on token usage and model pricing
+ - **Focused Data Source Views** - Start with all detected sources, then narrow the same usage views to one source when needed
+@@ -72,28 +72,29 @@ Each data source page covers the details that only apply to that source, includi
+ 
+ ccusage reads from local coding CLI data directories:
+ 
+-| Agent        | ID         | Default data location                             |
+-| ------------ | ---------- | ------------------------------------------------- |
+-| Claude Code  | `claude`   | `~/.config/claude/projects/`, `~/.claude/`        |
+-| Codex        | `codex`    | `${CODEX_HOME:-~/.codex}`                         |
+-| OpenCode     | `opencode` | `${OPENCODE_DATA_DIR:-~/.local/share/opencode}`   |
+-| Amp          | `amp`      | `${AMP_DATA_DIR:-~/.local/share/amp}`             |
+-| Droid        | `droid`    | `${DROID_SESSIONS_DIR:-~/.factory/sessions}`      |
+-| Codebuff     | `codebuff` | `${CODEBUFF_DATA_DIR:-~/.config/manicode}`        |
+-| Hermes Agent | `hermes`   | `${HERMES_HOME:-~/.hermes}/state.db`              |
+-| pi-agent     | `pi`       | `${PI_AGENT_DIR:-~/.pi/agent/sessions}`           |
+-| Goose        | `goose`    | Standard Goose data roots or `GOOSE_PATH_ROOT`    |
+-| OpenClaw     | `openclaw` | `${OPENCLAW_DIR:-~/.openclaw}`                    |
+-| Kilo         | `kilo`     | `${KILO_DATA_DIR:-~/.local/share/kilo}`           |
+-| Kimi         | `kimi`     | `${KIMI_DATA_DIR:-~/.kimi}` (also `~/.kimi-code`) |
+-| Qwen         | `qwen`     | `${QWEN_DATA_DIR:-~/.qwen}`                       |
+-| Copilot CLI  | `copilot`  | `~/.copilot/otel/*.jsonl`                         |
+-| Gemini CLI   | `gemini`   | `${GEMINI_DATA_DIR:-~/.gemini/tmp}`               |
++| Agent        | ID            | Default data location                                             |
++| ------------ | ------------- | ----------------------------------------------------------------- |
++| Claude Code  | `claude`      | `~/.config/claude/projects/`, `~/.claude/`                        |
++| Codex        | `codex`       | `${CODEX_HOME:-~/.codex}`                                         |
++| OpenCode     | `opencode`    | `${OPENCODE_DATA_DIR:-~/.local/share/opencode}`                   |
++| Amp          | `amp`         | `${AMP_DATA_DIR:-~/.local/share/amp}`                             |
++| Droid        | `droid`       | `${DROID_SESSIONS_DIR:-~/.factory/sessions}`                      |
++| Codebuff     | `codebuff`    | `${CODEBUFF_DATA_DIR:-~/.config/manicode}`                        |
++| Hermes Agent | `hermes`      | `${HERMES_HOME:-~/.hermes}/state.db`                              |
++| pi-agent     | `pi`          | `${PI_AGENT_DIR:-~/.pi/agent/sessions}`                           |
++| Goose        | `goose`       | Standard Goose data roots or `GOOSE_PATH_ROOT`                    |
++| OpenClaw     | `openclaw`    | `${OPENCLAW_DIR:-~/.openclaw}`                                    |
++| Kilo         | `kilo`        | `${KILO_DATA_DIR:-~/.local/share/kilo}`                           |
++| Kimi         | `kimi`        | `${KIMI_DATA_DIR:-~/.kimi}` (also `~/.kimi-code`)                 |
++| Qwen         | `qwen`        | `${QWEN_DATA_DIR:-~/.qwen}`                                       |
++| Copilot CLI  | `copilot`     | `~/.copilot/otel/*.jsonl`                                         |
++| Gemini CLI   | `gemini`      | `${GEMINI_DATA_DIR:-~/.gemini/tmp}`                               |
++| Antigravity  | `antigravity` | `${ANTIGRAVITY_DATA_DIR:-~/.gemini/antigravity*}/conversations`   |
+ 
+ The tool automatically detects available data and aggregates all supported coding CLIs by default.
+ Each source-specific environment variable can also contain comma-separated directories, which lets unified reports combine current profiles and archives.
+ 
+-Some coding agents have been investigated but are not supported because their local files do not contain reliable token usage. See [Source Support Q&A](/guide/source-support-qa) for the current notes on Antigravity CLI, Grok CLI, and Devin CLI.
++Some coding agents have been investigated but are not supported because their local files do not contain reliable token usage. See [Source Support Q&A](/guide/source-support-qa) for the current notes on Grok CLI and Devin CLI.
+ 
+ ## Report Shape
+ 
+@@ -124,6 +125,7 @@ ccusage kimi daily
+ ccusage qwen daily
+ ccusage copilot daily
+ ccusage gemini daily
++ccusage antigravity daily
+ ```
+ 
+ Use `ccusage <source> <report>` only when you want to narrow a report to one source.
+diff --git a/docs/guide/source-support-qa.md b/docs/guide/source-support-qa.md
+index 675a43b..ef991d7 100644
+--- a/docs/guide/source-support-qa.md
++++ b/docs/guide/source-support-qa.md
+@@ -19,16 +19,6 @@ Local transcript text alone is not enough. A transcript can be useful for debugg
+ 
+ ## Unsupported Sources Investigated
+ 
+-::: details Why is Antigravity CLI not supported?
+-Antigravity CLI is separate from Gemini CLI. The Antigravity CLI binary is exposed as `agy`, and it stores state under `~/.gemini/antigravity-cli/`.
+-
+-The current local data has conversation files such as `conversations/<conversation-id>.pb`, plus lightweight history and cache JSON files. The `.pb` files are opaque binary payloads and do not expose readable token usage, model usage, or per-turn accounting without Antigravity's private schema and storage semantics.
+-
+-The CLI log files include operational events such as conversation creation, streaming, prompt length, auth, and model configuration messages. They do not include input, output, cache, or reasoning token counts. Quota-oriented tools can inspect remaining Antigravity quota, but quota snapshots are not the same as historical per-session token usage.
+-
+-Because the local files do not expose the token accounting needed for ccusage reports, Antigravity CLI is not supported right now.
+-:::
+-
+ ::: details Why is Grok CLI not supported?
+ Grok CLI was investigated, but its local SQLite data did not contain usable token accounting. Without token counts, model usage, or recorded costs in the local database, ccusage has nothing reliable to aggregate.
+ 
+diff --git a/docs/index.md b/docs/index.md
+index 68ea473..d88ef1a 100644
+--- a/docs/index.md
++++ b/docs/index.md
+@@ -4,7 +4,7 @@ layout: home
+ hero:
+   name: ccusage
+   text: Coding (Agent) CLI Usage Analysis
+-  tagline: A fast local CLI for tracking tokens and estimated costs across Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, and Gemini CLI
++  tagline: A fast local CLI for tracking tokens and estimated costs across Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, Gemini CLI, and Antigravity
+   image:
+     src: /logo.svg
+     alt: ccusage logo
+@@ -27,7 +27,7 @@ features:
+     link: /guide/getting-started
+   - icon: 📁
+     title: Local Data Sources
+-    details: Reads local usage logs from Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, and Gemini CLI without uploading your data
++    details: Reads local usage logs from Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI, Gemini CLI, and Antigravity without uploading your data
+     link: /guide/
+   - icon: 💰
+     title: Cost Analysis
+diff --git a/nix/models-dev-gen.ts b/nix/models-dev-gen.ts
+index 9b30fee..0c6759d 100644
+--- a/nix/models-dev-gen.ts
++++ b/nix/models-dev-gen.ts
+@@ -23,9 +23,11 @@ import {
+ /**
+  * Model ids/keys we keep in the committed snapshot.
+  * Claude remains first-class; Kimi/Moonshot is included so offline pricing can
+- * cover models LiteLLM has not published yet (for example kimi-k3).
++ * cover models LiteLLM has not published yet (for example kimi-k3). Gemini is
++ * included for the same reason: Antigravity reports Gemini models (for example
++ * gemini-3.6-flash) that LiteLLM has not published yet.
+  */
+-const KEEP = /claude|anthropic|kimi|moonshot/i;
++const KEEP = /claude|anthropic|kimi|moonshot|gemini/i;
+ 
+ type Cost = {
+ 	input?: number | null;
+diff --git a/rust/crates/ccusage-cli/src/cli-commands.json b/rust/crates/ccusage-cli/src/cli-commands.json
+index c1a2a40..04c538b 100644
+--- a/rust/crates/ccusage-cli/src/cli-commands.json
++++ b/rust/crates/ccusage-cli/src/cli-commands.json
+@@ -94,6 +94,10 @@
+ 			{
+ 				"name": "openclaw",
+ 				"description": "Show OpenClaw usage commands"
++			},
++			{
++				"name": "antigravity",
++				"description": "Show Antigravity usage commands"
+ 			}
+ 		]
+ 	},
+@@ -728,6 +732,43 @@
+ 			"description": "Show OpenClaw usage grouped by session",
+ 			"usage": "ccusage openclaw session <OPTIONS>",
+ 			"options": "openclaw_combined_options"
++		},
++		{
++			"path": ["antigravity"],
++			"description": "Usage reports for antigravity.",
++			"usage": "ccusage antigravity <COMMANDS>",
++			"commands": [
++				{
++					"name": "daily",
++					"description": "Show Antigravity usage grouped by date"
++				},
++				{
++					"name": "monthly",
++					"description": "Show Antigravity usage grouped by month"
++				},
++				{
++					"name": "session",
++					"description": "Show Antigravity usage grouped by session"
++				}
++			]
++		},
++		{
++			"path": ["antigravity", "daily"],
++			"description": "Show Antigravity usage grouped by date",
++			"usage": "ccusage antigravity daily <OPTIONS>",
++			"options": "agent_options"
++		},
++		{
++			"path": ["antigravity", "monthly"],
++			"description": "Show Antigravity usage grouped by month",
++			"usage": "ccusage antigravity monthly <OPTIONS>",
++			"options": "agent_options"
++		},
++		{
++			"path": ["antigravity", "session"],
++			"description": "Show Antigravity usage grouped by session",
++			"usage": "ccusage antigravity session <OPTIONS>",
++			"options": "agent_options"
+ 		}
+ 	]
+ }
+diff --git a/rust/crates/ccusage-cli/src/parser.rs b/rust/crates/ccusage-cli/src/parser.rs
+index 41c239a..a234aba 100644
+--- a/rust/crates/ccusage-cli/src/parser.rs
++++ b/rust/crates/ccusage-cli/src/parser.rs
+@@ -333,6 +333,13 @@ fn parse_command(
+             Command::Qwen,
+         ),
+         "openclaw" => parse_openclaw_command(parser, shared, config),
++        "antigravity" => parse_basic_agent_command(
++            parser,
++            shared,
++            "antigravity",
++            STANDARD_AGENT_REPORTS,
++            Command::Antigravity,
++        ),
+         _ => Err(format!("Unknown command '{command}'")),
+     }
+ }
+@@ -762,6 +769,7 @@ fn is_command(arg: &str) -> bool {
+             | "gemini"
+             | "kimi"
+             | "qwen"
++            | "antigravity"
+     )
+ }
+ 
+@@ -920,6 +928,7 @@ fn is_agent_command(command: &str) -> bool {
+             | "kimi"
+             | "qwen"
+             | "openclaw"
++            | "antigravity"
+     )
+ }
+ 
+@@ -932,7 +941,7 @@ fn agent_report_supported(agent: &str, report: &str) -> bool {
+         "codex" => matches!(report, "daily" | "monthly" | "session"),
+         "opencode" => matches!(report, "daily" | "weekly" | "monthly" | "session"),
+         "amp" | "droid" | "codebuff" | "hermes" | "pi" | "goose" | "kilo" | "copilot"
+-        | "gemini" | "kimi" | "qwen" | "openclaw" => {
++        | "gemini" | "kimi" | "qwen" | "openclaw" | "antigravity" => {
+             matches!(report, "daily" | "monthly" | "session")
+         }
+         _ => false,
+@@ -956,6 +965,7 @@ fn agent_display_name(agent: &str) -> &'static str {
+         "kimi" => "Kimi",
+         "qwen" => "Qwen",
+         "openclaw" => "OpenClaw",
++        "antigravity" => "Antigravity",
+         _ => unreachable!("agent is prevalidated"),
+     }
+ }
+diff --git a/rust/crates/ccusage-cli/src/snapshots/ccusage_cli__tests__root_help.snap b/rust/crates/ccusage-cli/src/snapshots/ccusage_cli__tests__root_help.snap
+index d269a64..12b2110 100644
+--- a/rust/crates/ccusage-cli/src/snapshots/ccusage_cli__tests__root_help.snap
++++ b/rust/crates/ccusage-cli/src/snapshots/ccusage_cli__tests__root_help.snap
+@@ -28,6 +28,7 @@ COMMANDS:
+   kimi                       Show Kimi usage commands
+   qwen                       Show Qwen usage commands
+   openclaw                   Show OpenClaw usage commands
++  antigravity                Show Antigravity usage commands
+ 
+ For more info, run any command with the `--help` flag:
+   ccusage daily --help
+@@ -51,6 +52,7 @@ For more info, run any command with the `--help` flag:
+   ccusage kimi --help
+   ccusage qwen --help
+   ccusage openclaw --help
++  ccusage antigravity --help
+ 
+ OPTIONS:
+   -j, --json                           Output in JSON format (default: false)
+diff --git a/rust/crates/ccusage-cli/src/tests.rs b/rust/crates/ccusage-cli/src/tests.rs
+index 2a6692f..8eaabe6 100644
+--- a/rust/crates/ccusage-cli/src/tests.rs
++++ b/rust/crates/ccusage-cli/src/tests.rs
+@@ -202,6 +202,7 @@ fn command_snapshot(command: Option<Command>) -> Value {
+         Some(Command::Kimi(args)) => agent_command_snapshot("kimi", args),
+         Some(Command::Qwen(args)) => agent_command_snapshot("qwen", args),
+         Some(Command::OpenClaw(args)) => agent_command_snapshot("openclaw", args),
++        Some(Command::Antigravity(args)) => agent_command_snapshot("antigravity", args),
+     }
+ }
+ 
+@@ -1092,3 +1093,13 @@ fn parses_openclaw_session_options() {
+     assert!(args.shared.json);
+     assert_eq!(args.open_claw_path.as_deref(), Some("/tmp/openclaw"));
+ }
++
++#[test]
++fn parses_antigravity_session_options() {
++    let cli = parse(&["ccusage", "antigravity", "session", "--json"]);
++    let Some(Command::Antigravity(args)) = cli.command else {
++        panic!("expected antigravity command");
++    };
++    assert_eq!(args.kind, AgentReportKind::Session);
++    assert!(args.shared.json);
++}
+diff --git a/rust/crates/ccusage-cli/src/types.rs b/rust/crates/ccusage-cli/src/types.rs
+index 5b0c311..481c8b0 100644
+--- a/rust/crates/ccusage-cli/src/types.rs
++++ b/rust/crates/ccusage-cli/src/types.rs
+@@ -30,6 +30,7 @@ pub enum Command {
+     Kimi(AgentCommandArgs),
+     Qwen(AgentCommandArgs),
+     OpenClaw(AgentCommandArgs),
++    Antigravity(AgentCommandArgs),
+ }
+ 
+ #[derive(Clone, Debug, Default)]
+diff --git a/rust/crates/ccusage/src/adapter/all/loader.rs b/rust/crates/ccusage/src/adapter/all/loader.rs
+index 9b8c543..2475127 100644
+--- a/rust/crates/ccusage/src/adapter/all/loader.rs
++++ b/rust/crates/ccusage/src/adapter/all/loader.rs
+@@ -10,8 +10,8 @@ use serde_json::{Value, json};
+ use crate::{
+     CodexGroup, LoadedEntry, ModelBreakdown, PricingMap, Result, SessionAccumulator, UsageSummary,
+     adapter::{
+-        amp, claude, codebuff, codex, copilot, droid, gemini, goose, hermes, kilo, kimi, openclaw,
+-        opencode, pi, qwen,
++        amp, antigravity, claude, codebuff, codex, copilot, droid, gemini, goose, hermes, kilo,
++        kimi, openclaw, opencode, pi, qwen,
+     },
+     cli::{AgentReportKind, CodexSpeed, NamedPiStore, SharedArgs, WeekDay},
+     filter_loaded_entries_by_date, json_float,
+@@ -26,8 +26,22 @@ use super::{
+ };
+ 
+ pub(crate) const BUILT_IN_AGENT_NAMES: &[&str] = &[
+-    "claude", "codex", "opencode", "amp", "droid", "codebuff", "hermes", "pi", "goose", "openclaw",
+-    "kilo", "copilot", "gemini", "kimi", "qwen",
++    "claude",
++    "codex",
++    "opencode",
++    "amp",
++    "droid",
++    "codebuff",
++    "hermes",
++    "pi",
++    "goose",
++    "openclaw",
++    "kilo",
++    "copilot",
++    "gemini",
++    "kimi",
++    "qwen",
++    "antigravity",
+ ];
+ 
+ pub(super) fn load_rows(kind: AgentReportKind, shared: &SharedArgs) -> Result<AllLoadResult> {
+@@ -307,6 +321,21 @@ fn load_base_rows(
+             progress_agent: crate::progress::UsageLoadAgent::Qwen,
+             load: Box::new(|| load_qwen_rows(load_kind, &loader_shared)),
+         },
++        AgentLoadSpec {
++            index: 15,
++            agent: BUILT_IN_AGENT_NAMES[15],
++            progress_agent: crate::progress::UsageLoadAgent::Antigravity,
++            load: Box::new(|| {
++                load_priced_summary_agent_rows(
++                    "antigravity",
++                    load_kind,
++                    &loader_shared,
++                    pricing,
++                    antigravity::load_entries,
++                    antigravity::summarize_entries,
++                )
++            }),
++        },
+     ];
+     let named_pi_stores = resolve_named_pi_store_paths(&shared.pi_stores)?;
+     for store in named_pi_stores {
+diff --git a/rust/crates/ccusage/src/adapter/all/report.rs b/rust/crates/ccusage/src/adapter/all/report.rs
+index 49a6b57..8e0ad93 100644
+--- a/rust/crates/ccusage/src/adapter/all/report.rs
++++ b/rust/crates/ccusage/src/adapter/all/report.rs
+@@ -589,6 +589,7 @@ fn agent_label(agent: &str) -> &str {
+         "gemini" => "Gemini CLI",
+         "kimi" => "Kimi",
+         "qwen" => "Qwen",
++        "antigravity" => "Antigravity",
+         _ => agent,
+     }
+ }
+diff --git a/rust/crates/ccusage/src/adapter/antigravity/README.md b/rust/crates/ccusage/src/adapter/antigravity/README.md
+new file mode 100644
+index 0000000..70b2c21
+--- /dev/null
++++ b/rust/crates/ccusage/src/adapter/antigravity/README.md
+@@ -0,0 +1,87 @@
++# Antigravity Source
++
++Tracks [Google Antigravity](https://antigravity.google) (agentic IDE + CLI,
++Windsurf-derived) usage from local SQLite conversation databases.
++
++Data source:
++
++```text
++${ANTIGRAVITY_DATA_DIR:-~/.gemini/antigravity}/conversations/<uuid>.db
++~/.gemini/antigravity-cli/conversations/<uuid>.db
++~/.gemini/antigravity-ide/conversations/<uuid>.db
++~/.gemini/antigravity-backup/conversations/<uuid>.db
++```
++
++`ANTIGRAVITY_DATA_DIR` accepts one root or a comma-separated list of roots
++and replaces the default `~/.gemini/antigravity*` set. Missing roots are
++skipped. `*.db-wal`/`*.db-shm` sidecars and legacy `.pb` conversation files
++(compressed/encrypted, unsupported) are ignored. A database without a
++`gen_metadata` table is not an Antigravity conversation DB and yields nothing.
++
++Commands:
++
++```sh
++ccusage antigravity daily
++ccusage antigravity monthly
++ccusage antigravity session
++ccusage antigravity daily --json
++```
++
++## Protobuf field map
++
++`gen_metadata.data` (ordered by `idx`) holds one `GeneratorMetadata` message
++per generation, decoded with a hand-rolled wire-format reader (no .proto):
++
++- field 1 (LEN message) → chatModel
++  - field 19 (LEN string) → raw model id
++  - field 9 (LEN message) → generation info; its field 4 → timestamp
++    `{1: seconds varint, 2: nanos varint}` (nanos must be `0..=999_999_999`)
++  - field 4 (LEN message) → usage
++    - field 1 (varint) → fixed system-prompt input tokens
++    - field 2 (varint) → fresh (non-cached) input tokens
++    - field 5 (varint) → cache-read tokens
++    - field 9 (varint) → output (text) tokens
++    - field 10 (varint) → thinking/reasoning tokens
++    - field 11 (LEN string) → responseId (dedup key, within and across DBs)
++
++`trajectory_metadata_blob.data` (first row) holds session fallbacks:
++
++- field 2 (LEN message) → `{1: seconds, 2: nanos}` session created-at
++  (fallback when a generation has no timestamp; final fallback is file mtime)
++- field 1 (LEN message) → field 1 (LEN string) → workspace `file://` URI
++  (percent-decoded; project/session identifier)
++
++## Token semantics
++
++- `input_tokens` = system-prompt (#1) + fresh input (#2). The system-prompt
++  component is a fixed per-generation charge (~1016–1266 tokens).
++- `cache_creation_input_tokens` is always 0.
++- Thinking tokens (#10) are excluded from the displayed `output_tokens` (#9),
++  ride in `extra_total_tokens` (so they still count toward total tokens), and
++  are folded into billable output tokens for cost calculation.
++- Rows where input + output + cache-read + thinking are all 0 are skipped.
++- The source stores no cost; cost comes from the shared pricing pipeline.
++
++## Model aliases
++
++Raw ids are mapped to LiteLLM-priced names case-insensitively; unknown ids
++pass through unchanged:
++
++```text
++model_placeholder_m26 → claude-opus-4-6
++model_placeholder_m35 → claude-sonnet-4-6
++model_placeholder_m36/m37/m16 → gemini-3.1-pro
++model_placeholder_m18/m84/m47 → gemini-3-flash-preview
++model_placeholder_m132/m133 → gemini-3.5-flash-high
++model_placeholder_m187 → gemini-3.5-flash-extra-low
++model_placeholder_m20 → gemini-3.5-flash-medium
++model_openai_gpt_oss_120b_medium → gpt-oss-120b-medium
++gemini-pro-default, gemini-pro-agent → gemini-3.1-pro
++gemini-3-flash-agent/-a/-b → gemini-3.5-flash-high
++gemini-3-flash-c, gemini-3-flash → gemini-3-flash-preview
++gemini-3.5-flash-low → gemini-3.5-flash-medium
++gemini-3.1-pro-high/-low → gemini-3.1-pro
++gemini-3-pro-high/-low → gemini-3-pro
++claude-opus-4-6-thinking → claude-opus-4-6
++claude-sonnet-4-6-thinking → claude-sonnet-4-6
++```
+diff --git a/rust/crates/ccusage/src/adapter/antigravity/loader.rs b/rust/crates/ccusage/src/adapter/antigravity/loader.rs
+new file mode 100644
+index 0000000..c6a6e43
+--- /dev/null
++++ b/rust/crates/ccusage/src/adapter/antigravity/loader.rs
+@@ -0,0 +1,429 @@
++use std::{
++    collections::HashSet,
++    fs,
++    path::{Path, PathBuf},
++};
++
++use jiff::tz::TimeZone as JiffTimeZone;
++
++use super::{
++    parser::{self, TrajectoryMetadata},
++    paths,
++};
++use crate::{
++    LoadedEntry, PricingMap, Result,
++    cli::{CostMode, SharedArgs},
++    debug_log, parse_tz, read_files_parallel,
++};
++
++pub(crate) fn load_entries(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<LoadedEntry>> {
++    crate::progress::track_usage_load(
++        crate::progress::UsageLoadAgent::Antigravity,
++        shared.json,
++        || load_entries_inner(shared, pricing),
++    )
++}
++
++fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<LoadedEntry>> {
++    let roots = paths::paths()?;
++    // Fast detection: without Antigravity data roots there is nothing to do.
++    if roots.is_empty() {
++        return Ok(Vec::new());
++    }
++    load_entries_from_roots(&roots, shared, pricing)
++}
++
++pub(super) fn load_entries_from_roots(
++    roots: &[PathBuf],
++    shared: &SharedArgs,
++    pricing: &PricingMap,
++) -> Result<Vec<LoadedEntry>> {
++    let tz = parse_tz(shared.timezone.as_deref());
++    let mut db_paths = Vec::new();
++    for root in roots {
++        db_paths.extend(paths::conversation_db_paths(root));
++    }
++    // Open each database in parallel (a fresh read-only connection per DB),
++    // then run the sequential responseId dedup over the original path order so
++    // the surviving record per id matches the single-threaded read.
++    let loaded = read_files_parallel(&db_paths, shared.single_thread, |db_path| {
++        load_entries_from_database(db_path, tz.as_ref(), shared.mode, Some(pricing), shared)
++    });
++    let mut entries = Vec::new();
++    let mut seen = HashSet::new();
++    for db_entries in loaded {
++        for entry in db_entries {
++            if let Some(id) = entry.data.message.id.as_deref().filter(|id| !id.is_empty())
++                && !seen.insert(id.to_string())
++            {
++                continue;
++            }
++            entries.push(entry);
++        }
++    }
++    entries.sort_by_key(|entry| entry.timestamp);
++    Ok(entries)
++}
++
++fn load_entries_from_database(
++    db_path: &Path,
++    tz: Option<&JiffTimeZone>,
++    mode: CostMode,
++    pricing: Option<&PricingMap>,
++    shared: &SharedArgs,
++) -> Vec<LoadedEntry> {
++    let Ok(connection) =
++        sqlite::Connection::open_with_flags(db_path, sqlite::OpenFlags::new().with_read_only())
++    else {
++        debug_log(
++            shared,
++            format!("Failed to open Antigravity database: {}", db_path.display()),
++        );
++        return Vec::new();
++    };
++    // A database without gen_metadata is not an Antigravity conversation DB.
++    let Ok(mut statement) = connection.prepare("SELECT data FROM gen_metadata ORDER BY idx") else {
++        return Vec::new();
++    };
++    let trajectory = read_trajectory_metadata(&connection);
++    let context = parser::session_context(db_path, &trajectory, file_mtime_ms(db_path));
++
++    let mut entries = Vec::new();
++    loop {
++        match statement.next() {
++            Ok(sqlite::State::Row) => {
++                let Ok(blob) = statement.read::<Vec<u8>, _>(0) else {
++                    continue;
++                };
++                let record = parser::decode_generation(&blob);
++                if let Some(entry) =
++                    parser::generation_to_entry(&record, &context, tz, mode, pricing)
++                {
++                    entries.push(entry);
++                }
++            }
++            Ok(sqlite::State::Done) => break,
++            Err(_) => {
++                debug_log(
++                    shared,
++                    format!(
++                        "Failed to query Antigravity database: {}",
++                        db_path.display()
++                    ),
++                );
++                break;
++            }
++        }
++    }
++    entries
++}
++
++fn read_trajectory_metadata(connection: &sqlite::Connection) -> TrajectoryMetadata {
++    let Ok(mut statement) = connection.prepare("SELECT data FROM trajectory_metadata_blob LIMIT 1")
++    else {
++        return TrajectoryMetadata::default();
++    };
++    if let Ok(sqlite::State::Row) = statement.next()
++        && let Ok(blob) = statement.read::<Vec<u8>, _>(0)
++    {
++        return parser::decode_trajectory_metadata(&blob);
++    }
++    TrajectoryMetadata::default()
++}
++
++fn file_mtime_ms(db_path: &Path) -> Option<i64> {
++    let modified = fs::metadata(db_path).ok()?.modified().ok()?;
++    let millis = modified
++        .duration_since(std::time::UNIX_EPOCH)
++        .ok()?
++        .as_millis();
++    i64::try_from(millis).ok()
++}
++
++#[cfg(test)]
++mod tests {
++    use std::path::Path;
++
++    use super::{super::parser::encode, *};
++    use crate::cli::SharedArgs;
++    use ccusage_test_support::fs_fixture;
++
++    fn create_conversation_db(path: &Path, generations: &[Vec<u8>], trajectory: Option<&[u8]>) {
++        let db = sqlite::open(path).unwrap();
++        db.execute("CREATE TABLE gen_metadata (idx INTEGER, data BLOB)")
++            .unwrap();
++        let mut statement = db
++            .prepare("INSERT INTO gen_metadata (idx, data) VALUES (?1, ?2)")
++            .unwrap();
++        for (index, blob) in generations.iter().enumerate() {
++            statement.bind((1, index as i64)).unwrap();
++            statement.bind((2, blob.as_slice())).unwrap();
++            statement.next().unwrap();
++            statement.reset().unwrap();
++        }
++        if let Some(trajectory) = trajectory {
++            db.execute("CREATE TABLE trajectory_metadata_blob (data BLOB)")
++                .unwrap();
++            let mut statement = db
++                .prepare("INSERT INTO trajectory_metadata_blob (data) VALUES (?1)")
++                .unwrap();
++            statement.bind((1, trajectory)).unwrap();
++            statement.next().unwrap();
++        }
++    }
++
++    fn generation(
++        model: &'static str,
++        response_id: &'static str,
++        input: u64,
++        output: u64,
++    ) -> Vec<u8> {
++        encode::generation_blob(&encode::Generation {
++            model,
++            timestamp: Some((1_767_312_000, 0)),
++            system_input: 1000,
++            fresh_input: input,
++            cache_read: 10,
++            output,
++            thinking: 5,
++            response_id,
++        })
++    }
++
++    fn load(roots: &[PathBuf]) -> Vec<LoadedEntry> {
++        let shared = SharedArgs {
++            mode: CostMode::Display,
++            timezone: Some("UTC".to_string()),
++            ..SharedArgs::default()
++        };
++        load_entries_from_roots(roots, &shared, &PricingMap::default()).unwrap()
++    }
++
++    #[test]
++    fn loads_generation_entries_from_conversation_db() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        create_conversation_db(
++            &root.join("conv-1.db"),
++            &[generation("gemini-3.1-pro-low", "resp-1", 6321, 604)],
++            Some(&encode::trajectory_blob(
++                Some((1_767_312_000, 0)),
++                "file:///Users/test/My%20Projects/app",
++            )),
++        );
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert_eq!(entries.len(), 1);
++        let entry = &entries[0];
++        assert_eq!(entry.session_id.as_ref(), "conv-1");
++        assert_eq!(entry.project.as_ref(), "app");
++        assert_eq!(entry.project_path.as_ref(), "/Users/test/My Projects/app");
++        assert_eq!(entry.model.as_deref(), Some("gemini-3.1-pro"));
++        assert_eq!(entry.data.message.id.as_deref(), Some("resp-1"));
++        assert_eq!(entry.data.message.usage.input_tokens, 1000 + 6321);
++        assert_eq!(entry.data.message.usage.output_tokens, 604);
++        assert_eq!(entry.data.message.usage.cache_read_input_tokens, 10);
++        assert_eq!(entry.extra_total_tokens, 5);
++        assert_eq!(entry.date, "2026-01-02");
++    }
++
++    #[test]
++    fn dedupes_response_ids_within_and_across_dbs() {
++        let fixture = fs_fixture!({});
++        let root_a = fixture.create_dir_all("antigravity/conversations");
++        let root_b = fixture.create_dir_all("antigravity-cli/conversations");
++        create_conversation_db(
++            &root_a.join("conv-a.db"),
++            &[
++                generation("gemini-3.1-pro-low", "resp-1", 100, 1),
++                generation("gemini-3.1-pro-low", "resp-1", 999, 9),
++                generation("gemini-3.1-pro-low", "resp-2", 200, 2),
++            ],
++            None,
++        );
++        create_conversation_db(
++            &root_b.join("conv-b.db"),
++            &[
++                generation("gemini-pro-default", "resp-2", 888, 8),
++                generation("gemini-pro-default", "resp-3", 300, 3),
++            ],
++            None,
++        );
++
++        let entries = load(&[fixture.path("antigravity"), fixture.path("antigravity-cli")]);
++
++        assert_eq!(entries.len(), 3);
++        // First occurrence wins, both within one DB and across DBs.
++        let tokens: Vec<u64> = entries
++            .iter()
++            .map(|entry| entry.data.message.usage.input_tokens)
++            .collect();
++        assert_eq!(tokens, vec![1100, 1200, 1300]);
++    }
++
++    #[test]
++    fn keeps_generations_without_response_id() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        create_conversation_db(
++            &root.join("conv-1.db"),
++            &[
++                generation("gemini-3.1-pro-low", "", 100, 1),
++                generation("gemini-3.1-pro-low", "", 100, 1),
++            ],
++            None,
++        );
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert_eq!(entries.len(), 2);
++    }
++
++    #[test]
++    fn skips_all_zero_generations() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        create_conversation_db(
++            &root.join("conv-1.db"),
++            &[
++                encode::generation_blob(&encode::Generation {
++                    model: "gemini-3.1-pro-low",
++                    timestamp: Some((1_767_312_000, 0)),
++                    system_input: 0,
++                    fresh_input: 0,
++                    cache_read: 0,
++                    output: 0,
++                    thinking: 0,
++                    response_id: "resp-zero",
++                }),
++                generation("gemini-3.1-pro-low", "resp-1", 100, 1),
++            ],
++            None,
++        );
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert_eq!(entries.len(), 1);
++        assert_eq!(entries[0].data.message.id.as_deref(), Some("resp-1"));
++    }
++
++    #[test]
++    fn ignores_databases_without_gen_metadata() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        let db = sqlite::open(root.join("other.db")).unwrap();
++        db.execute("CREATE TABLE steps (idx INTEGER, data BLOB)")
++            .unwrap();
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert!(entries.is_empty());
++    }
++
++    #[test]
++    fn falls_back_to_trajectory_created_at_then_file_mtime() {
++        let fixture = fs_fixture!({});
++        let root = fixture.create_dir_all("antigravity/conversations");
++        let no_timestamp = |response_id: &'static str| {
++            encode::generation_blob(&encode::Generation {
++                model: "gemini-3.1-pro-low",
++                timestamp: None,
++                system_input: 1000,
++                fresh_input: 100,
++                cache_read: 0,
++                output: 1,
++                thinking: 0,
++                response_id,
++            })
++        };
++        create_conversation_db(
++            &root.join("conv-with-trajectory.db"),
++            &[no_timestamp("resp-1")],
++            Some(&encode::trajectory_blob(
++                Some((1_767_312_000, 0)),
++                "file:///Users/test/app",
++            )),
++        );
++        create_conversation_db(&root.join("conv-mtime.db"), &[no_timestamp("resp-2")], None);
++
++        let entries = load(&[fixture.path("antigravity")]);
++
++        assert_eq!(entries.len(), 2);
++        let with_trajectory = entries
++            .iter()
++            .find(|entry| entry.session_id.as_ref() == "conv-with-trajectory")
++            .unwrap();
++        assert_eq!(
++            with_trajectory.timestamp,
++            crate::TimestampMs::from_millis(1_767_312_000_000)
++        );
++        let with_mtime = entries
++            .iter()
++            .find(|entry| entry.session_id.as_ref() == "conv-mtime")
++            .unwrap();
++        let mtime_ms = i64::try_from(
++            std::fs::metadata(root.join("conv-mtime.db"))
++                .unwrap()
++                .modified()
++                .unwrap()
++                .duration_since(std::time::UNIX_EPOCH)
++                .unwrap()
++                .as_millis(),
++        )
++        .unwrap();
++        assert_eq!(
++            with_mtime.timestamp,
++            crate::TimestampMs::from_millis(mtime_ms)
++        );
++    }
++
++    #[test]
++    fn discovers_default_roots_under_home() {
++        let fixture = fs_fixture!({
++            ".gemini/antigravity/conversations/.keep": "",
++            ".gemini/antigravity-cli/conversations/.keep": "",
++            ".gemini/antigravity-ide/conversations/.keep": "",
++        });
++        let _env = ccusage_test_support::EnvVarsGuard::set_many([
++            ("HOME", Some(fixture.root().as_os_str().to_os_string())),
++            (paths::ANTIGRAVITY_DATA_DIR_ENV, None),
++        ]);
++
++        let roots = paths::paths().unwrap();
++
++        assert_eq!(
++            roots,
++            vec![
++                fixture.path(".gemini/antigravity"),
++                fixture.path(".gemini/antigravity-cli"),
++                fixture.path(".gemini/antigravity-ide"),
++            ]
++        );
++    }
++
++    #[test]
++    fn reads_real_antigravity_data_when_present() {
++        // Skipped local-data smoke test: catches schema drift on machines that
++        // actually run Antigravity, and silently passes elsewhere.
++        if std::env::var_os(paths::ANTIGRAVITY_DATA_DIR_ENV).is_some() {
++            return;
++        }
++        let roots = paths::paths().unwrap_or_default();
++        if roots.is_empty() {
++            return;
++        }
++        let shared = SharedArgs {
++            mode: CostMode::Display,
++            offline: true,
++            json: true,
++            ..SharedArgs::default()
++        };
++        let entries = load_entries(&shared, &PricingMap::default()).unwrap();
++
++        assert!(!entries.is_empty());
++        assert!(entries.iter().all(|entry| {
++            crate::total_usage_tokens(entry.data.message.usage) + entry.extra_total_tokens > 0
++        }));
++    }
++}
+diff --git a/rust/crates/ccusage/src/adapter/antigravity/mod.rs b/rust/crates/ccusage/src/adapter/antigravity/mod.rs
+new file mode 100644
+index 0000000..ec7637c
+--- /dev/null
++++ b/rust/crates/ccusage/src/adapter/antigravity/mod.rs
+@@ -0,0 +1,44 @@
++mod loader;
++mod parser;
++mod paths;
++mod proto;
++mod report;
++
++use crate::{
++    PricingMap, Result, adapter::opencode, cli::AgentCommandArgs, filter_loaded_entries_by_date,
++    print_json_or_jq, print_usage_table, sort_summaries, wants_json,
++};
++
++pub(crate) use loader::load_entries;
++pub(crate) use report::{report_from_rows, summarize_entries};
++
++pub(crate) fn run(args: AgentCommandArgs) -> Result<()> {
++    let shared = args.shared;
++    let pricing = PricingMap::load_with_overrides(
++        shared.offline,
++        crate::log_level() != Some(0),
++        shared.pricing_overrides.iter(),
++    );
++    let mut entries = load_entries(&shared, &pricing)?;
++    filter_loaded_entries_by_date(&mut entries, &shared);
++    let mut rows = summarize_entries(&entries, args.kind)?;
++    sort_summaries(&mut rows, &shared.order, |row| {
++        opencode::summary_period(row)
++    });
++    if wants_json(&shared) {
++        return print_json_or_jq(
++            report_from_rows(&rows, args.kind),
++            shared.jq.as_deref(),
++            shared.no_cost,
++        );
++    }
++    print_usage_table(
++        "Antigravity Token Usage Report",
++        opencode::first_column(args.kind),
++        &rows,
++        &shared,
++        false,
++        None,
++    )?;
++    Ok(())
++}
+diff --git a/rust/crates/ccusage/src/adapter/antigravity/parser.rs b/rust/crates/ccusage/src/adapter/antigravity/parser.rs
+new file mode 100644
+index 0000000..b088684
+--- /dev/null
++++ b/rust/crates/ccusage/src/adapter/antigravity/parser.rs
+@@ -0,0 +1,650 @@
++use std::{borrow::Cow, path::Path};
++
++use jiff::tz::TimeZone as JiffTimeZone;
++
++use super::proto::{FieldValue, read_fields};
++use crate::{
++    LoadedEntry, PricingMap, TimestampMs, TokenUsageRaw, UsageEntry, UsageMessage,
++    calculate_cost_for_usage, cli::CostMode, format_date_tz, format_rfc3339_millis,
++    missing_pricing_model_for_usage,
++};
++
++/// Token counts, model id, timestamp, and response id decoded from one
++/// `gen_metadata` row of an Antigravity conversation database.
++#[derive(Debug, Default)]
++pub(super) struct GenerationMetadata {
++    pub(super) raw_model: Option<String>,
++    pub(super) timestamp_ms: Option<i64>,
++    pub(super) input_tokens: u64,
++    pub(super) output_tokens: u64,
++    pub(super) cache_read_tokens: u64,
++    pub(super) thinking_tokens: u64,
++    pub(super) response_id: Option<String>,
++}
++
++/// Session-level fallbacks decoded from `trajectory_metadata_blob`.
++#[derive(Debug, Default)]
++pub(super) struct TrajectoryMetadata {
++    pub(super) created_ms: Option<i64>,
++    pub(super) workspace_uri: Option<String>,
++}
++
++/// Shared per-database context used to shape every generation entry.
++pub(super) struct SessionContext {
++    pub(super) session_id: String,
++    pub(super) project: String,
++    pub(super) project_path: String,
++    pub(super) fallback_timestamp: TimestampMs,
++}
++
++impl GenerationMetadata {
++    fn total_tokens(&self) -> u64 {
++        self.input_tokens
++            .saturating_add(self.output_tokens)
++            .saturating_add(self.cache_read_tokens)
++            .saturating_add(self.thinking_tokens)
++    }
++}
++
++/// Decodes one `GeneratorMetadata` blob. Layout (hand-verified, no .proto):
++///
++/// - field 1 (LEN message) → chatModel
++///   - field 19 (LEN string) → raw model id
++///   - field 9 (LEN message) → generation info; its field 4 → timestamp
++///     message `{1: seconds varint, 2: nanos varint}`
++///   - field 4 (LEN message) → usage
++///     - field 1 (varint) → fixed system-prompt input tokens
++///     - field 2 (varint) → fresh (non-cached) input tokens
++///     - field 5 (varint) → cache-read tokens
++///     - field 9 (varint) → output (text) tokens
++///     - field 10 (varint) → thinking/reasoning tokens
++///     - field 11 (LEN string) → responseId (dedup key)
++pub(super) fn decode_generation(bytes: &[u8]) -> GenerationMetadata {
++    let mut metadata = GenerationMetadata::default();
++    for (number, value) in read_fields(bytes) {
++        if number != 1 {
++            continue;
++        }
++        let FieldValue::LengthDelimited(chat_model) = value else {
++            continue;
++        };
++        for (number, value) in read_fields(chat_model) {
++            match (number, value) {
++                (19, FieldValue::LengthDelimited(model)) => {
++                    metadata.raw_model = utf8_string(model);
++                }
++                (9, FieldValue::LengthDelimited(info)) => {
++                    metadata.timestamp_ms = decode_generation_timestamp(info);
++                }
++                (4, FieldValue::LengthDelimited(usage)) => decode_usage(usage, &mut metadata),
++                _ => {}
++            }
++        }
++    }
++    metadata
++}
++
++fn decode_generation_timestamp(info: &[u8]) -> Option<i64> {
++    for (number, value) in read_fields(info) {
++        if number == 4
++            && let FieldValue::LengthDelimited(timestamp) = value
++        {
++            return decode_timestamp(timestamp);
++        }
++    }
++    None
++}
++
++/// Decodes `{1: seconds varint, 2: nanos varint}` into Unix epoch
++/// milliseconds. Nanos outside `0..=999_999_999` reject the timestamp.
++fn decode_timestamp(bytes: &[u8]) -> Option<i64> {
++    let mut seconds = None;
++    let mut nanos = None;
++    for (number, value) in read_fields(bytes) {
++        let FieldValue::Varint(value) = value else {
++            continue;
++        };
++        match number {
++            1 => seconds = Some(clamp_varint(value)),
++            2 => nanos = Some(value),
++            _ => {}
++        }
++    }
++    let seconds = i64::try_from(seconds?).ok()?;
++    let nanos = nanos.unwrap_or(0);
++    if nanos > 999_999_999 {
++        return None;
++    }
++    let millis = i64::try_from(nanos / 1_000_000).ok()?;
++    seconds.checked_mul(1_000)?.checked_add(millis)
++}
++
++fn decode_usage(usage: &[u8], metadata: &mut GenerationMetadata) {
++    let mut system_input = 0_u64;
++    let mut fresh_input = 0_u64;
++    for (number, value) in read_fields(usage) {
++        match (number, value) {
++            (1, FieldValue::Varint(value)) => system_input = clamp_varint(value),
++            (2, FieldValue::Varint(value)) => fresh_input = clamp_varint(value),
++            (5, FieldValue::Varint(value)) => metadata.cache_read_tokens = clamp_varint(value),
++            (9, FieldValue::Varint(value)) => metadata.output_tokens = clamp_varint(value),
++            (10, FieldValue::Varint(value)) => metadata.thinking_tokens = clamp_varint(value),
++            (11, FieldValue::LengthDelimited(id)) => metadata.response_id = utf8_string(id),
++            _ => {}
++        }
++    }
++    metadata.input_tokens = system_input.saturating_add(fresh_input);
++}
++
++/// Decodes a `trajectory_metadata_blob` row: field 2 holds the session
++/// created-at timestamp, field 1 → field 1 holds the workspace `file://` URI.
++pub(super) fn decode_trajectory_metadata(bytes: &[u8]) -> TrajectoryMetadata {
++    let mut metadata = TrajectoryMetadata::default();
++    for (number, value) in read_fields(bytes) {
++        match (number, value) {
++            (2, FieldValue::LengthDelimited(timestamp)) => {
++                metadata.created_ms = decode_timestamp(timestamp);
++            }
++            (1, FieldValue::LengthDelimited(inner)) => {
++                for (number, value) in read_fields(inner) {
++                    if number == 1
++                        && let FieldValue::LengthDelimited(uri) = value
++                    {
++                        metadata.workspace_uri = utf8_string(uri);
++                    }
++                }
++            }
++            _ => {}
++        }
++    }
++    metadata
++}
++
++fn utf8_string(bytes: &[u8]) -> Option<String> {
++    std::str::from_utf8(bytes)
++        .ok()
++        .filter(|value| !value.is_empty())
++        .map(str::to_string)
++}
++
++/// Token varints are clamped to `i64::MAX` so corrupt blobs cannot wrap the
++/// counters into negative or overflowing values downstream.
++fn clamp_varint(value: u64) -> u64 {
++    value.min(i64::MAX as u64)
++}
++
++/// Maps Antigravity's raw model ids to LiteLLM-priced names
++/// (case-insensitive). Unknown ids pass through unchanged; the pricing lookup
++/// handles misses gracefully.
++pub(super) fn resolve_model_name(raw: &str) -> Cow<'_, str> {
++    let resolved = match raw.to_ascii_lowercase().as_str() {
++        "model_placeholder_m26" => "claude-opus-4-6",
++        "model_placeholder_m35" => "claude-sonnet-4-6",
++        "model_placeholder_m36" | "model_placeholder_m37" | "model_placeholder_m16" => {
++            "gemini-3.1-pro"
++        }
++        "model_placeholder_m18" | "model_placeholder_m84" | "model_placeholder_m47" => {
++            "gemini-3-flash-preview"
++        }
++        "model_placeholder_m132" | "model_placeholder_m133" => "gemini-3.5-flash-high",
++        "model_placeholder_m187" => "gemini-3.5-flash-extra-low",
++        "model_placeholder_m20" => "gemini-3.5-flash-medium",
++        "model_openai_gpt_oss_120b_medium" => "gpt-oss-120b-medium",
++        "gemini-pro-default" | "gemini-pro-agent" => "gemini-3.1-pro",
++        "gemini-3-flash-agent" | "gemini-3-flash-a" | "gemini-3-flash-b" => "gemini-3.5-flash-high",
++        "gemini-3-flash-c" | "gemini-3-flash" => "gemini-3-flash-preview",
++        "gemini-3.5-flash-low" => "gemini-3.5-flash-medium",
++        "gemini-3.1-pro-high" | "gemini-3.1-pro-low" => "gemini-3.1-pro",
++        "gemini-3-pro-high" | "gemini-3-pro-low" => "gemini-3-pro",
++        "claude-opus-4-6-thinking" => "claude-opus-4-6",
++        "claude-sonnet-4-6-thinking" => "claude-sonnet-4-6",
++        _ => return Cow::Borrowed(raw),
++    };
++    Cow::Borrowed(resolved)
++}
++
++/// Builds the per-database context: conversation id from the file name,
++/// project from the percent-decoded workspace URI, and the timestamp fallback
++/// chain (session created-at, then file mtime).
++pub(super) fn session_context(
++    db_path: &Path,
++    trajectory: &TrajectoryMetadata,
++    file_mtime_ms: Option<i64>,
++) -> SessionContext {
++    let session_id = db_path
++        .file_stem()
++        .and_then(|stem| stem.to_str())
++        .unwrap_or("unknown")
++        .to_string();
++    let workspace_path = trajectory
++        .workspace_uri
++        .as_deref()
++        .and_then(workspace_path_from_uri);
++    let project = workspace_path
++        .as_deref()
++        .and_then(|path| {
++            Path::new(path)
++                .file_name()
++                .and_then(|name| name.to_str())
++                .map(str::to_string)
++        })
++        .unwrap_or_else(|| "unknown".to_string());
++    let fallback_ms = trajectory.created_ms.or(file_mtime_ms).unwrap_or_default();
++    SessionContext {
++        session_id,
++        project,
++        project_path: workspace_path.unwrap_or_else(|| "unknown".to_string()),
++        fallback_timestamp: TimestampMs::from_millis(fallback_ms),
++    }
++}
++
++/// Decodes a `file://` workspace URI into a filesystem path. Only `%XX`
++/// sequences are decoded; the URI authority (always empty for local
++/// workspaces) is skipped.
++pub(super) fn workspace_path_from_uri(uri: &str) -> Option<String> {
++    let path = uri.strip_prefix("file://")?;
++    if path.is_empty() {
++        return None;
++    }
++    Some(percent_decode(path))
++}
++
++fn percent_decode(input: &str) -> String {
++    let bytes = input.as_bytes();
++    let mut decoded = Vec::with_capacity(bytes.len());
++    let mut index = 0;
++    while index < bytes.len() {
++        if bytes[index] == b'%'
++            && index + 2 < bytes.len()
++            && let (Some(high), Some(low)) =
++                (hex_digit(bytes[index + 1]), hex_digit(bytes[index + 2]))
++        {
++            decoded.push(high << 4 | low);
++            index += 3;
++        } else {
++            decoded.push(bytes[index]);
++            index += 1;
++        }
++    }
++    String::from_utf8_lossy(&decoded).into_owned()
++}
++
++fn hex_digit(byte: u8) -> Option<u8> {
++    match byte {
++        b'0'..=b'9' => Some(byte - b'0'),
++        b'a'..=b'f' => Some(byte - b'a' + 10),
++        b'A'..=b'F' => Some(byte - b'A' + 10),
++        _ => None,
++    }
++}
++
++/// Shapes one decoded generation into a [`LoadedEntry`]. Rows whose input,
++/// output, cache-read, and thinking tokens are all zero carry no usage and
++/// are skipped. Thinking tokens ride in `extra_total_tokens` (like other
++/// agents with reasoning tokens) and are folded into billable output tokens
++/// for pricing.
++pub(super) fn generation_to_entry(
++    record: &GenerationMetadata,
++    context: &SessionContext,
++    tz: Option<&JiffTimeZone>,
++    mode: CostMode,
++    pricing: Option<&PricingMap>,
++) -> Option<LoadedEntry> {
++    if record.total_tokens() == 0 {
++        return None;
++    }
++    let timestamp = record
++        .timestamp_ms
++        .map(TimestampMs::from_millis)
++        .unwrap_or(context.fallback_timestamp);
++    let timestamp_text = format_rfc3339_millis(timestamp);
++    let usage = TokenUsageRaw {
++        input_tokens: record.input_tokens,
++        output_tokens: record.output_tokens,
++        cache_creation_input_tokens: 0,
++        cache_read_input_tokens: record.cache_read_tokens,
++        speed: None,
++        cache_creation: None,
++    };
++    let billable_usage = TokenUsageRaw {
++        output_tokens: record.output_tokens.saturating_add(record.thinking_tokens),
++        ..usage
++    };
++    let model = record
++        .raw_model
++        .as_deref()
++        .map(|raw| resolve_model_name(raw).into_owned());
++    let cost = calculate_cost_for_usage(model.as_deref(), billable_usage, None, mode, pricing);
++    let missing_pricing_model =
++        missing_pricing_model_for_usage(model.as_deref(), billable_usage, None, mode, pricing);
++    let data = UsageEntry {
++        session_id: Some(context.session_id.clone()),
++        timestamp: timestamp_text,
++        version: None,
++        message: UsageMessage {
++            usage,
++            model: model.clone(),
++            id: record.response_id.clone(),
++        },
++        cost_usd: None,
++        request_id: None,
++        is_api_error_message: None,
++        is_sidechain: None,
++    };
++    Some(LoadedEntry {
++        date: format_date_tz(timestamp, tz),
++        timestamp,
++        project: std::sync::Arc::from(context.project.as_str()),
++        session_id: std::sync::Arc::from(context.session_id.as_str()),
++        project_path: std::sync::Arc::from(context.project_path.as_str()),
++        cost,
++        extra_total_tokens: record.thinking_tokens,
++        credits: None,
++        message_count: None,
++        model,
++        data,
++        usage_limit_reset_time: None,
++        missing_pricing_model,
++    })
++}
++
++#[cfg(test)]
++pub(super) mod encode {
++    //! Tiny test-only protobuf encoder (varint + length-delimited fields).
++
++    pub fn varint_field(out: &mut Vec<u8>, field: u64, value: u64) {
++        key(out, field, 0);
++        varint(out, value);
++    }
++
++    pub fn len_field(out: &mut Vec<u8>, field: u64, bytes: &[u8]) {
++        key(out, field, 2);
++        varint(out, bytes.len() as u64);
++        out.extend_from_slice(bytes);
++    }
++
++    fn key(out: &mut Vec<u8>, field: u64, wire: u64) {
++        varint(out, field << 3 | wire);
++    }
++
++    fn varint(out: &mut Vec<u8>, mut value: u64) {
++        loop {
++            let mut byte = (value & 0x7f) as u8;
++            value >>= 7;
++            if value != 0 {
++                byte |= 0x80;
++            }
++            out.push(byte);
++            if value == 0 {
++                break;
++            }
++        }
++    }
++
++    pub struct Generation {
++        pub model: &'static str,
++        pub timestamp: Option<(u64, u64)>,
++        pub system_input: u64,
++        pub fresh_input: u64,
++        pub cache_read: u64,
++        pub output: u64,
++        pub thinking: u64,
++        pub response_id: &'static str,
++    }
++
++    pub fn generation_blob(generation: &Generation) -> Vec<u8> {
++        let mut chat_model = Vec::new();
++        len_field(&mut chat_model, 19, generation.model.as_bytes());
++        if let Some((seconds, nanos)) = generation.timestamp {
++            let mut timestamp = Vec::new();
++            varint_field(&mut timestamp, 1, seconds);
++            varint_field(&mut timestamp, 2, nanos);
++            let mut info = Vec::new();
++            len_field(&mut info, 4, &timestamp);
++            len_field(&mut chat_model, 9, &info);
++        }
++        let mut usage = Vec::new();
++        varint_field(&mut usage, 1, generation.system_input);
++        varint_field(&mut usage, 2, generation.fresh_input);
++        varint_field(&mut usage, 5, generation.cache_read);
++        varint_field(&mut usage, 9, generation.output);
++        varint_field(&mut usage, 10, generation.thinking);
++        len_field(&mut usage, 11, generation.response_id.as_bytes());
++        len_field(&mut chat_model, 4, &usage);
++        let mut blob = Vec::new();
++        len_field(&mut blob, 1, &chat_model);
++        blob
++    }
++
++    pub fn trajectory_blob(created: Option<(u64, u64)>, workspace_uri: &str) -> Vec<u8> {
++        let mut blob = Vec::new();
++        if let Some((seconds, nanos)) = created {
++            let mut timestamp = Vec::new();
++            varint_field(&mut timestamp, 1, seconds);
++            varint_field(&mut timestamp, 2, nanos);
++            len_field(&mut blob, 2, &timestamp);
++        }
++        let mut inner = Vec::new();
++        len_field(&mut inner, 1, workspace_uri.as_bytes());
++        len_field(&mut blob, 1, &inner);
++        blob
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::{encode::*, *};
++
++    fn sample_generation() -> Generation {
++        Generation {
++            model: "gemini-3.1-pro-low",
++            timestamp: Some((1_767_312_000, 429_476_000)),
++            system_input: 1036,
++            fresh_input: 6321,
++            cache_read: 36491,
++            output: 604,
++            thinking: 117,
++            response_id: "resp-1",
++        }
++    }
++
++    #[test]
++    fn decodes_all_generation_fields() {
++        let metadata = decode_generation(&generation_blob(&sample_generation()));
++
++        assert_eq!(metadata.raw_model.as_deref(), Some("gemini-3.1-pro-low"));
++        assert_eq!(metadata.timestamp_ms, Some(1_767_312_000_429));
++        assert_eq!(metadata.input_tokens, 1036 + 6321);
++        assert_eq!(metadata.output_tokens, 604);
++        assert_eq!(metadata.cache_read_tokens, 36491);
++        assert_eq!(metadata.thinking_tokens, 117);
++        assert_eq!(metadata.response_id.as_deref(), Some("resp-1"));
++    }
++
++    #[test]
++    fn rejects_timestamp_with_out_of_range_nanos() {
++        let generation = Generation {
++            timestamp: Some((1_767_312_000, 1_000_000_000)),
++            ..sample_generation()
++        };
++        let metadata = decode_generation(&generation_blob(&generation));
++
++        assert_eq!(metadata.timestamp_ms, None);
++    }
++
++    #[test]
++    fn decodes_trajectory_metadata() {
++        let blob = trajectory_blob(
++            Some((1_767_312_000, 207_595_000)),
++            "file:///Users/test/My%20Projects/app",
++        );
++        let metadata = decode_trajectory_metadata(&blob);
++
++        assert_eq!(metadata.created_ms, Some(1_767_312_000_207));
++        assert_eq!(
++            metadata.workspace_uri.as_deref(),
++            Some("file:///Users/test/My%20Projects/app")
++        );
++    }
++
++    #[test]
++    fn workspace_uri_decodes_percent_escapes() {
++        assert_eq!(
++            workspace_path_from_uri("file:///Users/test/My%20Projects/app").as_deref(),
++            Some("/Users/test/My Projects/app")
++        );
++        assert_eq!(
++            workspace_path_from_uri("file:///home/user/%E2%82%ACrates").as_deref(),
++            Some("/home/user/€rates")
++        );
++        assert_eq!(
++            workspace_path_from_uri("file:///trailing%2").as_deref(),
++            Some("/trailing%2")
++        );
++        assert_eq!(workspace_path_from_uri("vscode://file/app"), None);
++    }
++
++    #[test]
++    fn session_context_uses_workspace_basename_as_project() {
++        let trajectory = TrajectoryMetadata {
++            created_ms: Some(1_767_312_000_207),
++            workspace_uri: Some("file:///Users/test/My%20Projects/app".to_string()),
++        };
++        let context = session_context(
++            Path::new("/data/conversations/conv-1.db"),
++            &trajectory,
++            Some(1_700_000_000_000),
++        );
++
++        assert_eq!(context.session_id, "conv-1");
++        assert_eq!(context.project, "app");
++        assert_eq!(context.project_path, "/Users/test/My Projects/app");
++        assert_eq!(
++            context.fallback_timestamp,
++            TimestampMs::from_millis(1_767_312_000_207)
++        );
++    }
++
++    #[test]
++    fn session_context_falls_back_to_file_mtime_and_unknown_project() {
++        let context = session_context(
++            Path::new("/data/conversations/conv-2.db"),
++            &TrajectoryMetadata::default(),
++            Some(1_700_000_000_000),
++        );
++
++        assert_eq!(context.project, "unknown");
++        assert_eq!(context.project_path, "unknown");
++        assert_eq!(
++            context.fallback_timestamp,
++            TimestampMs::from_millis(1_700_000_000_000)
++        );
++    }
++
++    #[test]
++    fn maps_model_aliases_case_insensitively() {
++        let cases = [
++            ("model_placeholder_m26", "claude-opus-4-6"),
++            ("MODEL_PLACEHOLDER_M26", "claude-opus-4-6"),
++            ("model_placeholder_m35", "claude-sonnet-4-6"),
++            ("model_placeholder_m36", "gemini-3.1-pro"),
++            ("model_placeholder_m37", "gemini-3.1-pro"),
++            ("model_placeholder_m16", "gemini-3.1-pro"),
++            ("MODEL_PLACEHOLDER_M16", "gemini-3.1-pro"),
++            ("model_placeholder_m18", "gemini-3-flash-preview"),
++            ("model_placeholder_m84", "gemini-3-flash-preview"),
++            ("model_placeholder_m47", "gemini-3-flash-preview"),
++            ("model_placeholder_m132", "gemini-3.5-flash-high"),
++            ("model_placeholder_m133", "gemini-3.5-flash-high"),
++            ("model_placeholder_m187", "gemini-3.5-flash-extra-low"),
++            ("model_placeholder_m20", "gemini-3.5-flash-medium"),
++            ("model_openai_gpt_oss_120b_medium", "gpt-oss-120b-medium"),
++            ("gemini-pro-default", "gemini-3.1-pro"),
++            ("gemini-pro-agent", "gemini-3.1-pro"),
++            ("gemini-3-flash-agent", "gemini-3.5-flash-high"),
++            ("gemini-3-flash-a", "gemini-3.5-flash-high"),
++            ("gemini-3-flash-b", "gemini-3.5-flash-high"),
++            ("gemini-3-flash-c", "gemini-3-flash-preview"),
++            ("gemini-3-flash", "gemini-3-flash-preview"),
++            ("gemini-3.5-flash-low", "gemini-3.5-flash-medium"),
++            ("gemini-3.1-pro-high", "gemini-3.1-pro"),
++            ("gemini-3.1-pro-low", "gemini-3.1-pro"),
++            ("gemini-3-pro-high", "gemini-3-pro"),
++            ("gemini-3-pro-low", "gemini-3-pro"),
++            ("claude-opus-4-6-thinking", "claude-opus-4-6"),
++            ("claude-sonnet-4-6-thinking", "claude-sonnet-4-6"),
++        ];
++        for (raw, expected) in cases {
++            assert_eq!(resolve_model_name(raw), expected, "raw: {raw}");
++        }
++    }
++
++    #[test]
++    fn passes_unknown_models_through_unchanged() {
++        assert_eq!(resolve_model_name("gemini-9-ultra"), "gemini-9-ultra");
++        assert_eq!(resolve_model_name("Some-Custom-Model"), "Some-Custom-Model");
++    }
++
++    #[test]
++    fn skips_generation_with_all_zero_tokens() {
++        let record = decode_generation(&generation_blob(&Generation {
++            system_input: 0,
++            fresh_input: 0,
++            cache_read: 0,
++            output: 0,
++            thinking: 0,
++            ..sample_generation()
++        }));
++        let context = session_context(
++            Path::new("/data/conversations/conv.db"),
++            &TrajectoryMetadata::default(),
++            None,
++        );
++
++        assert!(generation_to_entry(&record, &context, None, CostMode::Display, None).is_none());
++    }
++
++    #[test]
++    fn entry_carries_thinking_tokens_as_extra_total() {
++        let record = decode_generation(&generation_blob(&sample_generation()));
++        let context = session_context(
++            Path::new("/data/conversations/conv.db"),
++            &TrajectoryMetadata::default(),
++            None,
++        );
++        let tz = crate::parse_tz(Some("UTC"));
++
++        let entry =
++            generation_to_entry(&record, &context, tz.as_ref(), CostMode::Display, None).unwrap();
++
++        assert_eq!(entry.data.message.usage.input_tokens, 7357);
++        assert_eq!(entry.data.message.usage.output_tokens, 604);
++        assert_eq!(entry.data.message.usage.cache_read_input_tokens, 36491);
++        assert_eq!(entry.data.message.usage.cache_creation_input_tokens, 0);
++        assert_eq!(entry.extra_total_tokens, 117);
++        assert_eq!(entry.model.as_deref(), Some("gemini-3.1-pro"));
++        assert_eq!(entry.data.message.id.as_deref(), Some("resp-1"));
++        assert_eq!(entry.data.timestamp, "2026-01-02T00:00:00.429Z");
++        assert_eq!(entry.date, "2026-01-02");
++    }
++
++    #[test]
++    fn entry_falls_back_to_context_timestamp() {
++        let record = decode_generation(&generation_blob(&Generation {
++            timestamp: None,
++            ..sample_generation()
++        }));
++        let trajectory = TrajectoryMetadata {
++            created_ms: Some(1_767_312_000_207),
++            workspace_uri: None,
++        };
++        let context = session_context(Path::new("/data/conversations/conv.db"), &trajectory, None);
++        let tz = crate::parse_tz(Some("UTC"));
++
++        let entry =
++            generation_to_entry(&record, &context, tz.as_ref(), CostMode::Display, None).unwrap();
++
++        assert_eq!(entry.timestamp, TimestampMs::from_millis(1_767_312_000_207));
++        assert_eq!(entry.date, "2026-01-02");
++    }
++}
+diff --git a/rust/crates/ccusage/src/adapter/antigravity/paths.rs b/rust/crates/ccusage/src/adapter/antigravity/paths.rs
+new file mode 100644
+index 0000000..cd6e7ff
+--- /dev/null
++++ b/rust/crates/ccusage/src/adapter/antigravity/paths.rs
+@@ -0,0 +1,119 @@
++use std::{
++    collections::HashSet,
++    env,
++    path::{Path, PathBuf},
++};
++
++use crate::{Result, collect_files_with_extension};
++
++pub(super) const ANTIGRAVITY_DATA_DIR_ENV: &str = "ANTIGRAVITY_DATA_DIR";
++
++/// Default Antigravity data roots under `~/.gemini`. The CLI, IDE, and backup
++/// variants share the same `<root>/conversations/<uuid>.db` layout.
++const DEFAULT_ROOT_NAMES: [&str; 4] = [
++    "antigravity",
++    "antigravity-cli",
++    "antigravity-ide",
++    "antigravity-backup",
++];
++
++/// Returns the Antigravity data roots that exist. `ANTIGRAVITY_DATA_DIR`
++/// overrides the defaults with one root or a comma-separated list of roots.
++pub(super) fn paths() -> Result<Vec<PathBuf>> {
++    let mut paths = Vec::new();
++    let mut seen = HashSet::new();
++    if let Ok(env_paths) = env::var(ANTIGRAVITY_DATA_DIR_ENV) {
++        for raw in env_paths
++            .split(',')
++            .map(str::trim)
++            .filter(|path| !path.is_empty())
++        {
++            let path = PathBuf::from(raw);
++            if path.is_dir() && seen.insert(path.clone()) {
++                paths.push(path);
++            }
++        }
++        return Ok(paths);
++    }
++
++    if let Some(home) = crate::home::home_dir() {
++        for root_name in DEFAULT_ROOT_NAMES {
++            let path = home.join(".gemini").join(root_name);
++            if path.is_dir() && seen.insert(path.clone()) {
++                paths.push(path);
++            }
++        }
++    }
++    Ok(paths)
++}
++
++/// Lists conversation databases under `<root>/conversations`. The `.db`
++/// extension filter already skips `*.db-wal`/`*.db-shm` sidecars and the
++/// legacy compressed/encrypted `.pb` conversation files, which are
++/// unsupported.
++pub(super) fn conversation_db_paths(root: &Path) -> Vec<PathBuf> {
++    let mut files = Vec::new();
++    collect_files_with_extension(&root.join("conversations"), "db", &mut files);
++    files.sort();
++    files
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use ccusage_test_support::{EnvVarGuard, fs_fixture};
++
++    #[test]
++    fn env_override_accepts_comma_separated_roots() {
++        let fixture = fs_fixture!({
++            "first/conversations/a.db": "",
++            "second/conversations/b.db": "",
++        });
++        let raw = format!(
++            " {}, {}, {}",
++            fixture.path("first").display(),
++            fixture.path("missing").display(),
++            fixture.path("second").display()
++        );
++        let _guard = EnvVarGuard::set(ANTIGRAVITY_DATA_DIR_ENV, &raw);
++
++        let paths = paths().unwrap();
++
++        assert_eq!(paths, vec![fixture.path("first"), fixture.path("second")]);
++    }
++
++    #[test]
++    fn env_override_dedupes_roots() {
++        let fixture = fs_fixture!({
++            "root/conversations/a.db": "",
++        });
++        let raw = format!("{0},{0}", fixture.path("root").display());
++        let _guard = EnvVarGuard::set(ANTIGRAVITY_DATA_DIR_ENV, &raw);
++
++        let paths = paths().unwrap();
++
++        assert_eq!(paths, vec![fixture.path("root")]);
++    }
++
++    #[test]
++    fn discovers_conversation_dbs_and_skips_sidecars_and_pb_files() {
++        let fixture = fs_fixture!({
++            "conversations/a.db": "",
++            "conversations/b.db": "",
++            "conversations/b.db-wal": "",
++            "conversations/b.db-shm": "",
++            "conversations/legacy.pb": "",
++            "conversations/notes.txt": "",
++        });
++
++        let files = conversation_db_paths(fixture.root());
++
++        assert_eq!(
++            files,
++            vec![
++                fixture.path("conversations/a.db"),
++                fixture.path("conversations/b.db")
++            ]
++        );
++    }
++}
+diff --git a/rust/crates/ccusage/src/adapter/antigravity/proto.rs b/rust/crates/ccusage/src/adapter/antigravity/proto.rs
+new file mode 100644
+index 0000000..3cf91a2
+--- /dev/null
++++ b/rust/crates/ccusage/src/adapter/antigravity/proto.rs
+@@ -0,0 +1,149 @@
++//! Minimal protobuf wire-format reader for Antigravity's `GeneratorMetadata`
++//! and trajectory metadata blobs. Supports varint, fixed64, length-delimited,
++//! and fixed32 fields; group wire types terminate parsing (Antigravity does
++//! not emit them) and truncated input stops iteration instead of failing.
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub(super) enum FieldValue<'a> {
++    Varint(u64),
++    Fixed64(u64),
++    LengthDelimited(&'a [u8]),
++    Fixed32(u32),
++}
++
++/// Reads all top-level fields of a protobuf message. Malformed or unsupported
++/// wire types end the read and return the fields decoded so far.
++pub(super) fn read_fields(bytes: &[u8]) -> Vec<(u32, FieldValue<'_>)> {
++    let mut fields = Vec::new();
++    let mut rest = bytes;
++    while !rest.is_empty() {
++        let Some((key, tail)) = read_varint(rest) else {
++            break;
++        };
++        rest = tail;
++        let field_number = u32::try_from(key >> 3).unwrap_or(u32::MAX);
++        match key & 0x7 {
++            0 => {
++                let Some((value, tail)) = read_varint(rest) else {
++                    break;
++                };
++                fields.push((field_number, FieldValue::Varint(value)));
++                rest = tail;
++            }
++            1 => {
++                if rest.len() < 8 {
++                    break;
++                }
++                let (value, tail) = rest.split_at(8);
++                fields.push((
++                    field_number,
++                    FieldValue::Fixed64(u64::from_le_bytes(value.try_into().unwrap_or([0; 8]))),
++                ));
++                rest = tail;
++            }
++            2 => {
++                let Some((length, tail)) = read_varint(rest) else {
++                    break;
++                };
++                let Ok(length) = usize::try_from(length) else {
++                    break;
++                };
++                if tail.len() < length {
++                    break;
++                }
++                let (value, tail) = tail.split_at(length);
++                fields.push((field_number, FieldValue::LengthDelimited(value)));
++                rest = tail;
++            }
++            5 => {
++                if rest.len() < 4 {
++                    break;
++                }
++                let (value, tail) = rest.split_at(4);
++                fields.push((
++                    field_number,
++                    FieldValue::Fixed32(u32::from_le_bytes(value.try_into().unwrap_or([0; 4]))),
++                ));
++                rest = tail;
++            }
++            // Groups (3, 4) and padding wire types are unsupported; stop here.
++            _ => break,
++        }
++    }
++    fields
++}
++
++fn read_varint(bytes: &[u8]) -> Option<(u64, &[u8])> {
++    let mut value = 0_u64;
++    let mut shift = 0_u32;
++    for (index, byte) in bytes.iter().enumerate() {
++        value |= u64::from(byte & 0x7f) << shift;
++        if byte & 0x80 == 0 {
++            return Some((value, &bytes[index + 1..]));
++        }
++        shift += 7;
++        if shift >= 64 {
++            return None;
++        }
++    }
++    None
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn reads_varint_and_length_delimited_fields() {
++        // field 1 varint 150, field 2 LEN "ab"
++        let bytes = [0x08, 0x96, 0x01, 0x12, 0x02, b'a', b'b'];
++        let fields = read_fields(&bytes);
++
++        assert_eq!(
++            fields,
++            vec![
++                (1, FieldValue::Varint(150)),
++                (2, FieldValue::LengthDelimited(b"ab")),
++            ]
++        );
++    }
++
++    #[test]
++    fn stops_on_group_wire_type() {
++        // field 1 varint 1, then field 2 with wire type 3 (start group)
++        let bytes = [0x08, 0x01, 0x13, 0x08, 0x02];
++        let fields = read_fields(&bytes);
++
++        assert_eq!(fields, vec![(1, FieldValue::Varint(1))]);
++    }
++
++    #[test]
++    fn stops_on_truncated_length_delimited_field() {
++        let bytes = [0x12, 0x05, b'a'];
++        let fields = read_fields(&bytes);
++
++        assert!(fields.is_empty());
++    }
++
++    #[test]
++    fn stops_on_unterminated_varint() {
++        let bytes = [0x08, 0x80];
++        let fields = read_fields(&bytes);
++
++        assert!(fields.is_empty());
++    }
++
++    #[test]
++    fn reads_fixed_width_fields() {
++        let mut bytes = vec![0x09];
++        bytes.extend_from_slice(&42_u64.to_le_bytes());
++        bytes.push(0x15);
++        bytes.extend_from_slice(&7_u32.to_le_bytes());
++        let fields = read_fields(&bytes);
++
++        assert_eq!(
++            fields,
++            vec![(1, FieldValue::Fixed64(42)), (2, FieldValue::Fixed32(7))]
++        );
++    }
++}
+diff --git a/rust/crates/ccusage/src/adapter/antigravity/report.rs b/rust/crates/ccusage/src/adapter/antigravity/report.rs
+new file mode 100644
+index 0000000..a4f2a06
+--- /dev/null
++++ b/rust/crates/ccusage/src/adapter/antigravity/report.rs
+@@ -0,0 +1,73 @@
++use std::collections::BTreeMap;
++
++use serde_json::{Value, json};
++
++use crate::{
++    BucketKind, LoadedEntry, Result, SessionAccumulator,
++    cli::{AgentReportKind, WeekDay},
++    summarize_by_key, summarize_summaries_by_bucket, totals_json,
++};
++
++pub(crate) fn report_from_rows(rows: &[crate::UsageSummary], kind: AgentReportKind) -> Value {
++    let rows_json = rows
++        .iter()
++        .map(|row| {
++            super::super::opencode::agent_summary_json(row, kind, kind == AgentReportKind::Session)
++        })
++        .collect::<Vec<_>>();
++    json!({
++        rows_key(kind): rows_json,
++        "totals": if rows.is_empty() { Value::Null } else { totals_json(rows) },
++    })
++}
++
++pub(crate) fn summarize_entries(
++    entries: &[LoadedEntry],
++    kind: AgentReportKind,
++) -> Result<Vec<crate::UsageSummary>> {
++    match kind {
++        AgentReportKind::Daily => summarize_by_key(
++            entries,
++            |entry| entry.date.clone(),
++            |date| (date.to_string(), None),
++        ),
++        AgentReportKind::Monthly => {
++            let daily = summarize_entries(entries, AgentReportKind::Daily)?;
++            Ok(summarize_summaries_by_bucket(
++                &daily,
++                BucketKind::Monthly,
++                WeekDay::Sunday,
++            ))
++        }
++        AgentReportKind::Session => {
++            let mut groups = BTreeMap::<String, SessionAccumulator>::new();
++            for entry in entries {
++                groups
++                    .entry(entry.session_id.to_string())
++                    .or_default()
++                    .add_entry(entry);
++            }
++            groups
++                .into_values()
++                .map(|group| group.into_summary())
++                .collect()
++        }
++        AgentReportKind::Weekly => {
++            let daily = summarize_entries(entries, AgentReportKind::Daily)?;
++            Ok(summarize_summaries_by_bucket(
++                &daily,
++                BucketKind::Weekly,
++                WeekDay::Sunday,
++            ))
++        }
++    }
++}
++
++fn rows_key(kind: AgentReportKind) -> &'static str {
++    match kind {
++        AgentReportKind::Daily => "daily",
++        AgentReportKind::Weekly => "weekly",
++        AgentReportKind::Monthly => "monthly",
++        AgentReportKind::Session => "sessions",
++    }
++}
+diff --git a/rust/crates/ccusage/src/adapter/mod.rs b/rust/crates/ccusage/src/adapter/mod.rs
+index 25b635a..ffd7bb1 100644
+--- a/rust/crates/ccusage/src/adapter/mod.rs
++++ b/rust/crates/ccusage/src/adapter/mod.rs
+@@ -5,6 +5,7 @@ use std::{
+ 
+ pub(crate) mod all;
+ pub(crate) mod amp;
++pub(crate) mod antigravity;
+ pub(crate) mod claude;
+ pub(crate) mod codebuff;
+ pub(crate) mod codex;
+diff --git a/rust/crates/ccusage/src/config_schema.rs b/rust/crates/ccusage/src/config_schema.rs
+index ccf4fc7..d08a141 100644
+--- a/rust/crates/ccusage/src/config_schema.rs
++++ b/rust/crates/ccusage/src/config_schema.rs
+@@ -50,6 +50,8 @@ pub(crate) struct CcusageConfig {
+     pub(crate) kimi: Option<KimiConfig>,
+     /// Qwen configuration.
+     pub(crate) qwen: Option<QwenConfig>,
++    /// Antigravity configuration.
++    pub(crate) antigravity: Option<AntigravityConfig>,
+ }
+ 
+ #[derive(Debug, Default, Deserialize, JsonSchema)]
+@@ -304,6 +306,21 @@ pub(crate) struct QwenCommandsConfig {
+     pub(crate) session: Option<SharedOptions>,
+ }
+ 
++#[derive(Debug, Default, Deserialize, JsonSchema)]
++#[serde(rename_all = "camelCase")]
++pub(crate) struct AntigravityConfig {
++    pub(crate) defaults: Option<SharedOptions>,
++    pub(crate) commands: Option<AntigravityCommandsConfig>,
++}
++
++#[derive(Debug, Default, Deserialize, JsonSchema)]
++#[serde(rename_all = "camelCase")]
++pub(crate) struct AntigravityCommandsConfig {
++    pub(crate) daily: Option<SharedOptions>,
++    pub(crate) monthly: Option<SharedOptions>,
++    pub(crate) session: Option<SharedOptions>,
++}
++
+ #[derive(Debug, Default, Deserialize, JsonSchema)]
+ #[serde(rename_all = "camelCase")]
+ pub(crate) struct SharedOptions {
+@@ -1094,6 +1111,7 @@ mod tests {
+         assert!(schema_property(&schema, &["gemini", "defaults", "openClawPath"]).is_none());
+         assert!(schema_property(&schema, &["kimi", "defaults", "openClawPath"]).is_none());
+         assert!(schema_property(&schema, &["qwen", "defaults", "openClawPath"]).is_none());
++        assert!(schema_property(&schema, &["antigravity", "defaults", "openClawPath"]).is_none());
+     }
+ 
+     #[test]
+@@ -1126,8 +1144,24 @@ mod tests {
+             &schema,
+             "ccusage-config",
+             &[
+-                "$schema", "amp", "claude", "codebuff", "codex", "commands", "copilot", "defaults",
+-                "gemini", "goose", "hermes", "kilo", "kimi", "opencode", "openclaw", "pi", "qwen",
++                "$schema",
++                "amp",
++                "antigravity",
++                "claude",
++                "codebuff",
++                "codex",
++                "commands",
++                "copilot",
++                "defaults",
++                "gemini",
++                "goose",
++                "hermes",
++                "kilo",
++                "kimi",
++                "opencode",
++                "openclaw",
++                "pi",
++                "qwen",
+                 "droid",
+             ],
+         );
+diff --git a/rust/crates/ccusage/src/main.rs b/rust/crates/ccusage/src/main.rs
+index 7177907..2426df0 100644
+--- a/rust/crates/ccusage/src/main.rs
++++ b/rust/crates/ccusage/src/main.rs
+@@ -148,6 +148,7 @@ fn main() -> Result<()> {
+         Some(Command::Gemini(args)) => adapter::gemini::run(args),
+         Some(Command::Kimi(args)) => adapter::kimi::run(args),
+         Some(Command::OpenClaw(args)) => adapter::openclaw::run(args),
++        Some(Command::Antigravity(args)) => adapter::antigravity::run(args),
+         None => {
+             let args = AgentCommandArgs {
+                 shared: cli.shared,
+@@ -921,6 +922,58 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn builds_antigravity_daily_json_report() {
++        let entry = LoadedEntry {
++            data: UsageEntry {
++                session_id: Some("conv-1".to_string()),
++                timestamp: "2026-01-02T00:00:00.429Z".to_string(),
++                version: None,
++                message: UsageMessage {
++                    usage: TokenUsageRaw {
++                        input_tokens: 7357,
++                        output_tokens: 604,
++                        cache_creation_input_tokens: 0,
++                        cache_read_input_tokens: 36491,
++                        speed: None,
++                        cache_creation: None,
++                    },
++                    model: Some("gemini-3.1-pro".to_string()),
++                    id: Some("resp-1".to_string()),
++                },
++                cost_usd: None,
++                request_id: None,
++                is_api_error_message: None,
++                is_sidechain: None,
++            },
++            timestamp: parse_ts_timestamp("2026-01-02T00:00:00.429Z").unwrap(),
++            date: "2026-01-02".to_string(),
++            project: Arc::from("app"),
++            session_id: Arc::from("conv-1"),
++            project_path: Arc::from("/Users/test/app"),
++            cost: 0.01,
++            extra_total_tokens: 117,
++            credits: None,
++            message_count: None,
++            model: Some("gemini-3.1-pro".to_string()),
++            usage_limit_reset_time: None,
++            missing_pricing_model: None,
++        };
++
++        let rows =
++            adapter::antigravity::summarize_entries(&[entry], AgentReportKind::Daily).unwrap();
++        let report = adapter::antigravity::report_from_rows(&rows, AgentReportKind::Daily);
++
++        assert_eq!(report["daily"][0]["date"], "2026-01-02");
++        assert_eq!(report["daily"][0]["inputTokens"], 7357);
++        assert_eq!(report["daily"][0]["outputTokens"], 604);
++        assert_eq!(report["daily"][0]["cacheCreationTokens"], 0);
++        assert_eq!(report["daily"][0]["cacheReadTokens"], 36491);
++        assert_eq!(report["daily"][0]["totalTokens"], 7357 + 604 + 36491 + 117);
++        assert_eq!(report["daily"][0]["totalCost"], json!(0.01));
++        assert_eq!(report["daily"][0]["modelsUsed"], json!(["gemini-3.1-pro"]));
++    }
++
+     #[test]
+     fn builds_opencode_daily_json_report() {
+         let entry = LoadedEntry {
+diff --git a/rust/crates/ccusage/src/models-dev-pricing.json b/rust/crates/ccusage/src/models-dev-pricing.json
+index 51ab9bc..091517e 100644
+--- a/rust/crates/ccusage/src/models-dev-pricing.json
++++ b/rust/crates/ccusage/src/models-dev-pricing.json
+@@ -533,6 +533,17 @@
+ 			"context": 1000000
+ 		}
+ 	},
++	"anthropic.claude-opus-5": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
+ 	"anthropic.claude-sonnet-4-5-20250929-v1:0": {
+ 		"cost": {
+ 			"cache_read": 0.3,
+@@ -1156,6 +1167,17 @@
+ 			"context": 1000000
+ 		}
+ 	},
++	"au.anthropic.claude-opus-5": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
+ 	"au.anthropic.claude-sonnet-4-5-20250929-v1:0": {
+ 		"cost": {
+ 			"cache_read": 0.3,
+@@ -1629,17 +1651,6 @@
+ 			"context": 1000000
+ 		}
+ 	},
+-	"claude-opus-4-7-fast": {
+-		"cost": {
+-			"cache_read": 3.6,
+-			"cache_write": 45,
+-			"input": 36,
+-			"output": 180
+-		},
+-		"limit": {
+-			"context": 1000000
+-		}
+-	},
+ 	"claude-opus-4-7-think": {
+ 		"cost": {
+ 			"cache_read": 0.5,
+@@ -1806,6 +1817,28 @@
+ 			"context": 200000
+ 		}
+ 	},
++	"claude-opus-5": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"claude-opus-5@default": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
+ 	"claude-opus4-5": {
+ 		"cost": {
+ 			"input": 5.98,
+@@ -2050,6 +2083,36 @@
+ 			"context": 1000000
+ 		}
+ 	},
++	"cline-pass/kimi-k2.6": {
++		"cost": {
++			"cache_read": 0.16,
++			"input": 0.95,
++			"output": 4
++		},
++		"limit": {
++			"context": 262144
++		}
++	},
++	"cline-pass/kimi-k2.7-code": {
++		"cost": {
++			"cache_read": 0.19,
++			"input": 0.95,
++			"output": 4
++		},
++		"limit": {
++			"context": 262144
++		}
++	},
++	"cline-pass/kimi-k3": {
++		"cost": {
++			"cache_read": 0.3,
++			"input": 3,
++			"output": 15
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
+ 	"databricks-claude-haiku-4-5": {
+ 		"cost": {
+ 			"cache_read": 0.1,
+@@ -2138,6 +2201,66 @@
+ 			"context": 1000000
+ 		}
+ 	},
++	"databricks-gemini-2-5-flash": {
++		"cost": {
++			"cache_read": 0.03,
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"databricks-gemini-2-5-pro": {
++		"cost": {
++			"cache_read": 0.125,
++			"input": 1.25,
++			"output": 10
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"databricks-gemini-3-1-flash-lite": {
++		"cost": {
++			"cache_read": 0.025,
++			"input": 0.25,
++			"output": 1.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"databricks-gemini-3-1-pro": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"databricks-gemini-3-flash": {
++		"cost": {
++			"cache_read": 0.05,
++			"input": 0.5,
++			"output": 3
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"databricks-gemini-3-pro": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
+ 	"databricks-kimi-k2-7-code": {
+ 		"cost": {
+ 			"cache_read": 0.19,
+@@ -2223,6 +2346,17 @@
+ 			"context": 1000000
+ 		}
+ 	},
++	"eu.anthropic.claude-opus-5": {
++		"cost": {
++			"cache_read": 0.55,
++			"cache_write": 6.875,
++			"input": 5.5,
++			"output": 27.5
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
+ 	"eu.anthropic.claude-sonnet-4-5-20250929-v1:0": {
+ 		"cost": {
+ 			"cache_read": 0.33,
+@@ -2256,192 +2390,1325 @@
+ 			"context": 1000000
+ 		}
+ 	},
+-	"global.anthropic.claude-fable-5": {
++	"gemini-2-5-flash": {
+ 		"cost": {
+-			"cache_read": 1,
+-			"cache_write": 12.5,
+-			"input": 10,
+-			"output": 50
++			"cache_read": 0.03,
++			"input": 0.3,
++			"output": 2.5
+ 		},
+ 		"limit": {
+-			"context": 1000000
++			"context": 1048576
+ 		}
+ 	},
+-	"global.anthropic.claude-haiku-4-5-20251001-v1:0": {
++	"gemini-2-5-pro": {
+ 		"cost": {
+-			"cache_read": 0.1,
+-			"cache_write": 1.25,
+-			"input": 1,
+-			"output": 5
++			"cache_read": 0.125,
++			"input": 1.25,
++			"output": 10
+ 		},
+ 		"limit": {
+-			"context": 200000
++			"context": 1048576
+ 		}
+ 	},
+-	"global.anthropic.claude-opus-4-5-20251101-v1:0": {
++	"gemini-2.0-flash": {
+ 		"cost": {
+-			"cache_read": 0.5,
+-			"cache_write": 6.25,
+-			"input": 5,
+-			"output": 25
++			"cache_read": 0.025,
++			"input": 0.1,
++			"output": 0.4
+ 		},
+ 		"limit": {
+-			"context": 200000
++			"context": 1048576
+ 		}
+ 	},
+-	"global.anthropic.claude-opus-4-6-v1": {
++	"gemini-2.0-flash-001": {
+ 		"cost": {
+-			"cache_read": 0.5,
+-			"cache_write": 6.25,
+-			"input": 5,
+-			"output": 25
++			"input": 0.1003,
++			"output": 0.408
+ 		},
+ 		"limit": {
+ 			"context": 1000000
+ 		}
+ 	},
+-	"global.anthropic.claude-opus-4-7": {
++	"gemini-2.0-flash-exp-image-generation": {
+ 		"cost": {
+-			"cache_read": 0.5,
+-			"cache_write": 6.25,
+-			"input": 5,
+-			"output": 25
++			"input": 0.2,
++			"output": 0.8
+ 		},
+ 		"limit": {
+-			"context": 1000000
++			"context": 32767
+ 		}
+ 	},
+-	"global.anthropic.claude-opus-4-8": {
++	"gemini-2.0-flash-lite": {
+ 		"cost": {
+-			"cache_read": 0.5,
+-			"cache_write": 6.25,
+-			"input": 5,
+-			"output": 25
++			"input": 0.075,
++			"output": 0.3
+ 		},
+ 		"limit": {
+-			"context": 1000000
++			"context": 2000000
+ 		}
+ 	},
+-	"global.anthropic.claude-sonnet-4-5-20250929-v1:0": {
++	"gemini-2.0-flash-thinking-exp-01-21": {
+ 		"cost": {
+-			"cache_read": 0.3,
+-			"cache_write": 3.75,
+-			"input": 3,
+-			"output": 15
++			"input": 0.306,
++			"output": 1.003
+ 		},
+ 		"limit": {
+-			"context": 200000
++			"context": 1000000
+ 		}
+ 	},
+-	"global.anthropic.claude-sonnet-4-6": {
++	"gemini-2.0-flash-thinking-exp-1219": {
+ 		"cost": {
+-			"cache_read": 0.3,
+-			"cache_write": 3.75,
+-			"input": 3,
+-			"output": 15
++			"input": 0.1003,
++			"output": 0.408
+ 		},
+ 		"limit": {
+-			"context": 1000000
++			"context": 32767
+ 		}
+ 	},
+-	"global.anthropic.claude-sonnet-5": {
++	"gemini-2.0-pro-exp-02-05": {
+ 		"cost": {
+-			"cache_read": 0.2,
+-			"cache_write": 2.5,
+-			"input": 2,
+-			"output": 10
++			"input": 1.989,
++			"output": 7.956
+ 		},
+ 		"limit": {
+-			"context": 1000000
++			"context": 2097152
+ 		}
+ 	},
+-	"hf:moonshotai/Kimi-K2.7-Code": {
++	"gemini-2.0-pro-reasoner": {
+ 		"cost": {
+-			"cache_read": 0.95,
+-			"input": 0.95,
+-			"output": 4
++			"input": 1.292,
++			"output": 4.998
+ 		},
+ 		"limit": {
+-			"context": 262144
++			"context": 128000
+ 		}
+ 	},
+-	"jp.anthropic.claude-haiku-4-5-20251001-v1:0": {
++	"gemini-2.5-computer-use-preview-10-2025": {
+ 		"cost": {
+-			"cache_read": 0.1,
+-			"cache_write": 1.25,
+-			"input": 1,
+-			"output": 5
++			"input": 1.25,
++			"output": 10
+ 		},
+ 		"limit": {
+-			"context": 200000
++			"context": 131072
+ 		}
+ 	},
+-	"jp.anthropic.claude-opus-4-7": {
++	"gemini-2.5-flash": {
+ 		"cost": {
+-			"cache_read": 0.5,
+-			"cache_write": 6.25,
+-			"input": 5,
+-			"output": 25
++			"cache_read": 0.075,
++			"cache_write": 0.383,
++			"input": 0.3,
++			"output": 2.5
+ 		},
+ 		"limit": {
+-			"context": 1000000
++			"context": 1048576
+ 		}
+ 	},
+-	"jp.anthropic.claude-opus-4-8": {
++	"gemini-2.5-flash-image": {
+ 		"cost": {
+-			"cache_read": 0.5,
+-			"cache_write": 6.25,
+-			"input": 5,
+-			"output": 25
++			"cache_read": 0.075,
++			"input": 0.3,
++			"output": 30
+ 		},
+ 		"limit": {
+-			"context": 1000000
++			"context": 32768
+ 		}
+ 	},
+-	"jp.anthropic.claude-sonnet-4-5-20250929-v1:0": {
++	"gemini-2.5-flash-lite": {
+ 		"cost": {
+-			"cache_read": 0.3,
+-			"cache_write": 3.75,
+-			"input": 3,
+-			"output": 15
++			"cache_read": 0.024999999999999998,
++			"cache_write": 0.09999999999999999,
++			"input": 0.09999999999999999,
++			"output": 0.39999999999999997
+ 		},
+ 		"limit": {
+-			"context": 200000
++			"context": 1048576
+ 		}
+ 	},
+-	"jp.anthropic.claude-sonnet-4-6": {
++	"gemini-2.5-flash-lite-preview-06-17": {
+ 		"cost": {
+-			"cache_read": 0.3,
+-			"cache_write": 3.75,
+-			"input": 3,
+-			"output": 15
++			"input": 0.09,
++			"output": 0.36
+ 		},
+ 		"limit": {
+-			"context": 1000000
++			"context": 1048576
+ 		}
+ 	},
+-	"jp.anthropic.claude-sonnet-5": {
++	"gemini-2.5-flash-lite-preview-09-2025": {
+ 		"cost": {
+-			"cache_read": 0.2,
+-			"cache_write": 2.5,
+-			"input": 2,
+-			"output": 10
++			"input": 0.1,
++			"output": 0.4
+ 		},
+ 		"limit": {
+ 			"context": 1000000
+ 		}
+ 	},
+-	"kimi-k2": {
++	"gemini-2.5-flash-lite-preview-09-2025-thinking": {
+ 		"cost": {
+-			"cache_read": 0.5,
+-			"input": 0.57,
+-			"output": 2.3
++			"input": 0.1,
++			"output": 0.4
+ 		},
+ 		"limit": {
+-			"context": 256000
++			"context": 1048756
+ 		}
+ 	},
+-	"kimi-k2-0711": {
++	"gemini-2.5-flash-nothink": {
++		"cost": {
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"gemini-2.5-flash-nothinking": {
++		"cost": {
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"gemini-2.5-flash-preview-04-17": {
++		"cost": {
++			"input": 0.15,
++			"output": 0.6
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"gemini-2.5-flash-preview-04-17:thinking": {
++		"cost": {
++			"input": 0.15,
++			"output": 3.5
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"gemini-2.5-flash-preview-05-20": {
++		"cost": {
++			"input": 0.135,
++			"output": 3.15
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-2.5-flash-preview-05-20:thinking": {
++		"cost": {
++			"input": 0.15,
++			"output": 3.5
++		},
++		"limit": {
++			"context": 1048000
++		}
++	},
++	"gemini-2.5-flash-preview-09-2025": {
++		"cost": {
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"gemini-2.5-flash-preview-09-2025-thinking": {
++		"cost": {
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"gemini-2.5-flash-preview-tts": {
++		"cost": {
++			"input": 0.5,
++			"output": 10
++		},
++		"limit": {
++			"context": 8192
++		}
++	},
++	"gemini-2.5-flash-tts": {
++		"cost": {
++			"input": 0.5,
++			"output": 10
++		},
++		"limit": {
++			"context": 32768
++		}
++	},
++	"gemini-2.5-pro": {
++		"cost": {
++			"cache_read": 0.3125,
++			"cache_write": 1.25,
++			"input": 1.25,
++			"output": 10
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-2.5-pro-exp-03-25": {
++		"cost": {
++			"input": 2.5,
++			"output": 10
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"gemini-2.5-pro-preview-03-25": {
++		"cost": {
++			"input": 2.5,
++			"output": 10
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"gemini-2.5-pro-preview-05-06": {
++		"cost": {
++			"input": 2.5,
++			"output": 10
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"gemini-2.5-pro-preview-06-05": {
++		"cost": {
++			"input": 1.125,
++			"output": 9
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-2.5-pro-preview-tts": {
++		"cost": {
++			"input": 1,
++			"output": 20
++		},
++		"limit": {
++			"context": 8192
++		}
++	},
++	"gemini-2.5-pro-tts": {
++		"cost": {
++			"input": 1,
++			"output": 20
++		},
++		"limit": {
++			"context": 32768
++		}
++	},
++	"gemini-3-1-flash-lite": {
++		"cost": {
++			"cache_read": 0.025,
++			"input": 0.25,
++			"output": 1.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3-1-pro": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3-1-pro-preview": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 0.5,
++			"input": 2.5,
++			"output": 15
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"gemini-3-5-flash": {
++		"cost": {
++			"cache_read": 0.155,
++			"cache_write": 0.086,
++			"input": 1.55,
++			"output": 9.45
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"gemini-3-5-flash-lite": {
++		"cost": {
++			"cache_read": 0.0375,
++			"input": 0.375,
++			"output": 3.125
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"gemini-3-6-flash": {
++		"cost": {
++			"cache_read": 0.1875,
++			"input": 1.875,
++			"output": 9.375
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"gemini-3-flash": {
++		"cost": {
++			"cache_read": 0.05,
++			"cache_write": 0.083333,
++			"input": 0.5,
++			"output": 3
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3-flash-preview": {
++		"cost": {
++			"cache_read": 0.05,
++			"input": 0.5,
++			"output": 3
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3-pro": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3-pro-image": {
++		"cost": {
++			"input": 2,
++			"output": 120
++		},
++		"limit": {
++			"context": 131072
++		}
++	},
++	"gemini-3-pro-image-preview": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 65536
++		}
++	},
++	"gemini-3-pro-preview": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3.1-flash-image": {
++		"cost": {
++			"input": 0.5,
++			"output": 60
++		},
++		"limit": {
++			"context": 65536
++		}
++	},
++	"gemini-3.1-flash-image-preview": {
++		"cost": {
++			"input": 0.5,
++			"output": 60
++		},
++		"limit": {
++			"context": 131072
++		}
++	},
++	"gemini-3.1-flash-lite": {
++		"cost": {
++			"cache_read": 0.025,
++			"cache_write": 1,
++			"input": 0.25,
++			"output": 1.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3.1-flash-lite-image": {
++		"cost": {
++			"input": 0.25,
++			"output": 30
++		},
++		"limit": {
++			"context": 65536
++		}
++	},
++	"gemini-3.1-flash-lite-preview": {
++		"cost": {
++			"cache_read": 0.025,
++			"cache_write": 1,
++			"input": 0.25,
++			"output": 1.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3.1-flash-live-preview": {
++		"cost": {
++			"input": 0.75,
++			"output": 4.5
++		},
++		"limit": {
++			"context": 131072
++		}
++	},
++	"gemini-3.1-flash-tts-preview": {
++		"cost": {
++			"input": 1,
++			"output": 20
++		},
++		"limit": {
++			"context": 8192
++		}
++	},
++	"gemini-3.1-pro": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 0.375,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3.1-pro-preview": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3.1-pro-preview-customtools": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3.5-flash": {
++		"cost": {
++			"cache_read": 0.15,
++			"cache_write": 0.08333,
++			"input": 1.5,
++			"output": 9
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3.5-flash-lite": {
++		"cost": {
++			"cache_read": 0.03,
++			"cache_write": 0.08333,
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-3.5-live-translate-preview": {
++		"cost": {
++			"input": 3.5,
++			"output": 21
++		},
++		"limit": {
++			"context": 16384
++		}
++	},
++	"gemini-3.6-flash": {
++		"cost": {
++			"cache_read": 0.15,
++			"cache_write": 0.08333,
++			"input": 1.5,
++			"output": 7.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-embedding-001": {
++		"cost": {
++			"input": 0.15,
++			"output": 0
++		},
++		"limit": {
++			"context": 2048
++		}
++	},
++	"gemini-embedding-2": {
++		"cost": {
++			"input": 0.2,
++			"output": 0
++		},
++		"limit": {
++			"context": 8192
++		}
++	},
++	"gemini-exp-1206": {
++		"cost": {
++			"input": 1.258,
++			"output": 4.998
++		},
++		"limit": {
++			"context": 2097152
++		}
++	},
++	"gemini-flash-latest": {
++		"cost": {
++			"cache_read": 0.15,
++			"input": 1.5,
++			"output": 9
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-flash-lite-latest": {
++		"cost": {
++			"cache_read": 0.025,
++			"input": 0.25,
++			"output": 1.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-omni-flash-preview": {
++		"cost": {
++			"input": 1.5,
++			"output": 17.5
++		},
++		"limit": {
++			"context": 131072
++		}
++	},
++	"gemini-pro-latest": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini-robotics-er-1.6-preview": {
++		"cost": {
++			"input": 1,
++			"output": 5
++		},
++		"limit": {
++			"context": 131072
++		}
++	},
++	"gemini/gemini-2.5-flash": {
++		"cost": {
++			"cache_read": 0.03,
++			"cache_write": 0.3,
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini/gemini-2.5-flash-lite": {
++		"cost": {
++			"cache_read": 0.01,
++			"cache_write": 0.1,
++			"input": 0.1,
++			"output": 0.4
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini/gemini-2.5-pro": {
++		"cost": {
++			"cache_read": 0.125,
++			"cache_write": 1.25,
++			"input": 1.25,
++			"output": 10
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini/gemini-3-flash-preview": {
++		"cost": {
++			"cache_read": 0.05,
++			"cache_write": 0.5,
++			"input": 0.5,
++			"output": 3
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini/gemini-3.1-pro-preview": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"gemini/gemini-3.5-flash": {
++		"cost": {
++			"cache_read": 0.15,
++			"cache_write": 1.5,
++			"input": 1.5,
++			"output": 9
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"global.anthropic.claude-fable-5": {
++		"cost": {
++			"cache_read": 1,
++			"cache_write": 12.5,
++			"input": 10,
++			"output": 50
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"global.anthropic.claude-haiku-4-5-20251001-v1:0": {
++		"cost": {
++			"cache_read": 0.1,
++			"cache_write": 1.25,
++			"input": 1,
++			"output": 5
++		},
++		"limit": {
++			"context": 200000
++		}
++	},
++	"global.anthropic.claude-opus-4-5-20251101-v1:0": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 200000
++		}
++	},
++	"global.anthropic.claude-opus-4-6-v1": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"global.anthropic.claude-opus-4-7": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"global.anthropic.claude-opus-4-8": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"global.anthropic.claude-opus-5": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"global.anthropic.claude-sonnet-4-5-20250929-v1:0": {
++		"cost": {
++			"cache_read": 0.3,
++			"cache_write": 3.75,
++			"input": 3,
++			"output": 15
++		},
++		"limit": {
++			"context": 200000
++		}
++	},
++	"global.anthropic.claude-sonnet-4-6": {
++		"cost": {
++			"cache_read": 0.3,
++			"cache_write": 3.75,
++			"input": 3,
++			"output": 15
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"global.anthropic.claude-sonnet-5": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 2.5,
++			"input": 2,
++			"output": 10
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"google/gemini-2.0-flash": {
++		"cost": {
++			"input": 0.1,
++			"output": 0.42
++		},
++		"limit": {
++			"context": 990000
++		}
++	},
++	"google/gemini-2.0-flash-001": {
++		"cost": {
++			"cache_read": 0.025,
++			"cache_write": 0.083333,
++			"input": 0.1,
++			"output": 0.4
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-2.0-flash-lite": {
++		"cost": {
++			"input": 0.052,
++			"output": 0.21
++		},
++		"limit": {
++			"context": 990000
++		}
++	},
++	"google/gemini-2.0-flash-lite-001": {
++		"cost": {
++			"input": 0.075,
++			"output": 0.3
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-2.5-flash": {
++		"cost": {
++			"cache_read": 0.03,
++			"cache_write": 0.083333,
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-2.5-flash-image": {
++		"cost": {
++			"cache_read": 0.03,
++			"cache_write": 0.083333,
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 32768
++		}
++	},
++	"google/gemini-2.5-flash-lite": {
++		"cost": {
++			"cache_read": 0.01,
++			"cache_write": 0.083333,
++			"input": 0.1,
++			"output": 0.4
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-2.5-flash-lite-preview-09-2025": {
++		"cost": {
++			"cache_read": 0.01,
++			"cache_write": 0.083333,
++			"input": 0.1,
++			"output": 0.4
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-2.5-pro": {
++		"cost": {
++			"cache_read": 0.125,
++			"cache_write": 0.375,
++			"input": 1.25,
++			"output": 10
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-2.5-pro-preview": {
++		"cost": {
++			"cache_read": 0.125,
++			"cache_write": 0.375,
++			"input": 1.25,
++			"output": 10
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-2.5-pro-preview-05-06": {
++		"cost": {
++			"cache_read": 0.125,
++			"cache_write": 0.375,
++			"input": 1.25,
++			"output": 10
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3-flash": {
++		"cost": {
++			"cache_read": 0.04,
++			"input": 0.4,
++			"output": 2.4
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3-flash-preview": {
++		"cost": {
++			"cache_read": 0.05,
++			"cache_write": 0.083333,
++			"input": 0.5,
++			"output": 3
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3-flash-preview-thinking": {
++		"cost": {
++			"input": 0.5,
++			"output": 3
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"google/gemini-3-pro": {
++		"cost": {
++			"cache_read": 0,
++			"input": 1.25,
++			"output": 15
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3-pro-image": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 0.375,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 131072
++		}
++	},
++	"google/gemini-3-pro-image-preview": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 0.375,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 65536
++		}
++	},
++	"google/gemini-3-pro-preview": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 4.5,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3.1-flash-image": {
++		"cost": {
++			"cache_read": 0.05,
++			"input": 0.5,
++			"output": 3
++		},
++		"limit": {
++			"context": 131072
++		}
++	},
++	"google/gemini-3.1-flash-image-preview": {
++		"cost": {
++			"cache_read": 0.05,
++			"input": 0.5,
++			"output": 3
++		},
++		"limit": {
++			"context": 131072
++		}
++	},
++	"google/gemini-3.1-flash-lite": {
++		"cost": {
++			"cache_read": 0.025,
++			"cache_write": 0.08333,
++			"input": 0.25,
++			"output": 1.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3.1-flash-lite-image": {
++		"cost": {
++			"cache_read": 0.03,
++			"input": 0.25,
++			"output": 1.5
++		},
++		"limit": {
++			"context": 65536
++		}
++	},
++	"google/gemini-3.1-flash-lite-preview": {
++		"cost": {
++			"cache_read": 0.025,
++			"cache_write": 0.083333,
++			"input": 0.25,
++			"output": 1.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3.1-pro": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3.1-pro-preview": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 0.375,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3.1-pro-preview-customtools": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 0.375,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3.1-pro-preview-high": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"google/gemini-3.1-pro-preview-low": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"google/gemini-3.5-flash": {
++		"cost": {
++			"cache_read": 0.15,
++			"cache_write": 0.08333,
++			"input": 1.5,
++			"output": 9
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3.5-flash-lite": {
++		"cost": {
++			"cache_read": 0.03,
++			"cache_write": 0.083333,
++			"input": 0.3,
++			"output": 2.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3.5-flash-thinking": {
++		"cost": {
++			"cache_read": 0.15,
++			"input": 1.5,
++			"output": 9
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-3.6-flash": {
++		"cost": {
++			"cache_read": 0.15,
++			"cache_write": 0.083333,
++			"input": 1.5,
++			"output": 7.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-deep-research": {
++		"cost": {
++			"input": 1.6,
++			"output": 9.6
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-flash-1.5": {
++		"cost": {
++			"input": 0.0748,
++			"output": 0.306
++		},
++		"limit": {
++			"context": 2000000
++		}
++	},
++	"google/gemini-flash-latest": {
++		"cost": {
++			"cache_read": 0.15,
++			"input": 1.5,
++			"output": 9
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-flash-lite-latest": {
++		"cost": {
++			"cache_read": 0.025,
++			"input": 0.25,
++			"output": 1.5
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"google/gemini-omni-flash-preview": {
++		"cost": {
++			"input": 1.5,
++			"output": 9
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"google/gemini-pro-latest": {
++		"cost": {
++			"cache_read": 0.2,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048756
++		}
++	},
++	"hf:moonshotai/Kimi-K2.7-Code": {
++		"cost": {
++			"cache_read": 0.95,
++			"input": 0.95,
++			"output": 4
++		},
++		"limit": {
++			"context": 262144
++		}
++	},
++	"jp.anthropic.claude-haiku-4-5-20251001-v1:0": {
++		"cost": {
++			"cache_read": 0.1,
++			"cache_write": 1.25,
++			"input": 1,
++			"output": 5
++		},
++		"limit": {
++			"context": 200000
++		}
++	},
++	"jp.anthropic.claude-opus-4-7": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"jp.anthropic.claude-opus-4-8": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"jp.anthropic.claude-opus-5": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"jp.anthropic.claude-sonnet-4-5-20250929-v1:0": {
++		"cost": {
++			"cache_read": 0.3,
++			"cache_write": 3.75,
++			"input": 3,
++			"output": 15
++		},
++		"limit": {
++			"context": 200000
++		}
++	},
++	"jp.anthropic.claude-sonnet-4-6": {
++		"cost": {
++			"cache_read": 0.3,
++			"cache_write": 3.75,
++			"input": 3,
++			"output": 15
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"jp.anthropic.claude-sonnet-5": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 2.5,
++			"input": 2,
++			"output": 10
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
++	"kimi-k2": {
++		"cost": {
++			"cache_read": 0.5,
++			"input": 0.57,
++			"output": 2.3
++		},
++		"limit": {
++			"context": 256000
++		}
++	},
++	"kimi-k2-0711": {
+ 		"cost": {
+ 			"input": 0.5700000000000001,
+ 			"output": 2.3
+@@ -2646,6 +3913,15 @@
+ 			"context": 262144
+ 		}
+ 	},
++	"kimi-k2.7-code-1100b": {
++		"cost": {
++			"input": 0.86,
++			"output": 3
++		},
++		"limit": {
++			"context": 262144
++		}
++	},
+ 	"kimi-k2.7-code-flex": {
+ 		"cost": {
+ 			"cache_read": 0.11875,
+@@ -3025,10 +4301,10 @@
+ 	},
+ 	"moonshotai/kimi-k2.7-code": {
+ 		"cost": {
+-			"cache_read": 0.17,
++			"cache_read": 0.15,
+ 			"cache_write": 0,
+-			"input": 0.85,
+-			"output": 3.8
++			"input": 0.82,
++			"output": 3.75
+ 		},
+ 		"limit": {
+ 			"context": 262144
+@@ -3204,6 +4480,17 @@
+ 			"context": 1000000
+ 		}
+ 	},
++	"us.anthropic.claude-opus-5": {
++		"cost": {
++			"cache_read": 0.5,
++			"cache_write": 6.25,
++			"input": 5,
++			"output": 25
++		},
++		"limit": {
++			"context": 1000000
++		}
++	},
+ 	"us.anthropic.claude-sonnet-4-5-20250929-v1:0": {
+ 		"cost": {
+ 			"cache_read": 0.3,
+@@ -3301,6 +4588,28 @@
+ 			"context": 1000000
+ 		}
+ 	},
++	"~google/gemini-flash-latest": {
++		"cost": {
++			"cache_read": 0.15,
++			"cache_write": 0.08333333333333334,
++			"input": 1.5,
++			"output": 9
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
++	"~google/gemini-pro-latest": {
++		"cost": {
++			"cache_read": 0.2,
++			"cache_write": 0.375,
++			"input": 2,
++			"output": 12
++		},
++		"limit": {
++			"context": 1048576
++		}
++	},
+ 	"~moonshotai/kimi-latest": {
+ 		"cost": {
+ 			"cache_read": 0.14,
+diff --git a/rust/crates/ccusage/src/pricing.rs b/rust/crates/ccusage/src/pricing.rs
+index 3514601..5b644e1 100644
+--- a/rust/crates/ccusage/src/pricing.rs
++++ b/rust/crates/ccusage/src/pricing.rs
+@@ -2404,7 +2404,9 @@ mod tests {
+ 
+         assert!(pricing.find("claude-opus-4-8-20270898").is_some());
+         assert!(pricing.find("claude-opus-4-9").is_none());
+-        assert!(pricing.find("claude-opus-5").is_none());
++        // claude-opus-5 is priced by the embedded models.dev snapshot; use a
++        // version no source publishes yet for the unknown-version assertion.
++        assert!(pricing.find("claude-opus-6").is_none());
+     }
+ 
+     #[test]
+diff --git a/rust/crates/ccusage/src/progress.rs b/rust/crates/ccusage/src/progress.rs
+index b32969e..47e590b 100644
+--- a/rust/crates/ccusage/src/progress.rs
++++ b/rust/crates/ccusage/src/progress.rs
+@@ -31,6 +31,7 @@ pub(crate) enum UsageLoadAgent {
+     Gemini,
+     Kimi,
+     OpenClaw,
++    Antigravity,
+ }
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+@@ -62,6 +63,7 @@ fn agent_label(agent: UsageLoadAgent) -> &'static str {
+         UsageLoadAgent::Gemini => "Gemini CLI",
+         UsageLoadAgent::Kimi => "Kimi",
+         UsageLoadAgent::OpenClaw => "OpenClaw",
++        UsageLoadAgent::Antigravity => "Antigravity",
+     }
+ }
+ 
+diff --git a/rust/crates/ccusage/src/snapshots/ccusage__config_schema__tests__snapshots_schema_agent_specific_option_edges.snap b/rust/crates/ccusage/src/snapshots/ccusage__config_schema__tests__snapshots_schema_agent_specific_option_edges.snap
+index 63c1dc8..4a16267 100644
+--- a/rust/crates/ccusage/src/snapshots/ccusage__config_schema__tests__snapshots_schema_agent_specific_option_edges.snap
++++ b/rust/crates/ccusage/src/snapshots/ccusage__config_schema__tests__snapshots_schema_agent_specific_option_edges.snap
+@@ -1125,6 +1125,7 @@ expression: "json!({\n    \"rootRef\": schema[\"$ref\"], \"rootProperties\":\n
+   "rootProperties": [
+     "$schema",
+     "amp",
++    "antigravity",
+     "claude",
+     "codebuff",
+     "codex",

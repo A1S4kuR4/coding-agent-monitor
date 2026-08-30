@@ -20,7 +20,15 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+# Gate 0 PoC: in-process use of the vendored ccusage workspace (see
+# vendor/ccusage/PATCHES.md). The production sidecar collection path is unchanged.
+ccusage-adapter-all = { path = "vendor/ccusage/rust/crates/ccusage-adapter-all" }
+# SharedArgs lives here; imported directly so the Gate 0 PoC test can build args.
+ccusage-cli = { path = "vendor/ccusage/rust/crates/ccusage-cli" }
+# Host-side storage uses the same sqlite crate as the vendored adapters so the
+# binary carries exactly one SQLite native linkage (sqlite3-src). See the
+# v0.3 Gate 0 record in docs/.
+sqlite = { version = "0.37.0", default-features = false, features = ["bundled", "linkage"] }
 tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

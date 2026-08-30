@@ -54,3 +54,11 @@ src-tauri/icons/ios/
 *.njsproj
 *.sln
 *.sw?
+
+# Vendored ccusage upstream working copies (import/audit only; the committed
+# vendored tree lives in src-tauri/vendor/ccusage). Recreate with
+# scripts/vendor-ccusage-import.mjs.
+.tmp-upstream/
+
+# Vendored workspace build output (separate cargo workspace from src-tauri).
+src-tauri/vendor/ccusage/rust/target/
