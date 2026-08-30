@@ -3,6 +3,11 @@ use std::{collections::HashSet, env, path::PathBuf};
 use crate::Result;
 
 pub(super) fn paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("opencode") {
+        return Ok(roots);
+    }
+
     let mut paths = Vec::new();
     let mut seen = HashSet::new();
     if let Ok(env_paths) = env::var("OPENCODE_DATA_DIR") {

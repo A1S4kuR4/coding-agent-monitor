@@ -39,28 +39,85 @@
 //!   zero from a priced model. Missing models stay in the record with their
 //!   name and `None` cost; nothing is fabricated.
 
-use std::fmt;
+use std::{fmt, path::PathBuf};
 
 use chrono::NaiveDate;
 
 pub mod ccusage;
+pub mod protocol;
 
 mod error;
 
 pub use error::CollectorError;
 
 /// Which agent's usage a collector reads.
+///
+/// The full registry audited from the vendored v20.0.20 workspace
+/// (`BUILT_IN_AGENT_NAMES`, 17 entries incl. the Antigravity downstream port)
+/// crossed with the product's supported scope. Never construct lists by hand
+/// elsewhere — derive from this enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum AgentKind {
     Claude,
+    Codex,
+    OpenCode,
+    Amp,
+    Droid,
+    Codebuff,
+    Hermes,
+    Pi,
+    Goose,
+    OpenClaw,
+    Kilo,
+    Copilot,
+    Gemini,
+    Kimi,
+    Qwen,
+    Grok,
     Antigravity,
 }
 
 impl AgentKind {
+    /// Every registered agent, in vendor registry order.
+    pub const ALL: [AgentKind; 17] = [
+        AgentKind::Claude,
+        AgentKind::Codex,
+        AgentKind::OpenCode,
+        AgentKind::Amp,
+        AgentKind::Droid,
+        AgentKind::Codebuff,
+        AgentKind::Hermes,
+        AgentKind::Pi,
+        AgentKind::Goose,
+        AgentKind::OpenClaw,
+        AgentKind::Kilo,
+        AgentKind::Copilot,
+        AgentKind::Gemini,
+        AgentKind::Kimi,
+        AgentKind::Qwen,
+        AgentKind::Grok,
+        AgentKind::Antigravity,
+    ];
+
     /// The agent identifier used by the vendored unified report.
     pub fn id(self) -> &'static str {
         match self {
             AgentKind::Claude => "claude",
+            AgentKind::Codex => "codex",
+            AgentKind::OpenCode => "opencode",
+            AgentKind::Amp => "amp",
+            AgentKind::Droid => "droid",
+            AgentKind::Codebuff => "codebuff",
+            AgentKind::Hermes => "hermes",
+            AgentKind::Pi => "pi",
+            AgentKind::Goose => "goose",
+            AgentKind::OpenClaw => "openclaw",
+            AgentKind::Kilo => "kilo",
+            AgentKind::Copilot => "copilot",
+            AgentKind::Gemini => "gemini",
+            AgentKind::Kimi => "kimi",
+            AgentKind::Qwen => "qwen",
+            AgentKind::Grok => "grok",
             AgentKind::Antigravity => "antigravity",
         }
     }
@@ -69,8 +126,29 @@ impl AgentKind {
     pub fn label(self) -> &'static str {
         match self {
             AgentKind::Claude => "Claude",
+            AgentKind::Codex => "Codex",
+            AgentKind::OpenCode => "OpenCode",
+            AgentKind::Amp => "Amp",
+            AgentKind::Droid => "Droid",
+            AgentKind::Codebuff => "Codebuff",
+            AgentKind::Hermes => "Hermes",
+            AgentKind::Pi => "pi-agent",
+            AgentKind::Goose => "Goose",
+            AgentKind::OpenClaw => "OpenClaw",
+            AgentKind::Kilo => "Kilo",
+            AgentKind::Copilot => "GitHub Copilot CLI",
+            AgentKind::Gemini => "Gemini CLI",
+            AgentKind::Kimi => "Kimi",
+            AgentKind::Qwen => "Qwen",
+            AgentKind::Grok => "Grok",
             AgentKind::Antigravity => "Antigravity",
         }
+    }
+
+    /// Resolves a vendor agent id back to the registry. Unknown ids yield
+    /// `None` so callers can produce a typed error instead of guessing.
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|kind| kind.id() == id)
     }
 }
 
@@ -108,17 +186,24 @@ impl CollectWindow {
 
 /// Where a collector reads agent data from.
 ///
-/// Phase 1 supports only process-environment resolution (the vendored CLI
-/// contract). Path overrides will be added when the vendor seam accepts them
-/// without process-global env mutation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Path resolution is separated from vendor loading: `Environment` is the
+/// production default (the vendored engine resolves the agent's own roots
+/// from the process environment, exactly like the CLI), while `Paths` hands
+/// the collector explicit data roots that are passed straight through to the
+/// vendor load — no global environment mutation happens in either case.
+/// Explicit paths must match the agent's expected layout (the same shape its
+/// env override accepts, e.g. a Claude config root containing `projects/`).
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DataSource {
-    /// Resolve each agent's data root from the process environment
-    /// (`CLAUDE_CONFIG_DIR`, `ANTIGRAVITY_DATA_DIR`, …). Missing roots are
-    /// reported per the vendor's own semantics; an agent with no data yields
-    /// an empty successful result, not an error.
+    /// Resolve the agent's data root from the process environment. Missing
+    /// roots follow the vendor's semantics; an agent with no data yields an
+    /// empty successful result, not an error.
     Environment,
+    /// Explicit data roots for the requested agent only. Paths are used as
+    /// given (non-ASCII, spaces and long paths supported); they are never
+    /// written to, moved, or locked.
+    Paths(Vec<PathBuf>),
 }
 
 /// IANA time-zone name used for daily bucketing, e.g. `"UTC"`.
@@ -174,6 +259,11 @@ impl CollectRequest {
         self.timezone = timezone;
         self
     }
+
+    pub fn with_source(mut self, source: DataSource) -> Self {
+        self.source = source;
+        self
+    }
 }
 
 /// Stable model identifier as reported by the agent's own logs.
@@ -209,6 +299,11 @@ impl CostNanoUsd {
         }
         // f64::round is half-away-from-zero; the `as` cast saturates.
         Some(Self((value * 1e9).round() as i128))
+    }
+
+    /// Exact constructor from a nano-USD integer (protocol layer, tests).
+    pub const fn from_nano(nano: i128) -> Self {
+        Self(nano)
     }
 
     pub const ZERO: Self = Self(0);
@@ -274,6 +369,41 @@ pub struct UsageRecord {
     pub models_missing_pricing: Vec<ModelName>,
 }
 
+impl UsageRecord {
+    /// Full-field constructor for tests and the protocol layer. Hidden from
+    /// docs so `#[non_exhaustive]` remains the public contract for new
+    /// fields; tests need positional control over every field.
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        date: NaiveDate,
+        agent: AgentKind,
+        input_tokens: u64,
+        output_tokens: u64,
+        cache_creation_tokens: u64,
+        cache_read_tokens: u64,
+        total_tokens: u64,
+        cost: Option<CostNanoUsd>,
+        models_used: Vec<ModelName>,
+        model_breakdowns: Vec<ModelBreakdown>,
+        models_missing_pricing: Vec<ModelName>,
+    ) -> Self {
+        Self {
+            date,
+            agent,
+            input_tokens,
+            output_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
+            total_tokens,
+            cost,
+            models_used,
+            model_breakdowns,
+            models_missing_pricing,
+        }
+    }
+}
+
 /// Successful collection output for one agent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -282,11 +412,58 @@ pub struct CollectResult {
     /// Daily records, sorted by date ascending. Empty when the agent has no
     /// data in the window (a successful empty result, never an error).
     pub records: Vec<UsageRecord>,
+    /// Recoverable problems observed while collecting: skipped corrupt
+    /// files/records, unreadable SQLite sources, and similar partial
+    /// failures. A successful result with diagnostics is *not* a complete
+    /// result — consumers must surface these, never swallow them (the v0.3
+    /// plan forbids silent undercounting).
+    pub diagnostics: Vec<CollectionDiagnostic>,
+}
+
+/// Category of a recoverable problem surfaced through
+/// [`CollectResult::diagnostics`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DiagnosticKind {
+    /// A source file existed but could not be parsed; it was skipped.
+    CorruptFile,
+    /// A record inside a readable file was skipped.
+    CorruptRecord,
+    /// A SQLite source could not be opened or queried; it was skipped.
+    DatabaseError,
+    /// A data source existed but could not be read.
+    SourceUnreadable,
+}
+
+/// One recoverable problem observed during collection. Details are short and
+/// self-contained; they never contain log contents, secrets, or file data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CollectionDiagnostic {
+    pub kind: DiagnosticKind,
+    /// Path of the skipped source, when the problem is file-scoped.
+    pub file: Option<String>,
+    pub details: String,
 }
 
 impl CollectResult {
     pub fn is_empty(&self) -> bool {
         self.records.is_empty()
+    }
+
+    /// Full-field constructor for tests and the protocol layer (hidden so
+    /// `#[non_exhaustive]` remains the public contract for new fields).
+    #[doc(hidden)]
+    pub fn from_parts(
+        agent: AgentKind,
+        records: Vec<UsageRecord>,
+        diagnostics: Vec<CollectionDiagnostic>,
+    ) -> Self {
+        Self {
+            agent,
+            records,
+            diagnostics,
+        }
     }
 }
 

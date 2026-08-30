@@ -142,6 +142,48 @@ The patch removes the skip attribute so each model breakdown serializes
 updated accordingly (copilot/qwen inline JSON expectations, core insta
 snapshots) — those hunks are part of this patch file.
 
+### `rust/crates/ccusage-core/src/load_context.rs` + per-agent loader — structured in-process collection (Phase 1)
+
+New core module `load_context`: load-scoped stores (process-global, cleared at
+the start and drained at the end of every load; loads serialize behind a
+mutex and run single-threaded) for:
+
+- `LoadDiag { agent, kind, file, details }` — recoverable problems observed
+  while loading (corrupt file, skipped record, SQLite open/query failure,
+  unreadable source);
+- `LoadFailure { kind, details }` — fatal failures with a machine-readable
+  `LoadFailureKind` (`SourceUnavailable`, `InvalidConfig`, `Database`,
+  `Internal`), so callers classify without matching error text;
+- a per-load data-root override consulted by every adapter's path resolver
+  before environment/default resolution.
+
+`ccusage-adapter-all` gains `AgentLoadOutcome` and
+`daily_report_for_agent(agent, root_override, shared)`: executes exactly one
+agent's load spec (other agents' loaders are never constructed or run), maps
+failures structurally, and returns diagnostics alongside the report.
+`daily_report_json_by_agent` (the all-agents Gate 0 seam) is unchanged.
+
+Consequences across adapters (all part of this patch file):
+
+- every adapter's path resolver short-circuits to the explicit override when
+  one is installed for its agent (`claude`, `codex` interpreted as CODEX_HOME
+  homes, the rest as their env-var-equivalent roots);
+- the claude root-validation failure raises a structured `SourceUnavailable`
+  before returning the existing `CliError` (message unchanged for CLI users);
+- "Failed …" skip sites in every adapter's loader additionally record a
+  `LoadDiag` (kind `CorruptFile` or `DatabaseError`);
+- the antigravity `gen_metadata` prepare-failure branch (previously silent)
+  records a `DatabaseError` diagnostic;
+- loader: `load_rows_filtered` executes a filtered spec list; unknown agent
+  → `Failed(InvalidConfig)`.
+
+### `rust/crates/ccusage-adapter-all/src/tests.rs` — per-agent loader tests
+
+Five new tests (isolation from invalid other-agent roots, override beats
+environment, structural claude failure, corrupt-database diagnostic,
+unknown-agent failure) plus a local single-acquisition env guard — the
+shared `isolated_agent_env` helper is unchanged.
+
 ### Import-scope filtering (part of the import, not upstream code)
 
 Per `UPSTREAM.toml [import] scope`, the vendored workspace excludes the CLI
@@ -179,3 +221,16 @@ written against an older snapshot). The vendored tree asserts
 - All changes above are confined to `rust/crates/ccusage-core` +
   `rust/crates/ccusage-adapter-all` + the new `rust/adapters/antigravity`
   crate; no adapter behavior other than antigravity registration is touched.
+
+### Line-level skip diagnostics + path sanitization (claude daily/session readers, antigravity)
+
+- `adapters/claude/src/daily.rs` (the Daily aggregation reader) records a
+  `CorruptRecord` diagnostic for skipped usage records (unsupported null
+  fields, invalid JSON, unparseable timestamp) — previously fully silent.
+- `adapters/claude/src/lib.rs` (session-path reader) gets the same wiring for
+  parity between report kinds.
+- Diagnostics record only the source file NAME in the structured `file` field
+  (never the full local path), keeping error/diagnostic output free of
+  unnecessary user paths.
+- `adapters/antigravity/src/loader.rs` gen_metadata prepare-failure branch is
+  likewise sanitized (file name only in the structured field).

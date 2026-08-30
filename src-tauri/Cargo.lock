@@ -596,6 +596,7 @@ version = "0.2.0"
 dependencies = [
  "ccusage-adapter-all",
  "ccusage-cli",
+ "ccusage-core",
  "chrono",
  "serde",
  "serde_json",

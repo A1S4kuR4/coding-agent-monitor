@@ -35,6 +35,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
                     file.display()
                 ),
             );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "codebuff",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!(
+                    "Failed to read Codebuff chat file {}: {error}",
+                    file.display()
+                ).to_string(),
+        });
             Vec::new()
         })
     });

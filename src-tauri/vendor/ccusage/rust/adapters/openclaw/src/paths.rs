@@ -9,6 +9,11 @@ use crate::Result;
 const OPENCLAW_DIR_ENV: &str = "OPENCLAW_DIR";
 
 pub(super) fn paths(custom_path: Option<&str>) -> Vec<PathBuf> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("openclaw") {
+        return roots;
+    }
+
     if let Some(custom_path) = custom_path.filter(|path| !path.trim().is_empty()) {
         return existing_path_list(custom_path);
     }

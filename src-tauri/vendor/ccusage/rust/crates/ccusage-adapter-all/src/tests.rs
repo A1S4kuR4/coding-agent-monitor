@@ -1003,3 +1003,177 @@ fn full_table_columns_include_cache_and_total_token_metrics() {
     );
     assert_eq!(headers.len(), aligns.len());
 }
+
+// ---- Downstream (Coding Agent Monitor) 0002 patch: per-agent loader ----
+
+mod per_agent_load {
+    use super::*;
+    use crate::daily_report_for_agent;
+    use crate::AgentLoadOutcome;
+    use ccusage_core::load_context::LoadFailureKind;
+
+    const CLAUDE_LINE: &str = r#"{"timestamp":"2099-01-02T00:00:00.000Z","sessionId":"session-a","requestId":"req-1","costUSD":0.01,"message":{"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":10},"model":"claude-sonnet-4-20250514","id":"msg-1"}}"#;
+
+    fn shared_all() -> SharedArgs {
+        SharedArgs {
+            json: true,
+            offline: true,
+            single_thread: true,
+            timezone: Some("UTC".to_string()),
+            ..SharedArgs::default()
+        }
+    }
+
+    /// Like `isolated_agent_env`, but applies extra overrides in the SAME
+    /// `EnvVarsGuard` — acquiring the env lock twice in one test deadlocks.
+    fn isolated_env_with_overrides(
+        fixture: &ccusage_test_support::Fixture,
+        overrides: &[(&'static str, OsString)],
+    ) -> EnvVarsGuard {
+        let home = fixture.path("empty-home").into_os_string();
+        let xdg_config = fixture.path("empty-xdg-config").into_os_string();
+        let mut vars: Vec<(&'static str, Option<OsString>)> = [
+            "CLAUDE_CONFIG_DIR",
+            "CODEX_HOME",
+            "OPENCODE_DATA_DIR",
+            "AMP_DATA_DIR",
+            "DROID_SESSIONS_DIR",
+            "CODEBUFF_DATA_DIR",
+            "HERMES_HOME",
+            "PI_AGENT_DIR",
+            "GOOSE_PATH_ROOT",
+            "OPENCLAW_DIR",
+            "KILO_DATA_DIR",
+            "COPILOT_OTEL_FILE_EXPORTER_PATH",
+            "GEMINI_DATA_DIR",
+            "KIMI_DATA_DIR",
+            "QWEN_DATA_DIR",
+            "GROK_HOME",
+            "ANTIGRAVITY_DATA_DIR",
+        ]
+        .into_iter()
+        .map(|key| (key, None))
+        .collect();
+        vars.push(("HOME", Some(home)));
+        vars.push(("USERPROFILE", Some(fixture.path("empty-home").into_os_string())));
+        vars.push(("XDG_CONFIG_HOME", Some(xdg_config)));
+        for (key, value) in overrides {
+            vars.push((key, Some(value.clone())));
+        }
+        EnvVarsGuard::set_many(vars)
+    }
+
+    #[test]
+    fn one_agent_request_does_not_touch_other_agent_roots() {
+        let fixture = fs_fixture!({
+            "codex/sessions/session-a.jsonl": codex_usage_line("2099-02-01T08:01:00.000Z", "gpt-5.2", 1_000),
+        });
+        // Single guard: codex valid, every other agent root (claude
+        // included) invalid or missing — a full scan would fail on claude.
+        let _env = isolated_env_with_overrides(
+            &fixture,
+            &[
+                ("CODEX_HOME", fixture.path("codex").into_os_string()),
+                (
+                    "CLAUDE_CONFIG_DIR",
+                    fixture.path("not-a-claude-root").into_os_string(),
+                ),
+            ],
+        );
+
+        match daily_report_for_agent("codex", None, &shared_all()) {
+            AgentLoadOutcome::Report { report, diagnostics } => {
+                assert!(diagnostics.is_empty());
+                let rows = report["daily"].as_array().unwrap();
+                assert_eq!(rows.len(), 1);
+                let codex = rows[0]["agents"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|entry| entry["agent"] == "codex")
+                    .expect("codex breakdown");
+                assert_eq!(codex["totalTokens"], 1_300);
+            }
+            other => panic!("expected a report for codex, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn root_override_beats_environment() {
+        let fixture = fs_fixture!({
+            "claude-override/projects/cam/session-a.jsonl": CLAUDE_LINE,
+        });
+        // The environment root is invalid; the explicit override must win.
+        let _env = isolated_env_with_overrides(
+            &fixture,
+            &[(
+                "CLAUDE_CONFIG_DIR",
+                fixture.path("claude-invalid").into_os_string(),
+            )],
+        );
+
+        let roots = vec![fixture.path("claude-override")];
+        match daily_report_for_agent("claude", Some(&roots), &shared_all()) {
+            AgentLoadOutcome::Report { report, diagnostics } => {
+                assert!(diagnostics.is_empty());
+                let rows = report["daily"].as_array().unwrap();
+                assert_eq!(rows.len(), 1);
+                assert_eq!(rows[0]["agents"][0]["totalTokens"], 160);
+            }
+            other => panic!("override should have produced a report, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn invalid_claude_root_fails_structurally_without_text_matching() {
+        let fixture = fs_fixture!({});
+        let _env = isolated_env_with_overrides(
+            &fixture,
+            &[(
+                "CLAUDE_CONFIG_DIR",
+                fixture.path("empty-home").into_os_string(),
+            )],
+        );
+
+        match daily_report_for_agent("claude", None, &shared_all()) {
+            AgentLoadOutcome::SourceUnavailable { agent, details } => {
+                assert_eq!(agent, "claude");
+                assert!(!details.is_empty());
+            }
+            other => panic!("expected SourceUnavailable, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn corrupt_source_database_is_skipped_and_reported_as_diagnostic() {
+        let fixture = fs_fixture!({
+            "ag/conversations/broken.db": "definitely not a sqlite database",
+        });
+        let roots = vec![fixture.path("ag")];
+
+        match daily_report_for_agent("antigravity", Some(&roots), &shared_all()) {
+            AgentLoadOutcome::Report { report, diagnostics } => {
+                assert!(report["daily"].as_array().unwrap().is_empty());
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|diag| diag.agent == "antigravity"
+                            && diag.kind == ccusage_core::load_context::LoadDiagKind::DatabaseError),
+                    "expected a database diagnostic, got {diagnostics:?}"
+                );
+            }
+            other => panic!("corrupt db must be skipped, not fatal: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unknown_agent_fails_structurally() {
+        match daily_report_for_agent("definitely-not-an-agent", None, &shared_all()) {
+            AgentLoadOutcome::Failed {
+                kind: LoadFailureKind::InvalidConfig,
+                ..
+            } => {}
+            other => panic!("expected Failed(InvalidConfig), got {other:?}"),
+        }
+    }
+}

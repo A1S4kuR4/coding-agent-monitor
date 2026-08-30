@@ -7,9 +7,15 @@ use memchr::memmem;
 
 use crate::{Result, cli_error, fast::FxHashSet, home, path_utils::expand_home_path};
 use crate::{TimestampMs, parse_ts_timestamp};
+use crate::load_context::{raise_failure, LoadFailure, LoadFailureKind};
 use ccusage_adapter_common::collect_usage_files;
 
 pub fn claude_paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for
+    // this load short-circuit environment/default resolution entirely.
+    if let Some(roots) = crate::load_context::root_override("claude") {
+        return Ok(roots);
+    }
     let mut paths = Vec::new();
     let mut seen = FxHashSet::default();
     if let Ok(env_paths) = env::var("CLAUDE_CONFIG_DIR") {
@@ -26,12 +32,25 @@ pub fn claude_paths() -> Result<Vec<PathBuf>> {
         if !paths.is_empty() {
             return Ok(paths);
         }
-        return Err(cli_error(format!(
+        // Downstream (Coding Agent Monitor) 0002 patch: structured failure so
+        // in-process collectors classify without matching the message text.
+        let details = format!(
             "No valid Claude data directories found in CLAUDE_CONFIG_DIR. Expected each path to be a Claude config directory containing 'projects/', or the 'projects/' directory itself: {env_paths}"
-        )));
+        );
+        raise_failure(LoadFailure {
+            kind: LoadFailureKind::SourceUnavailable,
+            details: details.clone(),
+        });
+        return Err(cli_error(details));
     }
 
-    let home = home::home_dir().ok_or_else(|| cli_error("home directory is not set"))?;
+    let home = home::home_dir().ok_or_else(|| {
+        raise_failure(LoadFailure {
+            kind: LoadFailureKind::SourceUnavailable,
+            details: "home directory is not set".to_string(),
+        });
+        cli_error("home directory is not set")
+    })?;
     let xdg = env::var("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(&home).join(".config"));

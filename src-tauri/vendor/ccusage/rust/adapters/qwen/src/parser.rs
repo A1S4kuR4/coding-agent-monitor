@@ -78,6 +78,12 @@ pub(super) fn load_entries(shared: &SharedArgs) -> Result<Vec<LoadedEntry>> {
                     shared,
                     format!("Failed to read Qwen chat file {}: {error}", file.display()),
                 );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "qwen",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!("Failed to read Qwen chat file {}: {error}", file.display()).to_string(),
+        });
                 Vec::new()
             },
         )
@@ -267,6 +273,15 @@ fn file_timestamp(file: &Path, shared: &SharedArgs) -> TimestampMs {
                     file.display()
                 ),
             );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "qwen",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!(
+                    "Failed to read Qwen chat file timestamp for {}: {error}",
+                    file.display()
+                ).to_string(),
+        });
             system_time_timestamp(SystemTime::now())
         }
     }

@@ -234,7 +234,6 @@ fn write_antigravity_db(root: &Path, name: &str, generations: &[Vec<u8>]) {
 const DAY_1: &str = "2026-01-02";
 const DAY_2: &str = "2026-01-03";
 const DAY_1_SECONDS: u64 = 1_767_312_000; // 2026-01-02T00:00:00Z
-const DAY_2_SECONDS: u64 = 1_767_398_100; // 2026-01-03T02:35:00Z
 
 fn date(text: &str) -> NaiveDate {
     NaiveDate::parse_from_str(text, "%Y-%m-%d").expect("fixture date")

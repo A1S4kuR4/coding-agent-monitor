@@ -1,0 +1,3 @@
+{"timestamp":"2026-01-02T00:00:00.000Z","sessionId":"session-a","requestId":"req-ok","costUSD":0.01,"message":{"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":10},"model":"claude-sonnet-4-20250514","id":"msg-ok"}}
+this line is not JSON at all and carries no usage marker, so it is a non-usage line, not a corrupt record
+{"timestamp":"2026-01-02T01:00:00.000Z","sessionId":"session-a","requestId":"req-broken","message":{"usage":{"input_tokens":

@@ -256,16 +256,44 @@ fn read_usage_file(
             continue;
         }
         if has_unsupported_null_field(line) {
+            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
+            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+                agent: "claude",
+                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
+                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
+                details: "record uses unsupported null fields; skipped".to_string(),
+            });
             continue;
         }
         let Ok(data) = serde_json::from_slice::<UsageEntry>(line) else {
+            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
+            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+                agent: "claude",
+                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
+                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
+                details: "record is not valid JSON; skipped".to_string(),
+            });
             continue;
         };
         let Some(timestamp) = parse_ts_timestamp(&data.timestamp) else {
+            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
+            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+                agent: "claude",
+                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
+                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
+                details: "record timestamp is unparseable; skipped".to_string(),
+            });
             continue;
         };
         update_loaded_file_timestamp(&mut loaded_file, timestamp);
         if !is_valid_usage_entry(&data) {
+            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
+            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+                agent: "claude",
+                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
+                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
+                details: "record failed usage-entry validation; skipped".to_string(),
+            });
             continue;
         }
         let date = format_date_tz(timestamp, tz);

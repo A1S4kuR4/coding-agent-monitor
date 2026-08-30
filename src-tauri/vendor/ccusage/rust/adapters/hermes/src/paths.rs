@@ -5,6 +5,11 @@ use crate::Result;
 const HERMES_HOME_ENV: &str = "HERMES_HOME";
 
 pub(super) fn hermes_state_db_paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("hermes") {
+        return Ok(roots);
+    }
+
     let homes = if let Ok(paths) = env::var(HERMES_HOME_ENV) {
         paths
             .split(',')

@@ -38,6 +38,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
                     session.updates.display()
                 ),
             );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "grok",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!(
+                    "Failed to read Grok session file {}: {error}",
+                    session.updates.display()
+                ).to_string(),
+        });
             Vec::new()
         })
     });

@@ -121,6 +121,15 @@ fn load_entries_from_paths(
                         file.display()
                     ),
                 );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "pi",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!(
+                        "Failed to read {label} session file {}: {error}",
+                        file.display()
+                    ).to_string(),
+        });
                 Vec::new()
             })
         });

@@ -20,6 +20,11 @@ pub(super) fn discover_settings_files() -> Result<Vec<PathBuf>> {
 }
 
 fn droid_session_paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("droid") {
+        return Ok(roots);
+    }
+
     let raw_paths = if let Ok(paths) = env::var(DROID_SESSIONS_DIR_ENV) {
         paths
             .split(',')

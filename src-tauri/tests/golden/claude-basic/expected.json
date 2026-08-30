@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "request_id": "golden-claude-basic",
+  "status": "ok",
+  "report": {
+    "records": [
+      {
+        "date": "2026-01-02",
+        "agent": "claude",
+        "input_tokens": "100",
+        "output_tokens": "50",
+        "cache_creation_tokens": "0",
+        "cache_read_tokens": "10",
+        "total_tokens": "160",
+        "cost_nano_usd": "10000000",
+        "models_used": [
+          "claude-sonnet-4-20250514"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "claude-sonnet-4-20250514",
+            "input_tokens": "100",
+            "output_tokens": "50",
+            "cache_creation_tokens": "0",
+            "cache_read_tokens": "10",
+            "missing_pricing": false,
+            "cost_nano_usd": "10000000"
+          }
+        ],
+        "models_missing_pricing": []
+      },
+      {
+        "date": "2026-01-03",
+        "agent": "claude",
+        "input_tokens": "300",
+        "output_tokens": "30",
+        "cache_creation_tokens": "5",
+        "cache_read_tokens": "3",
+        "total_tokens": "338",
+        "cost_nano_usd": "125000000",
+        "models_used": [
+          "claude-sonnet-4-20250514"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "claude-sonnet-4-20250514",
+            "input_tokens": "300",
+            "output_tokens": "30",
+            "cache_creation_tokens": "5",
+            "cache_read_tokens": "3",
+            "missing_pricing": false,
+            "cost_nano_usd": "125000000"
+          }
+        ],
+        "models_missing_pricing": []
+      }
+    ],
+    "diagnostics": []
+  }
+}

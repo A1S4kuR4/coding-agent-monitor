@@ -16,6 +16,11 @@ pub(super) struct GrokSessionFiles {
 
 /// Resolve the Grok data root from `GROK_HOME`, then `~/.grok`.
 fn resolve_root() -> Option<PathBuf> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("grok") {
+        return Some(roots[0].clone());
+    }
+
     if let Ok(home) = env::var(GROK_HOME_ENV)
         && !home.trim().is_empty()
     {

@@ -21,6 +21,11 @@ const DEFAULT_ROOT_NAMES: [&str; 4] = [
 /// Returns the Antigravity data roots that exist. `ANTIGRAVITY_DATA_DIR`
 /// overrides the defaults with one root or a comma-separated list of roots.
 pub(super) fn paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("antigravity") {
+        return Ok(roots);
+    }
+
     let mut paths = Vec::new();
     let mut seen = HashSet::new();
     if let Ok(env_paths) = env::var(ANTIGRAVITY_DATA_DIR_ENV) {

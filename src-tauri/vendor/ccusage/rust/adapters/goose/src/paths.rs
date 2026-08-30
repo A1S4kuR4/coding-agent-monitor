@@ -6,6 +6,11 @@ const GOOSE_PATH_ROOT_ENV: &str = "GOOSE_PATH_ROOT";
 pub(super) const GOOSE_DB_FILE_NAME: &str = "sessions.db";
 
 pub(super) fn goose_db_paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("goose") {
+        return Ok(roots);
+    }
+
     let candidates = if let Ok(root) = env::var(GOOSE_PATH_ROOT_ENV) {
         let root = root.trim();
         if root.is_empty() {

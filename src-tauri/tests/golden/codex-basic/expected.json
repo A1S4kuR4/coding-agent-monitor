@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "request_id": "golden-codex-basic",
+  "status": "ok",
+  "report": {
+    "records": [
+      {
+        "date": "2026-01-02",
+        "agent": "codex",
+        "input_tokens": "900",
+        "output_tokens": "200",
+        "cache_creation_tokens": "0",
+        "cache_read_tokens": "100",
+        "total_tokens": "1320",
+        "cost_nano_usd": "4392500",
+        "models_used": [
+          "gpt-5.2"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "gpt-5.2",
+            "input_tokens": "900",
+            "output_tokens": "200",
+            "cache_creation_tokens": "0",
+            "cache_read_tokens": "100",
+            "missing_pricing": false,
+            "cost_nano_usd": "4392500"
+          }
+        ],
+        "models_missing_pricing": []
+      },
+      {
+        "date": "2026-01-03",
+        "agent": "codex",
+        "input_tokens": "450",
+        "output_tokens": "80",
+        "cache_creation_tokens": "0",
+        "cache_read_tokens": "50",
+        "total_tokens": "640",
+        "cost_nano_usd": "1916250",
+        "models_used": [
+          "gpt-5.2"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "gpt-5.2",
+            "input_tokens": "450",
+            "output_tokens": "80",
+            "cache_creation_tokens": "0",
+            "cache_read_tokens": "50",
+            "missing_pricing": false,
+            "cost_nano_usd": "1916250"
+          }
+        ],
+        "models_missing_pricing": []
+      }
+    ],
+    "diagnostics": []
+  }
+}

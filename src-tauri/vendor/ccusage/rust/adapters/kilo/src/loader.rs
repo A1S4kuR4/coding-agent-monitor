@@ -55,6 +55,12 @@ fn load_entries_from_database(
             shared,
             format!("Failed to open Kilo database: {}", db_path.display()),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "kilo",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to open Kilo database: {}", db_path.display()).to_string(),
+        });
         return Vec::new();
     };
     let Ok(mut statement) = connection.prepare("SELECT id, session_id, data FROM message") else {
@@ -62,6 +68,12 @@ fn load_entries_from_database(
             shared,
             format!("Failed to read Kilo database: {}", db_path.display()),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "kilo",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to read Kilo database: {}", db_path.display()).to_string(),
+        });
         return Vec::new();
     };
     let mut entries = Vec::new();
@@ -98,6 +110,12 @@ fn load_entries_from_database(
                     shared,
                     format!("Failed to query Kilo database: {}", db_path.display()),
                 );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "kilo",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to query Kilo database: {}", db_path.display()).to_string(),
+        });
                 break;
             }
         }

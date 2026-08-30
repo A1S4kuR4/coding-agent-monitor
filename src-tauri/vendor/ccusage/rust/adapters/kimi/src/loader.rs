@@ -27,6 +27,12 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
                 shared,
                 format!("Failed to read Kimi wire file {}: {error}", file.display()),
             );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "kimi",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!("Failed to read Kimi wire file {}: {error}", file.display()).to_string(),
+        });
             Vec::new()
         })
     });

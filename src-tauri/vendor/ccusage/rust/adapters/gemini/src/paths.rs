@@ -5,6 +5,11 @@ use crate::{Result, collect_files_with_extension};
 pub(super) const GEMINI_DATA_DIR_ENV: &str = "GEMINI_DATA_DIR";
 
 fn paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("gemini") {
+        return Ok(roots);
+    }
+
     let mut paths = Vec::new();
     let mut seen = HashSet::new();
     if let Ok(env_paths) = env::var(GEMINI_DATA_DIR_ENV) {

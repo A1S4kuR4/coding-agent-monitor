@@ -43,6 +43,15 @@ fn load_entries_inner(
                         file.display()
                     ),
                 );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "openclaw",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!(
+                        "Failed to read OpenClaw session file {}: {error}",
+                        file.display()
+                    ).to_string(),
+        });
                 Vec::new()
             })
         });

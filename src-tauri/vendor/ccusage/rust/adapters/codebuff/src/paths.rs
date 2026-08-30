@@ -20,6 +20,11 @@ pub(super) fn discover_chat_files() -> Result<Vec<PathBuf>> {
 }
 
 fn codebuff_project_roots() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("codebuff") {
+        return Ok(roots);
+    }
+
     let roots = if let Ok(paths) = env::var(CODEBUFF_DATA_DIR_ENV) {
         paths
             .split(',')

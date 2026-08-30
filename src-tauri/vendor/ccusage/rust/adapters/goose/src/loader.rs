@@ -48,6 +48,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
                     db_path.display()
                 ),
             );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "goose",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!(
+                    "Failed to load Goose database {}: {error}",
+                    db_path.display()
+                ).to_string(),
+        });
             Vec::new()
         })
     });
@@ -78,6 +87,12 @@ fn load_entries_from_db(
             shared,
             format!("Failed to open Goose database: {}", db_path.display()),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "goose",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to open Goose database: {}", db_path.display()).to_string(),
+        });
         return Ok(Vec::new());
     };
     let Ok(mut statement) = connection.prepare(GOOSE_SESSION_QUERY) else {
@@ -85,6 +100,12 @@ fn load_entries_from_db(
             shared,
             format!("Failed to read Goose database: {}", db_path.display()),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "goose",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to read Goose database: {}", db_path.display()).to_string(),
+        });
         return Ok(Vec::new());
     };
 
@@ -102,6 +123,12 @@ fn load_entries_from_db(
                     shared,
                     format!("Failed to query Goose database: {}", db_path.display()),
                 );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "goose",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to query Goose database: {}", db_path.display()).to_string(),
+        });
                 break;
             }
         }

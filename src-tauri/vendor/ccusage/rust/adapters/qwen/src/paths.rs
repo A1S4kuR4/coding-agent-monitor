@@ -9,6 +9,11 @@ use crate::{Result, collect_files_with_extension};
 const QWEN_DATA_DIR_ENV: &str = "QWEN_DATA_DIR";
 
 fn paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("qwen") {
+        return Ok(roots);
+    }
+
     let candidates = if let Ok(paths) = env::var(QWEN_DATA_DIR_ENV) {
         paths
             .split(',')

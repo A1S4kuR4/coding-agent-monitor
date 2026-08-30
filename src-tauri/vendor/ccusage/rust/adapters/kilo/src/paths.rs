@@ -10,6 +10,11 @@ pub(super) const KILO_DATA_DIR_ENV: &str = "KILO_DATA_DIR";
 pub(super) const KILO_DB_FILE_NAME: &str = "kilo.db";
 
 pub(super) fn paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("kilo") {
+        return Ok(roots);
+    }
+
     let mut paths = Vec::new();
     let mut seen = HashSet::new();
     if let Ok(env_paths) = env::var(KILO_DATA_DIR_ENV) {

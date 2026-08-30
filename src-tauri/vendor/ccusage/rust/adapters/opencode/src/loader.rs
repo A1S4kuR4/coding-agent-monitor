@@ -199,6 +199,12 @@ fn load_entries_from_database(
             shared,
             format!("Failed to open OpenCode database: {}", db_path.display()),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "opencode",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to open OpenCode database: {}", db_path.display()).to_string(),
+        });
         return Vec::new();
     };
     // Push the window into SQL only while a sample of `time_created` still looks
@@ -226,6 +232,15 @@ fn load_entries_from_database(
                 db_path.display()
             ),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "opencode",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!(
+                "Failed to prepare filtered OpenCode query; scanning unfiltered: {}",
+                db_path.display()
+            ).to_string(),
+        });
         prepare_message_query(&connection, DateWindow::UNBOUNDED)
     });
     let Some(mut statement) = statement else {
@@ -233,6 +248,12 @@ fn load_entries_from_database(
             shared,
             format!("Failed to read OpenCode database: {}", db_path.display()),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "opencode",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to read OpenCode database: {}", db_path.display()).to_string(),
+        });
         return Vec::new();
     };
     let mut entries = Vec::new();
@@ -269,6 +290,12 @@ fn load_entries_from_database(
                     shared,
                     format!("Failed to query OpenCode database: {}", db_path.display()),
                 );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "opencode",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to query OpenCode database: {}", db_path.display()).to_string(),
+        });
                 break;
             }
         }
@@ -294,6 +321,15 @@ fn read_message_file(
                     path.display()
                 ),
             );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "opencode",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!(
+                    "Failed to read OpenCode message file {}: {error}",
+                    path.display()
+                ).to_string(),
+        });
             return None;
         }
     };

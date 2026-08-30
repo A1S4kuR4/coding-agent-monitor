@@ -354,6 +354,39 @@ index 95ce1ac..94ca4fa 100644
  
  [profile.release]
  codegen-units = 1
+diff --git a/rust/adapters/amp/src/loader.rs b/rust/adapters/amp/src/loader.rs
+index 31cdf8e..861395f 100644
+--- a/rust/adapters/amp/src/loader.rs
++++ b/rust/adapters/amp/src/loader.rs
+@@ -25,6 +25,12 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
+                         shared,
+                         format!("Failed to read Amp thread file {}: {error}", file.display()),
+                     );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "amp",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!("Failed to read Amp thread file {}: {error}", file.display()).to_string(),
++        });
+                     Vec::new()
+                 },
+             )
+diff --git a/rust/adapters/amp/src/paths.rs b/rust/adapters/amp/src/paths.rs
+index 4e621e7..0302ccc 100644
+--- a/rust/adapters/amp/src/paths.rs
++++ b/rust/adapters/amp/src/paths.rs
+@@ -5,6 +5,11 @@ use crate::Result;
+ const AMP_DATA_DIR_ENV: &str = "AMP_DATA_DIR";
+ 
+ pub(super) fn paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("amp") {
++        return Ok(roots);
++    }
++
+     let mut paths = Vec::new();
+     let mut seen = HashSet::new();
+     if let Ok(env_paths) = env::var(AMP_DATA_DIR_ENV) {
 diff --git a/rust/adapters/antigravity/Cargo.toml b/rust/adapters/antigravity/Cargo.toml
 new file mode 100644
 index 0000000..d07301a
@@ -519,10 +552,10 @@ index 0000000..eb3eadf
 +}
 diff --git a/rust/adapters/antigravity/src/loader.rs b/rust/adapters/antigravity/src/loader.rs
 new file mode 100644
-index 0000000..9e7f2c5
+index 0000000..6a47507
 --- /dev/null
 +++ b/rust/adapters/antigravity/src/loader.rs
-@@ -0,0 +1,431 @@
+@@ -0,0 +1,455 @@
 +use std::{
 +    collections::HashSet,
 +    fs,
@@ -605,10 +638,25 @@ index 0000000..9e7f2c5
 +            shared,
 +            format!("Failed to open Antigravity database: {}", db_path.display()),
 +        );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "antigravity",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to open Antigravity database: {}", db_path.display()).to_string(),
++        });
 +        return Vec::new();
 +    };
 +    // A database without gen_metadata is not an Antigravity conversation DB.
 +    let Ok(mut statement) = connection.prepare("SELECT data FROM gen_metadata ORDER BY idx") else {
++        // Downstream (Coding Agent Monitor) 0002 patch: a database that opens
++        // but cannot be queried (corrupt file, missing table) is a skipped
++        // source, surfaced as a diagnostic.
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "antigravity",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: Some(db_path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
++            details: "failed to prepare gen_metadata query".to_string(),
++        });
 +        return Vec::new();
 +    };
 +    let trajectory = read_trajectory_metadata(&connection);
@@ -637,6 +685,15 @@ index 0000000..9e7f2c5
 +                        db_path.display()
 +                    ),
 +                );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "antigravity",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!(
++                        "Failed to query Antigravity database: {}",
++                        db_path.display()
++                    ).to_string(),
++        });
 +                break;
 +            }
 +        }
@@ -1612,10 +1669,10 @@ index 0000000..4e3b090
 +}
 diff --git a/rust/adapters/antigravity/src/paths.rs b/rust/adapters/antigravity/src/paths.rs
 new file mode 100644
-index 0000000..34922c8
+index 0000000..c5b8835
 --- /dev/null
 +++ b/rust/adapters/antigravity/src/paths.rs
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,125 @@
 +use std::{
 +    collections::HashSet,
 +    env,
@@ -1639,6 +1696,11 @@ index 0000000..34922c8
 +/// Returns the Antigravity data roots that exist. `ANTIGRAVITY_DATA_DIR`
 +/// overrides the defaults with one root or a comma-separated list of roots.
 +pub(super) fn paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("antigravity") {
++        return Ok(roots);
++    }
++
 +    let mut paths = Vec::new();
 +    let mut seen = HashSet::new();
 +    if let Ok(env_paths) = env::var(ANTIGRAVITY_DATA_DIR_ENV) {
@@ -1968,11 +2030,216 @@ index 0000000..485c4a8
 +        AgentReportKind::Session => "sessions",
 +    }
 +}
+diff --git a/rust/adapters/claude/src/daily.rs b/rust/adapters/claude/src/daily.rs
+index d7d75af..c7fcbee 100644
+--- a/rust/adapters/claude/src/daily.rs
++++ b/rust/adapters/claude/src/daily.rs
+@@ -259,13 +259,34 @@ fn read_daily_usage_file(
+             continue;
+         }
+         if has_unsupported_null_field(line) {
++            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "claude",
++                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
++                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
++                details: "record uses unsupported null fields; skipped".to_string(),
++            });
+             continue;
+         }
+         let Ok(data) = serde_json::from_slice::<DailyUsageLine>(line) else {
++            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "claude",
++                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
++                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
++                details: "record is not valid JSON; skipped".to_string(),
++            });
+             continue;
+         };
+         let data = data.into_entry();
+         let Some(timestamp) = parse_ts_timestamp(&data.timestamp) else {
++            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "claude",
++                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
++                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
++                details: "record timestamp is unparseable; skipped".to_string(),
++            });
+             continue;
+         };
+         loaded_file.timestamp = Some(
+diff --git a/rust/adapters/claude/src/lib.rs b/rust/adapters/claude/src/lib.rs
+index f804275..8e07bfc 100644
+--- a/rust/adapters/claude/src/lib.rs
++++ b/rust/adapters/claude/src/lib.rs
+@@ -256,16 +256,44 @@ fn read_usage_file(
+             continue;
+         }
+         if has_unsupported_null_field(line) {
++            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "claude",
++                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
++                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
++                details: "record uses unsupported null fields; skipped".to_string(),
++            });
+             continue;
+         }
+         let Ok(data) = serde_json::from_slice::<UsageEntry>(line) else {
++            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "claude",
++                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
++                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
++                details: "record is not valid JSON; skipped".to_string(),
++            });
+             continue;
+         };
+         let Some(timestamp) = parse_ts_timestamp(&data.timestamp) else {
++            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "claude",
++                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
++                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
++                details: "record timestamp is unparseable; skipped".to_string(),
++            });
+             continue;
+         };
+         update_loaded_file_timestamp(&mut loaded_file, timestamp);
+         if !is_valid_usage_entry(&data) {
++            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "claude",
++                kind: ccusage_core::load_context::LoadDiagKind::CorruptRecord,
++                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
++                details: "record failed usage-entry validation; skipped".to_string(),
++            });
+             continue;
+         }
+         let date = format_date_tz(timestamp, tz);
+diff --git a/rust/adapters/claude/src/paths.rs b/rust/adapters/claude/src/paths.rs
+index a7832cf..812ceb5 100644
+--- a/rust/adapters/claude/src/paths.rs
++++ b/rust/adapters/claude/src/paths.rs
+@@ -7,9 +7,15 @@ use memchr::memmem;
+ 
+ use crate::{Result, cli_error, fast::FxHashSet, home, path_utils::expand_home_path};
+ use crate::{TimestampMs, parse_ts_timestamp};
++use crate::load_context::{raise_failure, LoadFailure, LoadFailureKind};
+ use ccusage_adapter_common::collect_usage_files;
+ 
+ pub fn claude_paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for
++    // this load short-circuit environment/default resolution entirely.
++    if let Some(roots) = crate::load_context::root_override("claude") {
++        return Ok(roots);
++    }
+     let mut paths = Vec::new();
+     let mut seen = FxHashSet::default();
+     if let Ok(env_paths) = env::var("CLAUDE_CONFIG_DIR") {
+@@ -26,12 +32,25 @@ pub fn claude_paths() -> Result<Vec<PathBuf>> {
+         if !paths.is_empty() {
+             return Ok(paths);
+         }
+-        return Err(cli_error(format!(
++        // Downstream (Coding Agent Monitor) 0002 patch: structured failure so
++        // in-process collectors classify without matching the message text.
++        let details = format!(
+             "No valid Claude data directories found in CLAUDE_CONFIG_DIR. Expected each path to be a Claude config directory containing 'projects/', or the 'projects/' directory itself: {env_paths}"
+-        )));
++        );
++        raise_failure(LoadFailure {
++            kind: LoadFailureKind::SourceUnavailable,
++            details: details.clone(),
++        });
++        return Err(cli_error(details));
+     }
+ 
+-    let home = home::home_dir().ok_or_else(|| cli_error("home directory is not set"))?;
++    let home = home::home_dir().ok_or_else(|| {
++        raise_failure(LoadFailure {
++            kind: LoadFailureKind::SourceUnavailable,
++            details: "home directory is not set".to_string(),
++        });
++        cli_error("home directory is not set")
++    })?;
+     let xdg = env::var("XDG_CONFIG_HOME")
+         .map(PathBuf::from)
+         .unwrap_or_else(|_| PathBuf::from(&home).join(".config"));
+diff --git a/rust/adapters/codebuff/src/loader.rs b/rust/adapters/codebuff/src/loader.rs
+index 558a64f..fdb6d96 100644
+--- a/rust/adapters/codebuff/src/loader.rs
++++ b/rust/adapters/codebuff/src/loader.rs
+@@ -35,6 +35,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
+                     file.display()
+                 ),
+             );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "codebuff",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!(
++                    "Failed to read Codebuff chat file {}: {error}",
++                    file.display()
++                ).to_string(),
++        });
+             Vec::new()
+         })
+     });
+diff --git a/rust/adapters/codebuff/src/paths.rs b/rust/adapters/codebuff/src/paths.rs
+index 3cdd7e9..9ccbee5 100644
+--- a/rust/adapters/codebuff/src/paths.rs
++++ b/rust/adapters/codebuff/src/paths.rs
+@@ -20,6 +20,11 @@ pub(super) fn discover_chat_files() -> Result<Vec<PathBuf>> {
+ }
+ 
+ fn codebuff_project_roots() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("codebuff") {
++        return Ok(roots);
++    }
++
+     let roots = if let Ok(paths) = env::var(CODEBUFF_DATA_DIR_ENV) {
+         paths
+             .split(',')
+diff --git a/rust/adapters/codex/src/paths.rs b/rust/adapters/codex/src/paths.rs
+index c188f48..c65a543 100644
+--- a/rust/adapters/codex/src/paths.rs
++++ b/rust/adapters/codex/src/paths.rs
+@@ -102,6 +102,11 @@ fn codex_usage_file_key(source: &CodexUsageSource, file: &Path) -> (PathBuf, Pat
+ }
+ 
+ pub(super) fn codex_home_paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for
++    // this load (interpreted as CODEX_HOME-style home directories).
++    if let Some(roots) = ccusage_core::load_context::root_override("codex") {
++        return Ok(roots);
++    }
+     if let Ok(env_paths) = env::var("CODEX_HOME") {
+         return Ok(env_paths
+             .split(',')
 diff --git a/rust/adapters/copilot/src/loader.rs b/rust/adapters/copilot/src/loader.rs
-index 54758a6..37f0bdb 100644
+index 54758a6..a2d4019 100644
 --- a/rust/adapters/copilot/src/loader.rs
 +++ b/rust/adapters/copilot/src/loader.rs
-@@ -277,7 +277,10 @@ mod tests {
+@@ -40,6 +40,15 @@ fn load_entries_inner(
+                     path.display()
+                 ),
+             );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "copilot",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!(
++                    "Failed to read Copilot OTEL file {}: {error}",
++                    path.display()
++                ).to_string(),
++        });
+             Vec::new()
+         })
+     });
+@@ -277,7 +286,10 @@ mod tests {
                  "outputTokens": 50,
                  "cacheCreationTokens": 20,
                  "cacheReadTokens": 10,
@@ -1984,6 +2251,489 @@ index 54758a6..37f0bdb 100644
              }])
          );
      }
+diff --git a/rust/adapters/copilot/src/paths.rs b/rust/adapters/copilot/src/paths.rs
+index c1dcc1e..854af62 100644
+--- a/rust/adapters/copilot/src/paths.rs
++++ b/rust/adapters/copilot/src/paths.rs
+@@ -5,6 +5,11 @@ use crate::{Result, collect_files_with_extension};
+ pub const COPILOT_OTEL_FILE_EXPORTER_PATH_ENV: &str = "COPILOT_OTEL_FILE_EXPORTER_PATH";
+ 
+ pub(super) fn paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("copilot") {
++        return Ok(roots);
++    }
++
+     let mut files = Vec::new();
+     let mut seen = HashSet::new();
+     if let Some(home) = crate::home::home_dir() {
+diff --git a/rust/adapters/droid/src/loader.rs b/rust/adapters/droid/src/loader.rs
+index 285f5f2..6e4376f 100644
+--- a/rust/adapters/droid/src/loader.rs
++++ b/rust/adapters/droid/src/loader.rs
+@@ -35,6 +35,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
+                     file.display()
+                 ),
+             );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "droid",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!(
++                    "Failed to read Droid settings file {}: {error}",
++                    file.display()
++                ).to_string(),
++        });
+             None
+         })
+     });
+diff --git a/rust/adapters/droid/src/paths.rs b/rust/adapters/droid/src/paths.rs
+index b2994f0..39934c4 100644
+--- a/rust/adapters/droid/src/paths.rs
++++ b/rust/adapters/droid/src/paths.rs
+@@ -20,6 +20,11 @@ pub(super) fn discover_settings_files() -> Result<Vec<PathBuf>> {
+ }
+ 
+ fn droid_session_paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("droid") {
++        return Ok(roots);
++    }
++
+     let raw_paths = if let Ok(paths) = env::var(DROID_SESSIONS_DIR_ENV) {
+         paths
+             .split(',')
+diff --git a/rust/adapters/gemini/src/loader.rs b/rust/adapters/gemini/src/loader.rs
+index 6a6b299..ca1c022 100644
+--- a/rust/adapters/gemini/src/loader.rs
++++ b/rust/adapters/gemini/src/loader.rs
+@@ -31,6 +31,12 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
+                 shared,
+                 format!("Failed to read Gemini log file {}: {error}", file.display()),
+             );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "gemini",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!("Failed to read Gemini log file {}: {error}", file.display()).to_string(),
++        });
+             Vec::new()
+         })
+     });
+diff --git a/rust/adapters/gemini/src/paths.rs b/rust/adapters/gemini/src/paths.rs
+index 44538db..ea618f6 100644
+--- a/rust/adapters/gemini/src/paths.rs
++++ b/rust/adapters/gemini/src/paths.rs
+@@ -5,6 +5,11 @@ use crate::{Result, collect_files_with_extension};
+ pub(super) const GEMINI_DATA_DIR_ENV: &str = "GEMINI_DATA_DIR";
+ 
+ fn paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("gemini") {
++        return Ok(roots);
++    }
++
+     let mut paths = Vec::new();
+     let mut seen = HashSet::new();
+     if let Ok(env_paths) = env::var(GEMINI_DATA_DIR_ENV) {
+diff --git a/rust/adapters/goose/src/loader.rs b/rust/adapters/goose/src/loader.rs
+index 4efd9e4..c609f59 100644
+--- a/rust/adapters/goose/src/loader.rs
++++ b/rust/adapters/goose/src/loader.rs
+@@ -48,6 +48,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
+                     db_path.display()
+                 ),
+             );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "goose",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!(
++                    "Failed to load Goose database {}: {error}",
++                    db_path.display()
++                ).to_string(),
++        });
+             Vec::new()
+         })
+     });
+@@ -78,6 +87,12 @@ fn load_entries_from_db(
+             shared,
+             format!("Failed to open Goose database: {}", db_path.display()),
+         );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "goose",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to open Goose database: {}", db_path.display()).to_string(),
++        });
+         return Ok(Vec::new());
+     };
+     let Ok(mut statement) = connection.prepare(GOOSE_SESSION_QUERY) else {
+@@ -85,6 +100,12 @@ fn load_entries_from_db(
+             shared,
+             format!("Failed to read Goose database: {}", db_path.display()),
+         );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "goose",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to read Goose database: {}", db_path.display()).to_string(),
++        });
+         return Ok(Vec::new());
+     };
+ 
+@@ -102,6 +123,12 @@ fn load_entries_from_db(
+                     shared,
+                     format!("Failed to query Goose database: {}", db_path.display()),
+                 );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "goose",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to query Goose database: {}", db_path.display()).to_string(),
++        });
+                 break;
+             }
+         }
+diff --git a/rust/adapters/goose/src/paths.rs b/rust/adapters/goose/src/paths.rs
+index df107a6..4effaf3 100644
+--- a/rust/adapters/goose/src/paths.rs
++++ b/rust/adapters/goose/src/paths.rs
+@@ -6,6 +6,11 @@ const GOOSE_PATH_ROOT_ENV: &str = "GOOSE_PATH_ROOT";
+ pub(super) const GOOSE_DB_FILE_NAME: &str = "sessions.db";
+ 
+ pub(super) fn goose_db_paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("goose") {
++        return Ok(roots);
++    }
++
+     let candidates = if let Ok(root) = env::var(GOOSE_PATH_ROOT_ENV) {
+         let root = root.trim();
+         if root.is_empty() {
+diff --git a/rust/adapters/grok/src/loader.rs b/rust/adapters/grok/src/loader.rs
+index 194dda0..0769aab 100644
+--- a/rust/adapters/grok/src/loader.rs
++++ b/rust/adapters/grok/src/loader.rs
+@@ -38,6 +38,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
+                     session.updates.display()
+                 ),
+             );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "grok",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!(
++                    "Failed to read Grok session file {}: {error}",
++                    session.updates.display()
++                ).to_string(),
++        });
+             Vec::new()
+         })
+     });
+diff --git a/rust/adapters/grok/src/paths.rs b/rust/adapters/grok/src/paths.rs
+index 42dec87..145f85b 100644
+--- a/rust/adapters/grok/src/paths.rs
++++ b/rust/adapters/grok/src/paths.rs
+@@ -16,6 +16,11 @@ pub(super) struct GrokSessionFiles {
+ 
+ /// Resolve the Grok data root from `GROK_HOME`, then `~/.grok`.
+ fn resolve_root() -> Option<PathBuf> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("grok") {
++        return Some(roots[0].clone());
++    }
++
+     if let Ok(home) = env::var(GROK_HOME_ENV)
+         && !home.trim().is_empty()
+     {
+diff --git a/rust/adapters/hermes/src/loader.rs b/rust/adapters/hermes/src/loader.rs
+index 9c3c5d7..0f3a777 100644
+--- a/rust/adapters/hermes/src/loader.rs
++++ b/rust/adapters/hermes/src/loader.rs
+@@ -49,6 +49,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
+                 db_path.display()
+             ),
+         );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "hermes",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!(
++                "Failed to open Hermes state database: {}",
++                db_path.display()
++            ).to_string(),
++        });
+         return Vec::new();
+     };
+     let Ok(mut statement) = connection.prepare(
+@@ -78,6 +87,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
+                 db_path.display()
+             ),
+         );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "hermes",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!(
++                "Failed to read Hermes state database: {}",
++                db_path.display()
++            ).to_string(),
++        });
+         return Vec::new();
+     };
+     let mut entries = Vec::new();
+@@ -97,6 +115,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
+                         db_path.display()
+                     ),
+                 );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "hermes",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!(
++                        "Failed to query Hermes state database: {}",
++                        db_path.display()
++                    ).to_string(),
++        });
+                 break;
+             }
+         }
+diff --git a/rust/adapters/hermes/src/paths.rs b/rust/adapters/hermes/src/paths.rs
+index 9682366..6fbe850 100644
+--- a/rust/adapters/hermes/src/paths.rs
++++ b/rust/adapters/hermes/src/paths.rs
+@@ -5,6 +5,11 @@ use crate::Result;
+ const HERMES_HOME_ENV: &str = "HERMES_HOME";
+ 
+ pub(super) fn hermes_state_db_paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("hermes") {
++        return Ok(roots);
++    }
++
+     let homes = if let Ok(paths) = env::var(HERMES_HOME_ENV) {
+         paths
+             .split(',')
+diff --git a/rust/adapters/kilo/src/loader.rs b/rust/adapters/kilo/src/loader.rs
+index 734dcf4..bac430b 100644
+--- a/rust/adapters/kilo/src/loader.rs
++++ b/rust/adapters/kilo/src/loader.rs
+@@ -55,6 +55,12 @@ fn load_entries_from_database(
+             shared,
+             format!("Failed to open Kilo database: {}", db_path.display()),
+         );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "kilo",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to open Kilo database: {}", db_path.display()).to_string(),
++        });
+         return Vec::new();
+     };
+     let Ok(mut statement) = connection.prepare("SELECT id, session_id, data FROM message") else {
+@@ -62,6 +68,12 @@ fn load_entries_from_database(
+             shared,
+             format!("Failed to read Kilo database: {}", db_path.display()),
+         );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "kilo",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to read Kilo database: {}", db_path.display()).to_string(),
++        });
+         return Vec::new();
+     };
+     let mut entries = Vec::new();
+@@ -98,6 +110,12 @@ fn load_entries_from_database(
+                     shared,
+                     format!("Failed to query Kilo database: {}", db_path.display()),
+                 );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "kilo",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to query Kilo database: {}", db_path.display()).to_string(),
++        });
+                 break;
+             }
+         }
+diff --git a/rust/adapters/kilo/src/paths.rs b/rust/adapters/kilo/src/paths.rs
+index 1553ce6..df9ae81 100644
+--- a/rust/adapters/kilo/src/paths.rs
++++ b/rust/adapters/kilo/src/paths.rs
+@@ -10,6 +10,11 @@ pub(super) const KILO_DATA_DIR_ENV: &str = "KILO_DATA_DIR";
+ pub(super) const KILO_DB_FILE_NAME: &str = "kilo.db";
+ 
+ pub(super) fn paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("kilo") {
++        return Ok(roots);
++    }
++
+     let mut paths = Vec::new();
+     let mut seen = HashSet::new();
+     if let Ok(env_paths) = env::var(KILO_DATA_DIR_ENV) {
+diff --git a/rust/adapters/kimi/src/loader.rs b/rust/adapters/kimi/src/loader.rs
+index 917d92a..c4a735f 100644
+--- a/rust/adapters/kimi/src/loader.rs
++++ b/rust/adapters/kimi/src/loader.rs
+@@ -27,6 +27,12 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
+                 shared,
+                 format!("Failed to read Kimi wire file {}: {error}", file.display()),
+             );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "kimi",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!("Failed to read Kimi wire file {}: {error}", file.display()).to_string(),
++        });
+             Vec::new()
+         })
+     });
+diff --git a/rust/adapters/kimi/src/paths.rs b/rust/adapters/kimi/src/paths.rs
+index 2af16ac..54cafae 100644
+--- a/rust/adapters/kimi/src/paths.rs
++++ b/rust/adapters/kimi/src/paths.rs
+@@ -11,6 +11,11 @@ const KIMI_SESSIONS_DIR_NAME: &str = "sessions";
+ const KIMI_WIRE_FILE_NAME: &str = "wire.jsonl";
+ 
+ fn paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("kimi") {
++        return Ok(roots);
++    }
++
+     let mut paths = Vec::new();
+     let mut seen = HashSet::new();
+     if let Ok(env_paths) = env::var(KIMI_DATA_DIR_ENV) {
+diff --git a/rust/adapters/openclaw/src/loader.rs b/rust/adapters/openclaw/src/loader.rs
+index dd39a42..89067f6 100644
+--- a/rust/adapters/openclaw/src/loader.rs
++++ b/rust/adapters/openclaw/src/loader.rs
+@@ -43,6 +43,15 @@ fn load_entries_inner(
+                         file.display()
+                     ),
+                 );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "openclaw",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!(
++                        "Failed to read OpenClaw session file {}: {error}",
++                        file.display()
++                    ).to_string(),
++        });
+                 Vec::new()
+             })
+         });
+diff --git a/rust/adapters/openclaw/src/paths.rs b/rust/adapters/openclaw/src/paths.rs
+index 79f0229..caddbd9 100644
+--- a/rust/adapters/openclaw/src/paths.rs
++++ b/rust/adapters/openclaw/src/paths.rs
+@@ -9,6 +9,11 @@ use crate::Result;
+ const OPENCLAW_DIR_ENV: &str = "OPENCLAW_DIR";
+ 
+ pub(super) fn paths(custom_path: Option<&str>) -> Vec<PathBuf> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("openclaw") {
++        return roots;
++    }
++
+     if let Some(custom_path) = custom_path.filter(|path| !path.trim().is_empty()) {
+         return existing_path_list(custom_path);
+     }
+diff --git a/rust/adapters/opencode/src/loader.rs b/rust/adapters/opencode/src/loader.rs
+index 5dd1640..081e7ad 100644
+--- a/rust/adapters/opencode/src/loader.rs
++++ b/rust/adapters/opencode/src/loader.rs
+@@ -199,6 +199,12 @@ fn load_entries_from_database(
+             shared,
+             format!("Failed to open OpenCode database: {}", db_path.display()),
+         );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "opencode",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to open OpenCode database: {}", db_path.display()).to_string(),
++        });
+         return Vec::new();
+     };
+     // Push the window into SQL only while a sample of `time_created` still looks
+@@ -226,6 +232,15 @@ fn load_entries_from_database(
+                 db_path.display()
+             ),
+         );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "opencode",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!(
++                "Failed to prepare filtered OpenCode query; scanning unfiltered: {}",
++                db_path.display()
++            ).to_string(),
++        });
+         prepare_message_query(&connection, DateWindow::UNBOUNDED)
+     });
+     let Some(mut statement) = statement else {
+@@ -233,6 +248,12 @@ fn load_entries_from_database(
+             shared,
+             format!("Failed to read OpenCode database: {}", db_path.display()),
+         );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "opencode",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to read OpenCode database: {}", db_path.display()).to_string(),
++        });
+         return Vec::new();
+     };
+     let mut entries = Vec::new();
+@@ -269,6 +290,12 @@ fn load_entries_from_database(
+                     shared,
+                     format!("Failed to query OpenCode database: {}", db_path.display()),
+                 );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "opencode",
++            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++            file: None,
++            details: format!("Failed to query OpenCode database: {}", db_path.display()).to_string(),
++        });
+                 break;
+             }
+         }
+@@ -294,6 +321,15 @@ fn read_message_file(
+                     path.display()
+                 ),
+             );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "opencode",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!(
++                    "Failed to read OpenCode message file {}: {error}",
++                    path.display()
++                ).to_string(),
++        });
+             return None;
+         }
+     };
+diff --git a/rust/adapters/opencode/src/paths.rs b/rust/adapters/opencode/src/paths.rs
+index b5a263b..e9b4b85 100644
+--- a/rust/adapters/opencode/src/paths.rs
++++ b/rust/adapters/opencode/src/paths.rs
+@@ -3,6 +3,11 @@ use std::{collections::HashSet, env, path::PathBuf};
+ use crate::Result;
+ 
+ pub(super) fn paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("opencode") {
++        return Ok(roots);
++    }
++
+     let mut paths = Vec::new();
+     let mut seen = HashSet::new();
+     if let Ok(env_paths) = env::var("OPENCODE_DATA_DIR") {
 diff --git a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap b/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap
 index 0b4c67f..12866d4 100644
 --- a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap
@@ -2043,6 +2793,42 @@ index 0b4c67f..12866d4 100644
          "modelName": "gpt-5.2-codex",
          "outputTokens": 50
        }
+diff --git a/rust/adapters/pi/src/loader.rs b/rust/adapters/pi/src/loader.rs
+index f21e889..1149556 100644
+--- a/rust/adapters/pi/src/loader.rs
++++ b/rust/adapters/pi/src/loader.rs
+@@ -121,6 +121,15 @@ fn load_entries_from_paths(
+                         file.display()
+                     ),
+                 );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "pi",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!(
++                        "Failed to read {label} session file {}: {error}",
++                        file.display()
++                    ).to_string(),
++        });
+                 Vec::new()
+             })
+         });
+diff --git a/rust/adapters/pi/src/paths.rs b/rust/adapters/pi/src/paths.rs
+index 8149202..e32d71a 100644
+--- a/rust/adapters/pi/src/paths.rs
++++ b/rust/adapters/pi/src/paths.rs
+@@ -5,6 +5,11 @@ use crate::{Result, path_utils::expand_home_path};
+ const PI_AGENT_DIR_ENV: &str = "PI_AGENT_DIR";
+ 
+ pub fn paths(custom_path: Option<&str>) -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("pi") {
++        return Ok(roots);
++    }
++
+     if let Some(custom_path) = custom_path.filter(|path| !path.trim().is_empty()) {
+         return Ok(existing_path_list(custom_path));
+     }
 diff --git a/rust/adapters/qwen/src/lib.rs b/rust/adapters/qwen/src/lib.rs
 index cccf5dc..c9fb8fc 100644
 --- a/rust/adapters/qwen/src/lib.rs
@@ -2059,6 +2845,55 @@ index cccf5dc..c9fb8fc 100644
              }])
          );
      }
+diff --git a/rust/adapters/qwen/src/parser.rs b/rust/adapters/qwen/src/parser.rs
+index 270c67b..1ea9b2b 100644
+--- a/rust/adapters/qwen/src/parser.rs
++++ b/rust/adapters/qwen/src/parser.rs
+@@ -78,6 +78,12 @@ pub(super) fn load_entries(shared: &SharedArgs) -> Result<Vec<LoadedEntry>> {
+                     shared,
+                     format!("Failed to read Qwen chat file {}: {error}", file.display()),
+                 );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "qwen",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!("Failed to read Qwen chat file {}: {error}", file.display()).to_string(),
++        });
+                 Vec::new()
+             },
+         )
+@@ -267,6 +273,15 @@ fn file_timestamp(file: &Path, shared: &SharedArgs) -> TimestampMs {
+                     file.display()
+                 ),
+             );
++        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++            agent: "qwen",
++            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
++            file: None,
++            details: format!(
++                    "Failed to read Qwen chat file timestamp for {}: {error}",
++                    file.display()
++                ).to_string(),
++        });
+             system_time_timestamp(SystemTime::now())
+         }
+     }
+diff --git a/rust/adapters/qwen/src/paths.rs b/rust/adapters/qwen/src/paths.rs
+index b4cab63..0f5aad5 100644
+--- a/rust/adapters/qwen/src/paths.rs
++++ b/rust/adapters/qwen/src/paths.rs
+@@ -9,6 +9,11 @@ use crate::{Result, collect_files_with_extension};
+ const QWEN_DATA_DIR_ENV: &str = "QWEN_DATA_DIR";
+ 
+ fn paths() -> Result<Vec<PathBuf>> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
++    if let Some(roots) = ccusage_core::load_context::root_override("qwen") {
++        return Ok(roots);
++    }
++
+     let candidates = if let Ok(paths) = env::var(QWEN_DATA_DIR_ENV) {
+         paths
+             .split(',')
 diff --git a/rust/crates/ccusage-adapter-all/Cargo.toml b/rust/crates/ccusage-adapter-all/Cargo.toml
 index 88aae66..c7c44c5 100644
 --- a/rust/crates/ccusage-adapter-all/Cargo.toml
@@ -2072,10 +2907,19 @@ index 88aae66..c7c44c5 100644
  ccusage-adapter-codebuff.workspace = true
  ccusage-adapter-codex.workspace = true
 diff --git a/rust/crates/ccusage-adapter-all/src/lib.rs b/rust/crates/ccusage-adapter-all/src/lib.rs
-index c9e42ef..7425678 100644
+index c9e42ef..df838bf 100644
 --- a/rust/crates/ccusage-adapter-all/src/lib.rs
 +++ b/rust/crates/ccusage-adapter-all/src/lib.rs
-@@ -10,6 +10,7 @@ use ccusage_core::*;
+@@ -2,6 +2,8 @@ mod loader;
+ mod report;
+ mod types;
+ 
++use std::path::PathBuf;
++
+ use ccusage_adapter_codex::CodexGroup;
+ #[cfg(test)]
+ use ccusage_adapter_codex::CodexModelUsage;
+@@ -10,6 +12,7 @@ use ccusage_core::*;
  
  mod adapter {
      pub use ccusage_adapter_amp as amp;
@@ -2083,7 +2927,7 @@ index c9e42ef..7425678 100644
      pub use ccusage_adapter_claude as claude;
      pub use ccusage_adapter_codebuff as codebuff;
      pub use ccusage_adapter_codex as codex;
-@@ -29,7 +30,7 @@ mod adapter {
+@@ -29,7 +32,7 @@ mod adapter {
  
  use crate::{
      Result,
@@ -2092,7 +2936,7 @@ index c9e42ef..7425678 100644
      print_json_or_jq, wants_json,
  };
  
-@@ -67,6 +68,20 @@ pub fn run(args: AgentCommandArgs) -> Result<()> {
+@@ -67,6 +70,126 @@ pub fn run(args: AgentCommandArgs) -> Result<()> {
      report::print_table(&result.rows, kind, &shared, &result.detected_agents)
  }
  
@@ -2110,11 +2954,117 @@ index c9e42ef..7425678 100644
 +    ))
 +}
 +
++/// Downstream (Coding Agent Monitor) 0002 patch: structured single-agent load
++/// outcome. Failures carry a machine-readable kind, so callers never classify
++/// by error text.
++#[derive(Debug, Clone)]
++pub enum AgentLoadOutcome {
++    /// The agent's daily report rows (same shape as
++    /// `daily_report_json_by_agent`, restricted to this agent) plus the
++    /// recoverable problems observed while loading.
++    Report {
++        report: serde_json::Value,
++        diagnostics: Vec<ccusage_core::load_context::LoadDiag>,
++    },
++    /// The agent's data root is missing or not a valid agent data directory.
++    SourceUnavailable {
++        agent: String,
++        details: String,
++    },
++    /// Any other fatal failure, classified structurally.
++    Failed {
++        kind: ccusage_core::load_context::LoadFailureKind,
++        details: String,
++    },
++}
++
++/// Downstream (Coding Agent Monitor) 0002 patch: loads the daily report for
++/// exactly ONE agent. Other agents' loaders are never constructed or run, so
++/// their data roots are not scanned, validated, or able to influence the
++/// result. Failures are returned structurally (`AgentLoadOutcome`), and
++/// recoverable problems (skipped corrupt files, unreadable sources) come back
++/// as diagnostics alongside the report.
++///
++/// `root_override` installs explicit data roots for this one load; when
++/// `Some`, the agent's path resolver uses them instead of reading the process
++/// environment or default home directories. When `None`, the vendor resolves
++/// roots from the environment as the CLI does. The override is thread-local
++/// and cleared before this function returns.
++///
++/// `shared` should set `json: true`, `offline: true`, and (for deterministic
++/// diagnostics) `single_thread: true`.
++pub fn daily_report_for_agent(
++    agent: &str,
++    root_override: Option<&[PathBuf]>,
++    shared: &SharedArgs,
++) -> AgentLoadOutcome {
++    use ccusage_core::load_context::{
++        clear_root_override, drain_diags, set_root_override, take_failure, LoadFailure,
++        LoadFailureKind,
++    };
++    use std::sync::Mutex;
++
++    // The load context stores are process-global and load-scoped, so loads
++    // must serialize: one at a time, single-threaded internals.
++    static LOAD_LOCK: Mutex<()> = Mutex::new(());
++    let _load_serial = LOAD_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
++
++    let Some(agent_name) = BUILT_IN_AGENT_NAMES.iter().copied().find(|name| *name == agent) else {
++        return AgentLoadOutcome::Failed {
++            kind: LoadFailureKind::InvalidConfig,
++            details: format!("unknown agent '{agent}'"),
++        };
++    };
++
++    // Scope the override and stores to this load: clear whatever a previous
++    // load left behind, and drain again on the way out.
++    struct LoadScopeGuard;
++    impl Drop for LoadScopeGuard {
++        fn drop(&mut self) {
++            clear_root_override();
++            drain_diags();
++            take_failure();
++        }
++    }
++    let _guard = LoadScopeGuard;
++    clear_root_override();
++    drain_diags();
++    take_failure();
++    if let Some(roots) = root_override {
++        set_root_override(agent_name, roots.to_vec());
++    }
++
++    match loader::load_rows_filtered(AgentReportKind::Daily, shared, Some(agent)) {
++        Ok(result) => AgentLoadOutcome::Report {
++            report: report::report_json_with_agents(
++                &result.rows,
++                AgentReportKind::Daily,
++                true,
++            ),
++            diagnostics: drain_diags(),
++        },
++        Err(error) => match take_failure() {
++            Some(LoadFailure {
++                kind: LoadFailureKind::SourceUnavailable,
++                details,
++            }) => AgentLoadOutcome::SourceUnavailable {
++                agent: agent.to_string(),
++                details,
++            },
++            Some(LoadFailure { kind, details }) => AgentLoadOutcome::Failed { kind, details },
++            None => AgentLoadOutcome::Failed {
++                kind: LoadFailureKind::Internal,
++                details: error.to_string(),
++            },
++        },
++    }
++}
++
  fn requested_sections(
      command_kind: AgentReportKind,
      sections: Vec<AgentReportKind>,
 diff --git a/rust/crates/ccusage-adapter-all/src/loader.rs b/rust/crates/ccusage-adapter-all/src/loader.rs
-index c2ece6c..f21b9dc 100644
+index c2ece6c..67eff36 100644
 --- a/rust/crates/ccusage-adapter-all/src/loader.rs
 +++ b/rust/crates/ccusage-adapter-all/src/loader.rs
 @@ -11,8 +11,8 @@ use crate::{
@@ -2128,7 +3078,51 @@ index c2ece6c..f21b9dc 100644
      },
      cli::{AgentReportKind, CodexSpeed, NamedPiStore, SharedArgs, WeekDay},
      filter_loaded_entries_by_date, json_float,
-@@ -325,6 +325,21 @@ fn load_base_rows(
+@@ -27,9 +27,21 @@ use super::{
+ };
+ 
+ pub(super) fn load_rows(kind: AgentReportKind, shared: &SharedArgs) -> Result<AllLoadResult> {
++    load_rows_filtered(kind, shared, None)
++}
++
++/// Downstream (Coding Agent Monitor) 0002 patch: agent-filtered load. When
++/// `agent_filter` is `Some`, only that agent's load spec is executed — the
++/// other agents' loaders never run, so one agent's missing/corrupt data or
++/// misconfigured root cannot affect another agent's collection.
++pub(super) fn load_rows_filtered(
++    kind: AgentReportKind,
++    shared: &SharedArgs,
++    agent_filter: Option<&str>,
++) -> Result<AllLoadResult> {
+     let pricing = load_pricing(shared);
+     let load_kind = load_kind_for_report(kind);
+-    let loaded = load_base_rows(load_kind, shared, &pricing)?;
++    let loaded = load_base_rows(load_kind, shared, &pricing, agent_filter)?;
+     Ok(AllLoadResult {
+         rows: finish_rows(kind, loaded.rows, shared),
+         detected_agents: loaded.detected_agents,
+@@ -42,10 +54,10 @@ pub(super) fn load_sections(
+ ) -> Result<AllSectionsLoadResult> {
+     let pricing = load_pricing(shared);
+     let daily_base = needs_daily_family(kinds)
+-        .then(|| load_base_rows(AgentReportKind::Daily, shared, &pricing))
++        .then(|| load_base_rows(AgentReportKind::Daily, shared, &pricing, None))
+         .transpose()?;
+     let session_base = needs_session(kinds)
+-        .then(|| load_base_rows(AgentReportKind::Session, shared, &pricing))
++        .then(|| load_base_rows(AgentReportKind::Session, shared, &pricing, None))
+         .transpose()?;
+ 
+     let daily_detected_agents = daily_base
+@@ -101,6 +113,7 @@ fn load_base_rows(
+     load_kind: AgentReportKind,
+     shared: &SharedArgs,
+     pricing: &PricingMap,
++    agent_filter: Option<&str>,
+ ) -> Result<AllLoadResult> {
+     let mut progress = crate::progress::UsageLoadProgress::new(
+         crate::log_level() != Some(0)
+@@ -325,6 +338,21 @@ fn load_base_rows(
                  Ok(rows)
              }),
          },
@@ -2150,6 +3144,19 @@ index c2ece6c..f21b9dc 100644
      ];
      let named_pi_stores = resolve_named_pi_store_paths(&shared.pi_stores)?;
      for store in named_pi_stores {
+@@ -348,6 +376,12 @@ fn load_base_rows(
+             }),
+         });
+     }
++    if let Some(agent) = agent_filter {
++        specs.retain(|spec| spec.agent == agent);
++        if specs.is_empty() {
++            return Err(crate::cli_error(format!("unknown agent '{agent}'")));
++        }
++    }
+     let loaded = load_agent_rows_parallel(specs, &mut progress)?;
+     let mut detected_agents = Vec::new();
+     let mut rows = Vec::new();
 diff --git a/rust/crates/ccusage-adapter-all/src/report.rs b/rust/crates/ccusage-adapter-all/src/report.rs
 index 601461c..64077b2 100644
 --- a/rust/crates/ccusage-adapter-all/src/report.rs
@@ -2175,7 +3182,7 @@ index 79604f2..2e77696 100644
  ---
  {
 diff --git a/rust/crates/ccusage-adapter-all/src/tests.rs b/rust/crates/ccusage-adapter-all/src/tests.rs
-index e7db150..a948bc5 100644
+index e7db150..2dbeae7 100644
 --- a/rust/crates/ccusage-adapter-all/src/tests.rs
 +++ b/rust/crates/ccusage-adapter-all/src/tests.rs
 @@ -560,6 +560,7 @@ fn isolated_agent_env(
@@ -2186,6 +3193,184 @@ index e7db150..a948bc5 100644
      ]
      .into_iter()
      .map(|key| (key, None::<OsString>))
+@@ -1002,3 +1003,177 @@ fn full_table_columns_include_cache_and_total_token_metrics() {
+     );
+     assert_eq!(headers.len(), aligns.len());
+ }
++
++// ---- Downstream (Coding Agent Monitor) 0002 patch: per-agent loader ----
++
++mod per_agent_load {
++    use super::*;
++    use crate::daily_report_for_agent;
++    use crate::AgentLoadOutcome;
++    use ccusage_core::load_context::LoadFailureKind;
++
++    const CLAUDE_LINE: &str = r#"{"timestamp":"2099-01-02T00:00:00.000Z","sessionId":"session-a","requestId":"req-1","costUSD":0.01,"message":{"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":10},"model":"claude-sonnet-4-20250514","id":"msg-1"}}"#;
++
++    fn shared_all() -> SharedArgs {
++        SharedArgs {
++            json: true,
++            offline: true,
++            single_thread: true,
++            timezone: Some("UTC".to_string()),
++            ..SharedArgs::default()
++        }
++    }
++
++    /// Like `isolated_agent_env`, but applies extra overrides in the SAME
++    /// `EnvVarsGuard` — acquiring the env lock twice in one test deadlocks.
++    fn isolated_env_with_overrides(
++        fixture: &ccusage_test_support::Fixture,
++        overrides: &[(&'static str, OsString)],
++    ) -> EnvVarsGuard {
++        let home = fixture.path("empty-home").into_os_string();
++        let xdg_config = fixture.path("empty-xdg-config").into_os_string();
++        let mut vars: Vec<(&'static str, Option<OsString>)> = [
++            "CLAUDE_CONFIG_DIR",
++            "CODEX_HOME",
++            "OPENCODE_DATA_DIR",
++            "AMP_DATA_DIR",
++            "DROID_SESSIONS_DIR",
++            "CODEBUFF_DATA_DIR",
++            "HERMES_HOME",
++            "PI_AGENT_DIR",
++            "GOOSE_PATH_ROOT",
++            "OPENCLAW_DIR",
++            "KILO_DATA_DIR",
++            "COPILOT_OTEL_FILE_EXPORTER_PATH",
++            "GEMINI_DATA_DIR",
++            "KIMI_DATA_DIR",
++            "QWEN_DATA_DIR",
++            "GROK_HOME",
++            "ANTIGRAVITY_DATA_DIR",
++        ]
++        .into_iter()
++        .map(|key| (key, None))
++        .collect();
++        vars.push(("HOME", Some(home)));
++        vars.push(("USERPROFILE", Some(fixture.path("empty-home").into_os_string())));
++        vars.push(("XDG_CONFIG_HOME", Some(xdg_config)));
++        for (key, value) in overrides {
++            vars.push((key, Some(value.clone())));
++        }
++        EnvVarsGuard::set_many(vars)
++    }
++
++    #[test]
++    fn one_agent_request_does_not_touch_other_agent_roots() {
++        let fixture = fs_fixture!({
++            "codex/sessions/session-a.jsonl": codex_usage_line("2099-02-01T08:01:00.000Z", "gpt-5.2", 1_000),
++        });
++        // Single guard: codex valid, every other agent root (claude
++        // included) invalid or missing — a full scan would fail on claude.
++        let _env = isolated_env_with_overrides(
++            &fixture,
++            &[
++                ("CODEX_HOME", fixture.path("codex").into_os_string()),
++                (
++                    "CLAUDE_CONFIG_DIR",
++                    fixture.path("not-a-claude-root").into_os_string(),
++                ),
++            ],
++        );
++
++        match daily_report_for_agent("codex", None, &shared_all()) {
++            AgentLoadOutcome::Report { report, diagnostics } => {
++                assert!(diagnostics.is_empty());
++                let rows = report["daily"].as_array().unwrap();
++                assert_eq!(rows.len(), 1);
++                let codex = rows[0]["agents"]
++                    .as_array()
++                    .unwrap()
++                    .iter()
++                    .find(|entry| entry["agent"] == "codex")
++                    .expect("codex breakdown");
++                assert_eq!(codex["totalTokens"], 1_300);
++            }
++            other => panic!("expected a report for codex, got {other:?}"),
++        }
++    }
++
++    #[test]
++    fn root_override_beats_environment() {
++        let fixture = fs_fixture!({
++            "claude-override/projects/cam/session-a.jsonl": CLAUDE_LINE,
++        });
++        // The environment root is invalid; the explicit override must win.
++        let _env = isolated_env_with_overrides(
++            &fixture,
++            &[(
++                "CLAUDE_CONFIG_DIR",
++                fixture.path("claude-invalid").into_os_string(),
++            )],
++        );
++
++        let roots = vec![fixture.path("claude-override")];
++        match daily_report_for_agent("claude", Some(&roots), &shared_all()) {
++            AgentLoadOutcome::Report { report, diagnostics } => {
++                assert!(diagnostics.is_empty());
++                let rows = report["daily"].as_array().unwrap();
++                assert_eq!(rows.len(), 1);
++                assert_eq!(rows[0]["agents"][0]["totalTokens"], 160);
++            }
++            other => panic!("override should have produced a report, got {other:?}"),
++        }
++    }
++
++    #[test]
++    fn invalid_claude_root_fails_structurally_without_text_matching() {
++        let fixture = fs_fixture!({});
++        let _env = isolated_env_with_overrides(
++            &fixture,
++            &[(
++                "CLAUDE_CONFIG_DIR",
++                fixture.path("empty-home").into_os_string(),
++            )],
++        );
++
++        match daily_report_for_agent("claude", None, &shared_all()) {
++            AgentLoadOutcome::SourceUnavailable { agent, details } => {
++                assert_eq!(agent, "claude");
++                assert!(!details.is_empty());
++            }
++            other => panic!("expected SourceUnavailable, got {other:?}"),
++        }
++    }
++
++    #[test]
++    fn corrupt_source_database_is_skipped_and_reported_as_diagnostic() {
++        let fixture = fs_fixture!({
++            "ag/conversations/broken.db": "definitely not a sqlite database",
++        });
++        let roots = vec![fixture.path("ag")];
++
++        match daily_report_for_agent("antigravity", Some(&roots), &shared_all()) {
++            AgentLoadOutcome::Report { report, diagnostics } => {
++                assert!(report["daily"].as_array().unwrap().is_empty());
++                assert!(
++                    diagnostics
++                        .iter()
++                        .any(|diag| diag.agent == "antigravity"
++                            && diag.kind == ccusage_core::load_context::LoadDiagKind::DatabaseError),
++                    "expected a database diagnostic, got {diagnostics:?}"
++                );
++            }
++            other => panic!("corrupt db must be skipped, not fatal: {other:?}"),
++        }
++    }
++
++    #[test]
++    fn unknown_agent_fails_structurally() {
++        match daily_report_for_agent("definitely-not-an-agent", None, &shared_all()) {
++            AgentLoadOutcome::Failed {
++                kind: LoadFailureKind::InvalidConfig,
++                ..
++            } => {}
++            other => panic!("expected Failed(InvalidConfig), got {other:?}"),
++        }
++    }
++}
 diff --git a/rust/crates/ccusage-core/build.rs b/rust/crates/ccusage-core/build.rs
 index 0783b82..fff5b1c 100644
 --- a/rust/crates/ccusage-core/build.rs
@@ -2216,10 +3401,18 @@ index 0783b82..fff5b1c 100644
      let pricing_json = compact_pricing_json(&pricing_json).expect("compact LiteLLM pricing JSON");
  
 diff --git a/rust/crates/ccusage-core/src/lib.rs b/rust/crates/ccusage-core/src/lib.rs
-index a1e2a89..f7a70e6 100644
+index a1e2a89..87c8490 100644
 --- a/rust/crates/ccusage-core/src/lib.rs
 +++ b/rust/crates/ccusage-core/src/lib.rs
-@@ -56,7 +56,7 @@ pub const USAGE_COMPACT_WIDTH_THRESHOLD: usize = 100;
+@@ -5,6 +5,7 @@ pub mod cost;
+ pub mod date_utils;
+ pub mod fast;
+ pub mod home;
++pub mod load_context;
+ pub mod last_window;
+ pub mod logger;
+ pub mod model_aliases;
+@@ -56,7 +57,7 @@ pub const USAGE_COMPACT_WIDTH_THRESHOLD: usize = 100;
  
  pub const BUILT_IN_AGENT_NAMES: &[&str] = &[
      "claude", "codex", "opencode", "amp", "droid", "codebuff", "hermes", "pi", "goose", "openclaw",
@@ -2228,6 +3421,129 @@ index a1e2a89..f7a70e6 100644
  ];
  
  pub type Result<T> = std::result::Result<T, CliError>;
+diff --git a/rust/crates/ccusage-core/src/load_context.rs b/rust/crates/ccusage-core/src/load_context.rs
+new file mode 100644
+index 0000000..aa9ef96
+--- /dev/null
++++ b/rust/crates/ccusage-core/src/load_context.rs
+@@ -0,0 +1,117 @@
++//! Load-scoped context for in-process collectors: structured diagnostics,
++//! structured load failures, and per-load data-root overrides.
++//!
++//! The three stores here are **scoped to a single load call**: the in-process
++//! collector entry point (in `ccusage-adapter-all`) clears them when a load
++//! begins and drains them when it ends, so nothing leaks between loads. They
++//! are process-global rather than thread-local because adapter loaders run on
++//! worker threads while the entry point consumes the results. Loads that use
++//! this module must therefore run one at a time and single-threaded — the
++//! collector entry point enforces `single_thread` and documents the contract.
++//! This is deliberately still *not* environment state: nothing here outlives
++//! a load or is visible to code outside the load path.
++//!
++//! Diagnostics carry short, self-contained details only — no log dumps, no
++//! file contents, no secrets. File paths are limited to the skipped source
++//! file's path, which the local user already owns.
++
++use std::{
++    path::PathBuf,
++    sync::Mutex,
++};
++
++/// Category of a recoverable problem recorded while loading agent data.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum LoadDiagKind {
++    /// A source file existed but could not be parsed; it was skipped.
++    CorruptFile,
++    /// A record inside a readable file was skipped (malformed line/entry).
++    CorruptRecord,
++    /// A SQLite source could not be opened or queried; it was skipped.
++    DatabaseError,
++    /// A data source existed but could not be read (permissions, I/O error).
++    SourceUnreadable,
++}
++
++/// One recoverable problem observed while loading a single agent's data.
++#[derive(Debug, Clone)]
++pub struct LoadDiag {
++    pub agent: &'static str,
++    pub kind: LoadDiagKind,
++    /// Path of the skipped source, when the problem is file-scoped.
++    pub file: Option<String>,
++    pub details: String,
++}
++
++/// Structured kind of a fatal load failure. The in-process collector API
++/// surfaces these directly so callers never classify by error *text*.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum LoadFailureKind {
++    /// The agent's data root is missing or not a valid agent data directory.
++    SourceUnavailable,
++    /// A configured source is malformed (bad config value, invalid path shape).
++    InvalidConfig,
++    /// A SQLite data source failed in a way that is not skippable.
++    Database,
++    /// Anything else: internal invariant violation or unexpected engine state.
++    Internal,
++}
++
++/// A fatal load failure with a machine-readable kind.
++#[derive(Debug, Clone)]
++pub struct LoadFailure {
++    pub kind: LoadFailureKind,
++    pub details: String,
++}
++
++static DIAGNOSTICS: Mutex<Vec<LoadDiag>> = Mutex::new(Vec::new());
++static FAILURE: Mutex<Option<LoadFailure>> = Mutex::new(None);
++static ROOT_OVERRIDE: Mutex<Option<(&'static str, Vec<PathBuf>)>> = Mutex::new(None);
++
++fn lock<T>(slot: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
++    slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
++}
++
++/// Records a recoverable problem for the current load.
++pub fn record(diag: LoadDiag) {
++    lock(&DIAGNOSTICS).push(diag);
++}
++
++/// Takes every diagnostic recorded during the current load.
++pub fn drain_diags() -> Vec<LoadDiag> {
++    std::mem::take(&mut lock(&DIAGNOSTICS))
++}
++
++/// Raises a structured failure for the current load. Callers that need to
++/// keep the existing `Result<_, CliError>` flow short-circuiting should
++/// return their normal error too; the collector entry point consults this
++/// slot first when mapping failures.
++pub fn raise_failure(failure: LoadFailure) {
++    *lock(&FAILURE) = Some(failure);
++}
++
++/// Takes the structured failure recorded for the current load, if any.
++pub fn take_failure() -> Option<LoadFailure> {
++    lock(&FAILURE).take()
++}
++
++/// Installs explicit data roots for one agent for the duration of the load.
++/// The adapter path resolvers consult this before environment/default
++/// resolution, so an explicit override makes the load independent of the
++/// process environment.
++pub fn set_root_override(agent: &'static str, roots: Vec<PathBuf>) {
++    *lock(&ROOT_OVERRIDE) = Some((agent, roots));
++}
++
++/// Clears any installed root override.
++pub fn clear_root_override() {
++    *lock(&ROOT_OVERRIDE) = None;
++}
++
++/// The override installed for `agent`, if any.
++pub fn root_override(agent: &str) -> Option<Vec<PathBuf>> {
++    lock(&ROOT_OVERRIDE)
++        .as_ref()
++        .filter(|(name, _)| *name == agent)
++        .map(|(_, roots)| roots.clone())
++}
 diff --git a/rust/crates/ccusage-core/src/models-dev-pricing.json b/rust/crates/ccusage-core/src/models-dev-pricing.json
 index 1d4a722..cc26d18 100644
 --- a/rust/crates/ccusage-core/src/models-dev-pricing.json

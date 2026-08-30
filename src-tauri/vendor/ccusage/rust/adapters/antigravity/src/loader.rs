@@ -80,10 +80,25 @@ fn load_entries_from_database(
             shared,
             format!("Failed to open Antigravity database: {}", db_path.display()),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "antigravity",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!("Failed to open Antigravity database: {}", db_path.display()).to_string(),
+        });
         return Vec::new();
     };
     // A database without gen_metadata is not an Antigravity conversation DB.
     let Ok(mut statement) = connection.prepare("SELECT data FROM gen_metadata ORDER BY idx") else {
+        // Downstream (Coding Agent Monitor) 0002 patch: a database that opens
+        // but cannot be queried (corrupt file, missing table) is a skipped
+        // source, surfaced as a diagnostic.
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "antigravity",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: Some(db_path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
+            details: "failed to prepare gen_metadata query".to_string(),
+        });
         return Vec::new();
     };
     let trajectory = read_trajectory_metadata(&connection);
@@ -112,6 +127,15 @@ fn load_entries_from_database(
                         db_path.display()
                     ),
                 );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "antigravity",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!(
+                        "Failed to query Antigravity database: {}",
+                        db_path.display()
+                    ).to_string(),
+        });
                 break;
             }
         }

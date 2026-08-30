@@ -40,6 +40,15 @@ fn load_entries_inner(
                     path.display()
                 ),
             );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "copilot",
+            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
+            file: None,
+            details: format!(
+                    "Failed to read Copilot OTEL file {}: {error}",
+                    path.display()
+                ).to_string(),
+        });
             Vec::new()
         })
     });

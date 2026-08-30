@@ -11,6 +11,11 @@ const KIMI_SESSIONS_DIR_NAME: &str = "sessions";
 const KIMI_WIRE_FILE_NAME: &str = "wire.jsonl";
 
 fn paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("kimi") {
+        return Ok(roots);
+    }
+
     let mut paths = Vec::new();
     let mut seen = HashSet::new();
     if let Ok(env_paths) = env::var(KIMI_DATA_DIR_ENV) {

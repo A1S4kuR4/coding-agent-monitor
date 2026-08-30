@@ -27,9 +27,21 @@ use super::{
 };
 
 pub(super) fn load_rows(kind: AgentReportKind, shared: &SharedArgs) -> Result<AllLoadResult> {
+    load_rows_filtered(kind, shared, None)
+}
+
+/// Downstream (Coding Agent Monitor) 0002 patch: agent-filtered load. When
+/// `agent_filter` is `Some`, only that agent's load spec is executed — the
+/// other agents' loaders never run, so one agent's missing/corrupt data or
+/// misconfigured root cannot affect another agent's collection.
+pub(super) fn load_rows_filtered(
+    kind: AgentReportKind,
+    shared: &SharedArgs,
+    agent_filter: Option<&str>,
+) -> Result<AllLoadResult> {
     let pricing = load_pricing(shared);
     let load_kind = load_kind_for_report(kind);
-    let loaded = load_base_rows(load_kind, shared, &pricing)?;
+    let loaded = load_base_rows(load_kind, shared, &pricing, agent_filter)?;
     Ok(AllLoadResult {
         rows: finish_rows(kind, loaded.rows, shared),
         detected_agents: loaded.detected_agents,
@@ -42,10 +54,10 @@ pub(super) fn load_sections(
 ) -> Result<AllSectionsLoadResult> {
     let pricing = load_pricing(shared);
     let daily_base = needs_daily_family(kinds)
-        .then(|| load_base_rows(AgentReportKind::Daily, shared, &pricing))
+        .then(|| load_base_rows(AgentReportKind::Daily, shared, &pricing, None))
         .transpose()?;
     let session_base = needs_session(kinds)
-        .then(|| load_base_rows(AgentReportKind::Session, shared, &pricing))
+        .then(|| load_base_rows(AgentReportKind::Session, shared, &pricing, None))
         .transpose()?;
 
     let daily_detected_agents = daily_base
@@ -101,6 +113,7 @@ fn load_base_rows(
     load_kind: AgentReportKind,
     shared: &SharedArgs,
     pricing: &PricingMap,
+    agent_filter: Option<&str>,
 ) -> Result<AllLoadResult> {
     let mut progress = crate::progress::UsageLoadProgress::new(
         crate::log_level() != Some(0)
@@ -362,6 +375,12 @@ fn load_base_rows(
                 )
             }),
         });
+    }
+    if let Some(agent) = agent_filter {
+        specs.retain(|spec| spec.agent == agent);
+        if specs.is_empty() {
+            return Err(crate::cli_error(format!("unknown agent '{agent}'")));
+        }
     }
     let loaded = load_agent_rows_parallel(specs, &mut progress)?;
     let mut detected_agents = Vec::new();

@@ -2,6 +2,8 @@ mod loader;
 mod report;
 mod types;
 
+use std::path::PathBuf;
+
 use ccusage_adapter_codex::CodexGroup;
 #[cfg(test)]
 use ccusage_adapter_codex::CodexModelUsage;
@@ -80,6 +82,112 @@ pub fn daily_report_json_by_agent(shared: &SharedArgs) -> Result<serde_json::Val
         AgentReportKind::Daily,
         true,
     ))
+}
+
+/// Downstream (Coding Agent Monitor) 0002 patch: structured single-agent load
+/// outcome. Failures carry a machine-readable kind, so callers never classify
+/// by error text.
+#[derive(Debug, Clone)]
+pub enum AgentLoadOutcome {
+    /// The agent's daily report rows (same shape as
+    /// `daily_report_json_by_agent`, restricted to this agent) plus the
+    /// recoverable problems observed while loading.
+    Report {
+        report: serde_json::Value,
+        diagnostics: Vec<ccusage_core::load_context::LoadDiag>,
+    },
+    /// The agent's data root is missing or not a valid agent data directory.
+    SourceUnavailable {
+        agent: String,
+        details: String,
+    },
+    /// Any other fatal failure, classified structurally.
+    Failed {
+        kind: ccusage_core::load_context::LoadFailureKind,
+        details: String,
+    },
+}
+
+/// Downstream (Coding Agent Monitor) 0002 patch: loads the daily report for
+/// exactly ONE agent. Other agents' loaders are never constructed or run, so
+/// their data roots are not scanned, validated, or able to influence the
+/// result. Failures are returned structurally (`AgentLoadOutcome`), and
+/// recoverable problems (skipped corrupt files, unreadable sources) come back
+/// as diagnostics alongside the report.
+///
+/// `root_override` installs explicit data roots for this one load; when
+/// `Some`, the agent's path resolver uses them instead of reading the process
+/// environment or default home directories. When `None`, the vendor resolves
+/// roots from the environment as the CLI does. The override is thread-local
+/// and cleared before this function returns.
+///
+/// `shared` should set `json: true`, `offline: true`, and (for deterministic
+/// diagnostics) `single_thread: true`.
+pub fn daily_report_for_agent(
+    agent: &str,
+    root_override: Option<&[PathBuf]>,
+    shared: &SharedArgs,
+) -> AgentLoadOutcome {
+    use ccusage_core::load_context::{
+        clear_root_override, drain_diags, set_root_override, take_failure, LoadFailure,
+        LoadFailureKind,
+    };
+    use std::sync::Mutex;
+
+    // The load context stores are process-global and load-scoped, so loads
+    // must serialize: one at a time, single-threaded internals.
+    static LOAD_LOCK: Mutex<()> = Mutex::new(());
+    let _load_serial = LOAD_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let Some(agent_name) = BUILT_IN_AGENT_NAMES.iter().copied().find(|name| *name == agent) else {
+        return AgentLoadOutcome::Failed {
+            kind: LoadFailureKind::InvalidConfig,
+            details: format!("unknown agent '{agent}'"),
+        };
+    };
+
+    // Scope the override and stores to this load: clear whatever a previous
+    // load left behind, and drain again on the way out.
+    struct LoadScopeGuard;
+    impl Drop for LoadScopeGuard {
+        fn drop(&mut self) {
+            clear_root_override();
+            drain_diags();
+            take_failure();
+        }
+    }
+    let _guard = LoadScopeGuard;
+    clear_root_override();
+    drain_diags();
+    take_failure();
+    if let Some(roots) = root_override {
+        set_root_override(agent_name, roots.to_vec());
+    }
+
+    match loader::load_rows_filtered(AgentReportKind::Daily, shared, Some(agent)) {
+        Ok(result) => AgentLoadOutcome::Report {
+            report: report::report_json_with_agents(
+                &result.rows,
+                AgentReportKind::Daily,
+                true,
+            ),
+            diagnostics: drain_diags(),
+        },
+        Err(error) => match take_failure() {
+            Some(LoadFailure {
+                kind: LoadFailureKind::SourceUnavailable,
+                details,
+            }) => AgentLoadOutcome::SourceUnavailable {
+                agent: agent.to_string(),
+                details,
+            },
+            Some(LoadFailure { kind, details }) => AgentLoadOutcome::Failed { kind, details },
+            None => AgentLoadOutcome::Failed {
+                kind: LoadFailureKind::Internal,
+                details: error.to_string(),
+            },
+        },
+    }
 }
 
 fn requested_sections(

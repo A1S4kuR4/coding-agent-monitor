@@ -102,6 +102,11 @@ fn codex_usage_file_key(source: &CodexUsageSource, file: &Path) -> (PathBuf, Pat
 }
 
 pub(super) fn codex_home_paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for
+    // this load (interpreted as CODEX_HOME-style home directories).
+    if let Some(roots) = ccusage_core::load_context::root_override("codex") {
+        return Ok(roots);
+    }
     if let Ok(env_paths) = env::var("CODEX_HOME") {
         return Ok(env_paths
             .split(',')

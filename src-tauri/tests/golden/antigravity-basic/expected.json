@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "request_id": "golden-antigravity-basic",
+  "status": "ok",
+  "report": {
+    "records": [
+      {
+        "date": "2026-01-02",
+        "agent": "antigravity",
+        "input_tokens": "7321",
+        "output_tokens": "604",
+        "cache_creation_tokens": "0",
+        "cache_read_tokens": "10",
+        "total_tokens": "7935",
+        "cost_nano_usd": "21892000",
+        "models_used": [
+          "gemini-3.1-pro"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "gemini-3.1-pro",
+            "input_tokens": "7321",
+            "output_tokens": "604",
+            "cache_creation_tokens": "0",
+            "cache_read_tokens": "10",
+            "missing_pricing": false,
+            "cost_nano_usd": "21892000"
+          }
+        ],
+        "models_missing_pricing": []
+      }
+    ],
+    "diagnostics": []
+  }
+}

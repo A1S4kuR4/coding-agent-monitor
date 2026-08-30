@@ -1,0 +1,2 @@
+{"timestamp":"2026-01-02T00:00:00.000Z","sessionId":"session-a","requestId":"req-day1","costUSD":0.01,"message":{"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":10},"model":"claude-sonnet-4-20250514","id":"msg-day1"}}
+{"timestamp":"2026-01-03T08:30:00.000Z","sessionId":"session-a","requestId":"req-day2","costUSD":0.125,"message":{"usage":{"input_tokens":300,"output_tokens":30,"cache_creation_input_tokens":5,"cache_read_input_tokens":3},"model":"claude-sonnet-4-20250514","id":"msg-day2"}}

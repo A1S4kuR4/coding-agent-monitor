@@ -5,6 +5,11 @@ use crate::{Result, collect_files_with_extension};
 pub const COPILOT_OTEL_FILE_EXPORTER_PATH_ENV: &str = "COPILOT_OTEL_FILE_EXPORTER_PATH";
 
 pub(super) fn paths() -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("copilot") {
+        return Ok(roots);
+    }
+
     let mut files = Vec::new();
     let mut seen = HashSet::new();
     if let Some(home) = crate::home::home_dir() {

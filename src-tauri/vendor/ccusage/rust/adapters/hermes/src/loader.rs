@@ -49,6 +49,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
                 db_path.display()
             ),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "hermes",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!(
+                "Failed to open Hermes state database: {}",
+                db_path.display()
+            ).to_string(),
+        });
         return Vec::new();
     };
     let Ok(mut statement) = connection.prepare(
@@ -78,6 +87,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
                 db_path.display()
             ),
         );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "hermes",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!(
+                "Failed to read Hermes state database: {}",
+                db_path.display()
+            ).to_string(),
+        });
         return Vec::new();
     };
     let mut entries = Vec::new();
@@ -97,6 +115,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
                         db_path.display()
                     ),
                 );
+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+            agent: "hermes",
+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+            file: None,
+            details: format!(
+                        "Failed to query Hermes state database: {}",
+                        db_path.display()
+                    ).to_string(),
+        });
                 break;
             }
         }

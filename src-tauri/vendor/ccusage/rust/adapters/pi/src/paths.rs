@@ -5,6 +5,11 @@ use crate::{Result, path_utils::expand_home_path};
 const PI_AGENT_DIR_ENV: &str = "PI_AGENT_DIR";
 
 pub fn paths(custom_path: Option<&str>) -> Result<Vec<PathBuf>> {
+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+    if let Some(roots) = ccusage_core::load_context::root_override("pi") {
+        return Ok(roots);
+    }
+
     if let Some(custom_path) = custom_path.filter(|path| !path.trim().is_empty()) {
         return Ok(existing_path_list(custom_path));
     }

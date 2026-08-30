@@ -1,32 +1,30 @@
-//! Adapter from the vendored ccusage unified report to [`Collector`] types.
+//! Adapter from the vendored ccusage per-agent loader to [`Collector`] types.
 //!
-//! This is the only module that converts vendor JSON into CAM-owned types.
-//! The vendor seam used here is `ccusage_adapter_all::daily_report_json_by_agent`
-//! (Gate 0 PoC entry point): it returns the JSON shape of
-//! `ccusage daily --json --by-agent` for *all* registered agents. Each
-//! [`AgentCollector`] extracts the breakdown rows for its own agent.
+//! This is the only module that converts vendor output into CAM-owned types.
+//! The vendor seam is `ccusage_adapter_all::daily_report_for_agent` (Phase 1
+//! per-agent entry point): it runs exactly one agent's loader, returns a
+//! structurally classified outcome (no error-text matching), and surfaces
+//! recoverable problems as diagnostics. Explicit [`DataSource::Paths`] roots
+//! are passed straight through to the vendor load — the collector never
+//! mutates the process environment.
 //!
 //! Known vendor seam limitations (documented, Phase 2 prerequisites):
-//! - One pass scans every agent's data roots, so unrelated agents'
-//!   misconfiguration can fail a single-agent request.
-//! - The vendor error type is an opaque string; classification relies on the
-//!   documented "No valid … data directories" sentinel, pinned by contract
-//!   tests.
+//! - Record granularity is the daily aggregate; session-level records come
+//!   later.
+//! - Loads serialize behind a mutex inside the vendor entry point (required
+//!   by its load-scoped context stores).
+
+use std::path::PathBuf;
 
 use chrono::NaiveDate;
 use serde_json::Value;
 
 use super::{
-    AgentKind, CollectRequest, CollectResult, Collector, CollectorError, CostNanoUsd,
-    ModelBreakdown, ModelName, UsageRecord,
+    AgentKind, CollectRequest, CollectResult, CollectionDiagnostic, Collector, CollectorError,
+    CostNanoUsd, DiagnosticKind, ModelBreakdown, ModelName, UsageRecord,
 };
 
 const VENDOR_ID: &str = "ccusage v20.0.20";
-
-/// Sentinel the vendored claude adapter emits when no valid data directory is
-/// configured. Pinned by `collector_contract.rs` — if upstream rewords it,
-/// the contract test must be updated together with the mapping below.
-const NO_VALID_DATA_DIR_SENTINEL: &str = "No valid ";
 
 /// Collector implementation backed by the vendored ccusage sources.
 ///
@@ -57,19 +55,88 @@ impl Collector for AgentCollector {
                 ),
             });
         }
-        match request.source {
-            super::DataSource::Environment => {} // Exhaustive match: a future DataSource variant must be handled
-                                                 // here explicitly, not silently ignored.
-        }
+        let root_override: Option<Vec<PathBuf>> = match &request.source {
+            super::DataSource::Environment => None,
+            super::DataSource::Paths(paths) => Some(paths.clone()),
+            // Exhaustive match: a future DataSource variant must be handled
+            // here explicitly, not silently ignored.
+        };
 
-        let report = ccusage_adapter_all::daily_report_json_by_agent(&vendor_shared_args(request))
-            .map_err(|error| classify_vendor_error(request.agent, error.to_string()))?;
-        from_vendor_report(&report, self.agent)
+        let shared = vendor_shared_args(request);
+        let outcome = ccusage_adapter_all::daily_report_for_agent(
+            self.agent.id(),
+            root_override.as_deref(),
+            &shared,
+        );
+
+        match outcome {
+            ccusage_adapter_all::AgentLoadOutcome::Report {
+                report,
+                diagnostics,
+            } => {
+                let records = from_vendor_report(&report, self.agent)?;
+                let diagnostics = diagnostics
+                    .into_iter()
+                    .map(|diag| CollectionDiagnostic {
+                        kind: match diag.kind {
+                            ccusage_core::load_context::LoadDiagKind::CorruptFile => {
+                                DiagnosticKind::CorruptFile
+                            }
+                            ccusage_core::load_context::LoadDiagKind::CorruptRecord => {
+                                DiagnosticKind::CorruptRecord
+                            }
+                            ccusage_core::load_context::LoadDiagKind::DatabaseError => {
+                                DiagnosticKind::DatabaseError
+                            }
+                            ccusage_core::load_context::LoadDiagKind::SourceUnreadable => {
+                                DiagnosticKind::SourceUnreadable
+                            }
+                        },
+                        file: diag.file,
+                        details: diag.details,
+                    })
+                    .collect();
+                Ok(CollectResult {
+                    agent: self.agent,
+                    records,
+                    diagnostics,
+                })
+            }
+            ccusage_adapter_all::AgentLoadOutcome::SourceUnavailable { details, .. } => {
+                Err(CollectorError::SourceUnavailable {
+                    agent: self.agent,
+                    details,
+                })
+            }
+            ccusage_adapter_all::AgentLoadOutcome::Failed { kind, details } => Err(match kind {
+                ccusage_core::load_context::LoadFailureKind::SourceUnavailable => {
+                    CollectorError::SourceUnavailable {
+                        agent: self.agent,
+                        details,
+                    }
+                }
+                ccusage_core::load_context::LoadFailureKind::InvalidConfig => {
+                    CollectorError::InvalidRequest { details }
+                }
+                ccusage_core::load_context::LoadFailureKind::Database => {
+                    CollectorError::DatabaseQuery {
+                        agent: self.agent,
+                        details,
+                    }
+                }
+                ccusage_core::load_context::LoadFailureKind::Internal => {
+                    CollectorError::VendorAdapter {
+                        vendor: VENDOR_ID,
+                        details,
+                    }
+                }
+            }),
+        }
     }
 }
 
 /// Builds the vendor call arguments. `single_thread` is forced for
-/// deterministic Phase 1 results; `offline` is mandatory (no network pricing).
+/// deterministic results; `offline` is mandatory (no network pricing).
 fn vendor_shared_args(request: &CollectRequest) -> ccusage_cli::SharedArgs {
     ccusage_cli::SharedArgs {
         json: true,
@@ -86,28 +153,11 @@ fn vendor_shared_args(request: &CollectRequest) -> ccusage_cli::SharedArgs {
     }
 }
 
-fn classify_vendor_error(agent: AgentKind, message: String) -> CollectorError {
-    let lowered = message.to_ascii_lowercase();
-    if message.contains(NO_VALID_DATA_DIR_SENTINEL) && lowered.contains("data director") {
-        CollectorError::SourceUnavailable {
-            agent,
-            details: message,
-        }
-    } else if lowered.contains("sqlite") || lowered.contains("database") {
-        CollectorError::DatabaseQuery {
-            agent,
-            details: message,
-        }
-    } else {
-        CollectorError::VendorAdapter {
-            vendor: VENDOR_ID,
-            details: message,
-        }
-    }
-}
-
-/// Converts the unified daily-by-agent report into per-agent typed records.
-fn from_vendor_report(report: &Value, agent: AgentKind) -> Result<CollectResult, CollectorError> {
+/// Converts the per-agent daily report into typed records.
+fn from_vendor_report(
+    report: &Value,
+    agent: AgentKind,
+) -> Result<Vec<UsageRecord>, CollectorError> {
     let daily = report
         .get("daily")
         .and_then(Value::as_array)
@@ -118,6 +168,8 @@ fn from_vendor_report(report: &Value, agent: AgentKind) -> Result<CollectResult,
 
     let mut records = Vec::new();
     for row in daily {
+        // The per-agent report still emits the unified row shape (agent
+        // "all" plus an `agents` breakdown array); find this agent's entry.
         let Some(breakdown) = row
             .get("agents")
             .and_then(Value::as_array)
@@ -180,7 +232,7 @@ fn from_vendor_report(report: &Value, agent: AgentKind) -> Result<CollectResult,
 
     // Deterministic output regardless of vendor ordering.
     records.sort_by_key(|record| record.date);
-    Ok(CollectResult { agent, records })
+    Ok(records)
 }
 
 fn row_u64(row: &Value, key: &str) -> Result<u64, CollectorError> {
