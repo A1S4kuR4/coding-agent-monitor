@@ -16,7 +16,8 @@ expression: session_summary_json(&row)
       "inputTokens": 900,
       "missingPricing": false,
       "modelName": "gpt-5.2-codex",
-      "outputTokens": 300
+      "outputTokens": 300,
+      "reasoningTokens": 0
     },
     {
       "cacheCreationTokens": 39,
@@ -25,7 +26,8 @@ expression: session_summary_json(&row)
       "inputTokens": 334,
       "missingPricing": false,
       "modelName": "claude-sonnet-4-20250514",
-      "outputTokens": 267
+      "outputTokens": 267,
+      "reasoningTokens": 0
     }
   ],
   "modelsUsed": [

@@ -118,8 +118,9 @@ pub enum AgentLoadOutcome {
 /// `root_override` installs explicit data roots for this one load; when
 /// `Some`, the agent's path resolver uses them instead of reading the process
 /// environment or default home directories. When `None`, the vendor resolves
-/// roots from the environment as the CLI does. The override is thread-local
-/// and cleared before this function returns.
+/// roots from the environment as the CLI does. The override is load-scoped:
+/// it is installed on entry and cleared before this function returns, and
+/// loads serialize behind a mutex (see `load_context`).
 ///
 /// `shared` should set `json: true`, `offline: true`, and (for deterministic
 /// diagnostics) `single_thread: true`.

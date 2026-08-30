@@ -165,6 +165,9 @@ fn agent_json(row: &AllRow) -> Value {
         "cacheCreationTokens": row.cache_creation_tokens,
         "cacheReadTokens": row.cache_read_tokens,
         "totalTokens": row.total_tokens,
+        // Downstream (Coding Agent Monitor) 0002 patch: reasoning-like extra
+        // tokens, additive field.
+        "extraTotalTokens": row.extra_total_tokens,
         "totalCost": json_float(row.total_cost),
         "modelBreakdowns": row.model_breakdowns,
     })

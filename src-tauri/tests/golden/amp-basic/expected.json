@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "request_id": "golden-amp-basic",
+  "status": "ok",
+  "report": {
+    "records": [
+      {
+        "date": "2026-01-19",
+        "agent": "amp",
+        "input_tokens": "10",
+        "output_tokens": "178",
+        "cache_creation_tokens": "986",
+        "cache_read_tokens": "11372",
+        "reasoning_tokens": "0",
+        "unclassified_tokens": "0",
+        "total_tokens": "12546",
+        "cost_nano_usd": "3269700",
+        "models_used": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "input_tokens": "10",
+            "output_tokens": "178",
+            "cache_creation_tokens": "986",
+            "cache_read_tokens": "11372",
+            "reasoning_tokens": "0",
+            "missing_pricing": false,
+            "cost_nano_usd": "3269700"
+          }
+        ],
+        "models_missing_pricing": []
+      }
+    ],
+    "diagnostics": []
+  }
+}

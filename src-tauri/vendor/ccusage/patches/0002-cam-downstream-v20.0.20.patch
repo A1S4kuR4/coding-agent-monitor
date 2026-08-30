@@ -2,71 +2,44 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
 index 99ef09b..3d9c513 100644
 --- a/rust/Cargo.lock
 +++ b/rust/Cargo.lock
-@@ -60,12 +60,6 @@ dependencies = [
-  "pkg-config",
- ]
- 
+@@ -63,6 +62,0 @@ dependencies = [
 -[[package]]
 -name = "base64"
 -version = "0.23.1"
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 -
- [[package]]
- name = "bitflags"
- version = "1.3.2"
-@@ -88,12 +82,6 @@ dependencies = [
-  "serde_core",
- ]
- 
+@@ -91,6 +84,0 @@ dependencies = [
 -[[package]]
 -name = "bytes"
 -version = "1.12.1"
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 -
- [[package]]
- name = "castaway"
- version = "0.2.4"
-@@ -116,11 +104,11 @@ dependencies = [
- ]
- 
- [[package]]
+@@ -119 +107 @@ dependencies = [
 -name = "ccusage"
 +name = "ccusage-adapter-all"
- version = "0.0.0"
- dependencies = [
+@@ -122 +109,0 @@ dependencies = [
 - "ccusage-adapter-all",
-  "ccusage-adapter-amp",
+@@ -123,0 +111 @@ dependencies = [
 + "ccusage-adapter-antigravity",
-  "ccusage-adapter-claude",
-  "ccusage-adapter-codebuff",
-  "ccusage-adapter-codex",
-@@ -138,55 +126,37 @@ dependencies = [
-  "ccusage-adapter-pi",
-  "ccusage-adapter-qwen",
-  "ccusage-cli",
+@@ -141,2 +128,0 @@ dependencies = [
 - "ccusage-cli-parser",
 - "ccusage-config",
-  "ccusage-core",
-  "ccusage-test-support",
+@@ -145 +131 @@ dependencies = [
 - "mimalloc",
 + "insta",
-  "serde",
-  "serde_json",
+@@ -148 +133,0 @@ dependencies = [
 - "ureq",
- ]
- 
- [[package]]
+@@ -152 +137 @@ dependencies = [
 -name = "ccusage-adapter-all"
 +name = "ccusage-adapter-amp"
- version = "0.0.0"
- dependencies = [
+@@ -155,4 +139,0 @@ dependencies = [
 - "ccusage-adapter-amp",
 - "ccusage-adapter-claude",
 - "ccusage-adapter-codebuff",
 - "ccusage-adapter-codex",
-  "ccusage-adapter-common",
+@@ -160,13 +140,0 @@ dependencies = [
 - "ccusage-adapter-copilot",
 - "ccusage-adapter-droid",
 - "ccusage-adapter-gemini",
@@ -80,34 +53,17 @@ index 99ef09b..3d9c513 100644
 - "ccusage-adapter-pi",
 - "ccusage-adapter-qwen",
 - "ccusage-cli",
-  "ccusage-core",
-  "ccusage-test-support",
+@@ -175 +143 @@ dependencies = [
 - "insta",
 + "jiff",
-  "serde",
-  "serde_json",
- ]
- 
- [[package]]
+@@ -181 +149 @@ dependencies = [
 -name = "ccusage-adapter-amp"
 +name = "ccusage-adapter-antigravity"
- version = "0.0.0"
- dependencies = [
-  "ccusage-adapter-common",
+@@ -184,0 +153 @@ dependencies = [
 + "ccusage-cli",
-  "ccusage-core",
-  "ccusage-test-support",
-  "jiff",
-  "serde",
-  "serde_json",
+@@ -189,0 +159 @@ dependencies = [
 + "sqlite",
- ]
- 
- [[package]]
-@@ -392,31 +362,6 @@ dependencies = [
- name = "ccusage-cli"
- version = "0.0.0"
- 
+@@ -395,25 +364,0 @@ version = "0.0.0"
 -[[package]]
 -name = "ccusage-cli-parser"
 -version = "0.0.0"
@@ -133,26 +89,14 @@ index 99ef09b..3d9c513 100644
 - "serde_json",
 -]
 -
- [[package]]
- name = "ccusage-core"
- version = "0.0.0"
-@@ -558,12 +503,6 @@ version = "1.0.5"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
- 
+@@ -561,6 +505,0 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 -[[package]]
 -name = "dyn-clone"
 -version = "1.0.20"
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 -
- [[package]]
- name = "encode_unicode"
- version = "1.0.0"
-@@ -644,22 +583,6 @@ dependencies = [
-  "walkdir",
- ]
- 
+@@ -647,16 +585,0 @@ dependencies = [
 -[[package]]
 -name = "http"
 -version = "1.4.2"
@@ -169,13 +113,7 @@ index 99ef09b..3d9c513 100644
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 -
- [[package]]
- name = "ignore"
- version = "0.4.30"
-@@ -764,15 +687,6 @@ version = "0.2.186"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
- 
+@@ -767,9 +689,0 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 -[[package]]
 -name = "libmimalloc-sys"
 -version = "0.1.49"
@@ -185,13 +123,7 @@ index 99ef09b..3d9c513 100644
 - "cc",
 -]
 -
- [[package]]
- name = "linux-raw-sys"
- version = "0.12.1"
-@@ -791,15 +705,6 @@ version = "2.8.3"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
- 
+@@ -794,9 +707,0 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 -[[package]]
 -name = "mimalloc"
 -version = "0.1.52"
@@ -201,34 +133,16 @@ index 99ef09b..3d9c513 100644
 - "libmimalloc-sys",
 -]
 -
- [[package]]
- name = "miniz_oxide"
- version = "0.8.9"
-@@ -826,12 +731,6 @@ version = "1.21.4"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
- 
+@@ -829,6 +733,0 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 -[[package]]
 -name = "percent-encoding"
 -version = "2.3.2"
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 -
- [[package]]
- name = "pkg-config"
- version = "0.3.33"
-@@ -963,7 +862,6 @@ dependencies = [
-  "aws-lc-rs",
-  "log",
-  "once_cell",
+@@ -966 +864,0 @@ dependencies = [
 - "ring",
-  "rustls-pki-types",
-  "rustls-webpki",
-  "subtle",
-@@ -1006,30 +904,6 @@ dependencies = [
-  "winapi-util",
- ]
- 
+@@ -1009,24 +906,0 @@ dependencies = [
 -[[package]]
 -name = "schemars"
 -version = "0.8.22"
@@ -253,13 +167,7 @@ index 99ef09b..3d9c513 100644
 - "syn 2.0.119",
 -]
 -
- [[package]]
- name = "serde"
- version = "1.0.229"
-@@ -1060,17 +934,6 @@ dependencies = [
-  "syn 3.0.2",
- ]
- 
+@@ -1063,11 +936,0 @@ dependencies = [
 -[[package]]
 -name = "serde_derive_internals"
 -version = "0.29.1"
@@ -271,13 +179,7 @@ index 99ef09b..3d9c513 100644
 - "syn 2.0.119",
 -]
 -
- [[package]]
- name = "serde_json"
- version = "1.0.151"
-@@ -1231,40 +1094,6 @@ version = "0.9.0"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
- 
+@@ -1234,34 +1096,0 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 -[[package]]
 -name = "ureq"
 -version = "3.4.0"
@@ -312,81 +214,42 @@ index 99ef09b..3d9c513 100644
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
 -
- [[package]]
- name = "walkdir"
- version = "2.5.0"
 diff --git a/rust/Cargo.toml b/rust/Cargo.toml
 index 95ce1ac..94ca4fa 100644
 --- a/rust/Cargo.toml
 +++ b/rust/Cargo.toml
-@@ -18,6 +18,7 @@ publish = false
- [workspace.dependencies]
- ccusage-adapter-all = { path = "crates/ccusage-adapter-all" }
- ccusage-adapter-amp = { path = "adapters/amp" }
+@@ -20,0 +21 @@ ccusage-adapter-amp = { path = "adapters/amp" }
 +ccusage-adapter-antigravity = { path = "adapters/antigravity" }
- ccusage-adapter-claude = { path = "adapters/claude" }
- ccusage-adapter-codebuff = { path = "adapters/codebuff" }
- ccusage-adapter-codex = { path = "adapters/codex" }
-@@ -35,8 +36,6 @@ ccusage-adapter-opencode = { path = "adapters/opencode" }
- ccusage-adapter-pi = { path = "adapters/pi" }
- ccusage-adapter-qwen = { path = "adapters/qwen" }
- ccusage-cli = { path = "crates/ccusage-cli" }
+@@ -38,2 +38,0 @@ ccusage-cli = { path = "crates/ccusage-cli" }
 -ccusage-cli-parser = { path = "crates/ccusage-cli-parser" }
 -ccusage-config = { path = "crates/ccusage-config" }
- ccusage-core = { path = "crates/ccusage-core" }
- ccusage-terminal = { path = "crates/ccusage-terminal" }
- ccusage-test-support = { path = "crates/ccusage-test-support" }
-@@ -53,17 +52,14 @@ memchr = "2.8.3"
- # Inflate-only consumer of the deflated pricing snapshots build.rs embeds; the
- # compression side is a build-dependency of ccusage-core.
- miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+@@ -56 +54,0 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["with-all
 -mimalloc = "0.1.52"
- minreq = { version = "3.0.0", default-features = false, features = ["https-rustls"] }
- rustc-hash = "2.1.3"
+@@ -59 +56,0 @@ rustc-hash = "2.1.3"
 -schemars = "0.8"
- serde = { version = "1.0.229", features = ["derive"] }
- serde_json = "1.0.151"
- smallvec = "1.15.2"
- sqlite = { version = "0.37.0", default-features = false, features = ["bundled", "linkage"] }
- terminal_size = "0.4.4"
- unicode-width = "0.2.2"
+@@ -66 +62,0 @@ unicode-width = "0.2.2"
 -ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
- 
- [profile.release]
- codegen-units = 1
 diff --git a/rust/adapters/amp/src/loader.rs b/rust/adapters/amp/src/loader.rs
 index 31cdf8e..861395f 100644
 --- a/rust/adapters/amp/src/loader.rs
 +++ b/rust/adapters/amp/src/loader.rs
-@@ -25,6 +25,12 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
-                         shared,
-                         format!("Failed to read Amp thread file {}: {error}", file.display()),
-                     );
+@@ -27,0 +28,6 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "amp",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
 +            file: None,
 +            details: format!("Failed to read Amp thread file {}: {error}", file.display()).to_string(),
 +        });
-                     Vec::new()
-                 },
-             )
 diff --git a/rust/adapters/amp/src/paths.rs b/rust/adapters/amp/src/paths.rs
 index 4e621e7..0302ccc 100644
 --- a/rust/adapters/amp/src/paths.rs
 +++ b/rust/adapters/amp/src/paths.rs
-@@ -5,6 +5,11 @@ use crate::Result;
- const AMP_DATA_DIR_ENV: &str = "AMP_DATA_DIR";
- 
- pub(super) fn paths() -> Result<Vec<PathBuf>> {
+@@ -7,0 +8,5 @@ pub(super) fn paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("amp") {
 +        return Ok(roots);
 +    }
 +
-     let mut paths = Vec::new();
-     let mut seen = HashSet::new();
-     if let Ok(env_paths) = env::var(AMP_DATA_DIR_ENV) {
 diff --git a/rust/adapters/antigravity/Cargo.toml b/rust/adapters/antigravity/Cargo.toml
 new file mode 100644
 index 0000000..d07301a
@@ -2034,10 +1897,7 @@ diff --git a/rust/adapters/claude/src/daily.rs b/rust/adapters/claude/src/daily.
 index d7d75af..c7fcbee 100644
 --- a/rust/adapters/claude/src/daily.rs
 +++ b/rust/adapters/claude/src/daily.rs
-@@ -259,13 +259,34 @@ fn read_daily_usage_file(
-             continue;
-         }
-         if has_unsupported_null_field(line) {
+@@ -261,0 +262,7 @@ fn read_daily_usage_file(
 +            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
 +            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +                agent: "claude",
@@ -2045,9 +1905,7 @@ index d7d75af..c7fcbee 100644
 +                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
 +                details: "record uses unsupported null fields; skipped".to_string(),
 +            });
-             continue;
-         }
-         let Ok(data) = serde_json::from_slice::<DailyUsageLine>(line) else {
+@@ -264,0 +272,7 @@ fn read_daily_usage_file(
 +            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
 +            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +                agent: "claude",
@@ -2055,10 +1913,7 @@ index d7d75af..c7fcbee 100644
 +                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
 +                details: "record is not valid JSON; skipped".to_string(),
 +            });
-             continue;
-         };
-         let data = data.into_entry();
-         let Some(timestamp) = parse_ts_timestamp(&data.timestamp) else {
+@@ -268,0 +283,7 @@ fn read_daily_usage_file(
 +            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
 +            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +                agent: "claude",
@@ -2066,17 +1921,11 @@ index d7d75af..c7fcbee 100644
 +                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
 +                details: "record timestamp is unparseable; skipped".to_string(),
 +            });
-             continue;
-         };
-         loaded_file.timestamp = Some(
 diff --git a/rust/adapters/claude/src/lib.rs b/rust/adapters/claude/src/lib.rs
 index f804275..8e07bfc 100644
 --- a/rust/adapters/claude/src/lib.rs
 +++ b/rust/adapters/claude/src/lib.rs
-@@ -256,16 +256,44 @@ fn read_usage_file(
-             continue;
-         }
-         if has_unsupported_null_field(line) {
+@@ -258,0 +259,7 @@ fn read_usage_file(
 +            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
 +            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +                agent: "claude",
@@ -2084,9 +1933,7 @@ index f804275..8e07bfc 100644
 +                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
 +                details: "record uses unsupported null fields; skipped".to_string(),
 +            });
-             continue;
-         }
-         let Ok(data) = serde_json::from_slice::<UsageEntry>(line) else {
+@@ -261,0 +269,7 @@ fn read_usage_file(
 +            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
 +            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +                agent: "claude",
@@ -2094,9 +1941,7 @@ index f804275..8e07bfc 100644
 +                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
 +                details: "record is not valid JSON; skipped".to_string(),
 +            });
-             continue;
-         };
-         let Some(timestamp) = parse_ts_timestamp(&data.timestamp) else {
+@@ -264,0 +279,7 @@ fn read_usage_file(
 +            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
 +            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +                agent: "claude",
@@ -2104,10 +1949,7 @@ index f804275..8e07bfc 100644
 +                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
 +                details: "record timestamp is unparseable; skipped".to_string(),
 +            });
-             continue;
-         };
-         update_loaded_file_timestamp(&mut loaded_file, timestamp);
-         if !is_valid_usage_entry(&data) {
+@@ -268,0 +290,7 @@ fn read_usage_file(
 +            // Downstream (Coding Agent Monitor) 0002 patch: surface the skip.
 +            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +                agent: "claude",
@@ -2115,38 +1957,24 @@ index f804275..8e07bfc 100644
 +                file: Some(path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
 +                details: "record failed usage-entry validation; skipped".to_string(),
 +            });
-             continue;
-         }
-         let date = format_date_tz(timestamp, tz);
 diff --git a/rust/adapters/claude/src/paths.rs b/rust/adapters/claude/src/paths.rs
 index a7832cf..812ceb5 100644
 --- a/rust/adapters/claude/src/paths.rs
 +++ b/rust/adapters/claude/src/paths.rs
-@@ -7,9 +7,15 @@ use memchr::memmem;
- 
- use crate::{Result, cli_error, fast::FxHashSet, home, path_utils::expand_home_path};
- use crate::{TimestampMs, parse_ts_timestamp};
+@@ -9,0 +10 @@ use crate::{TimestampMs, parse_ts_timestamp};
 +use crate::load_context::{raise_failure, LoadFailure, LoadFailureKind};
- use ccusage_adapter_common::collect_usage_files;
- 
- pub fn claude_paths() -> Result<Vec<PathBuf>> {
+@@ -12,0 +14,5 @@ pub fn claude_paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for
 +    // this load short-circuit environment/default resolution entirely.
 +    if let Some(roots) = crate::load_context::root_override("claude") {
 +        return Ok(roots);
 +    }
-     let mut paths = Vec::new();
-     let mut seen = FxHashSet::default();
-     if let Ok(env_paths) = env::var("CLAUDE_CONFIG_DIR") {
-@@ -26,12 +32,25 @@ pub fn claude_paths() -> Result<Vec<PathBuf>> {
-         if !paths.is_empty() {
-             return Ok(paths);
-         }
+@@ -29 +35,3 @@ pub fn claude_paths() -> Result<Vec<PathBuf>> {
 -        return Err(cli_error(format!(
 +        // Downstream (Coding Agent Monitor) 0002 patch: structured failure so
 +        // in-process collectors classify without matching the message text.
 +        let details = format!(
-             "No valid Claude data directories found in CLAUDE_CONFIG_DIR. Expected each path to be a Claude config directory containing 'projects/', or the 'projects/' directory itself: {env_paths}"
+@@ -31 +39,6 @@ pub fn claude_paths() -> Result<Vec<PathBuf>> {
 -        )));
 +        );
 +        raise_failure(LoadFailure {
@@ -2154,8 +1982,7 @@ index a7832cf..812ceb5 100644
 +            details: details.clone(),
 +        });
 +        return Err(cli_error(details));
-     }
- 
+@@ -34 +47,7 @@ pub fn claude_paths() -> Result<Vec<PathBuf>> {
 -    let home = home::home_dir().ok_or_else(|| cli_error("home directory is not set"))?;
 +    let home = home::home_dir().ok_or_else(|| {
 +        raise_failure(LoadFailure {
@@ -2164,17 +1991,11 @@ index a7832cf..812ceb5 100644
 +        });
 +        cli_error("home directory is not set")
 +    })?;
-     let xdg = env::var("XDG_CONFIG_HOME")
-         .map(PathBuf::from)
-         .unwrap_or_else(|_| PathBuf::from(&home).join(".config"));
 diff --git a/rust/adapters/codebuff/src/loader.rs b/rust/adapters/codebuff/src/loader.rs
 index 558a64f..fdb6d96 100644
 --- a/rust/adapters/codebuff/src/loader.rs
 +++ b/rust/adapters/codebuff/src/loader.rs
-@@ -35,6 +35,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
-                     file.display()
-                 ),
-             );
+@@ -37,0 +38,9 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "codebuff",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
@@ -2184,49 +2005,31 @@ index 558a64f..fdb6d96 100644
 +                    file.display()
 +                ).to_string(),
 +        });
-             Vec::new()
-         })
-     });
 diff --git a/rust/adapters/codebuff/src/paths.rs b/rust/adapters/codebuff/src/paths.rs
 index 3cdd7e9..9ccbee5 100644
 --- a/rust/adapters/codebuff/src/paths.rs
 +++ b/rust/adapters/codebuff/src/paths.rs
-@@ -20,6 +20,11 @@ pub(super) fn discover_chat_files() -> Result<Vec<PathBuf>> {
- }
- 
- fn codebuff_project_roots() -> Result<Vec<PathBuf>> {
+@@ -22,0 +23,5 @@ fn codebuff_project_roots() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("codebuff") {
 +        return Ok(roots);
 +    }
 +
-     let roots = if let Ok(paths) = env::var(CODEBUFF_DATA_DIR_ENV) {
-         paths
-             .split(',')
 diff --git a/rust/adapters/codex/src/paths.rs b/rust/adapters/codex/src/paths.rs
 index c188f48..c65a543 100644
 --- a/rust/adapters/codex/src/paths.rs
 +++ b/rust/adapters/codex/src/paths.rs
-@@ -102,6 +102,11 @@ fn codex_usage_file_key(source: &CodexUsageSource, file: &Path) -> (PathBuf, Pat
- }
- 
- pub(super) fn codex_home_paths() -> Result<Vec<PathBuf>> {
+@@ -104,0 +105,5 @@ pub(super) fn codex_home_paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for
 +    // this load (interpreted as CODEX_HOME-style home directories).
 +    if let Some(roots) = ccusage_core::load_context::root_override("codex") {
 +        return Ok(roots);
 +    }
-     if let Ok(env_paths) = env::var("CODEX_HOME") {
-         return Ok(env_paths
-             .split(',')
 diff --git a/rust/adapters/copilot/src/loader.rs b/rust/adapters/copilot/src/loader.rs
-index 54758a6..a2d4019 100644
+index 54758a6..0dcb94b 100644
 --- a/rust/adapters/copilot/src/loader.rs
 +++ b/rust/adapters/copilot/src/loader.rs
-@@ -40,6 +40,15 @@ fn load_entries_inner(
-                     path.display()
-                 ),
-             );
+@@ -42,0 +43,9 @@ fn load_entries_inner(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "copilot",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
@@ -2236,45 +2039,28 @@ index 54758a6..a2d4019 100644
 +                    path.display()
 +                ).to_string(),
 +        });
-             Vec::new()
-         })
-     });
-@@ -277,7 +286,10 @@ mod tests {
-                 "outputTokens": 50,
-                 "cacheCreationTokens": 20,
-                 "cacheReadTokens": 10,
+@@ -280 +289,5 @@ mod tests {
 -                "cost": 300.0
 +                "cost": 300.0,
 +                // Downstream (Coding Agent Monitor) 0002 patch: missingPricing
-+                // is now serialized on model breakdowns.
-+                "missingPricing": false
-             }])
-         );
-     }
++                // and reasoningTokens are now serialized on model breakdowns.
++                "missingPricing": false,
++                "reasoningTokens": 5
 diff --git a/rust/adapters/copilot/src/paths.rs b/rust/adapters/copilot/src/paths.rs
 index c1dcc1e..854af62 100644
 --- a/rust/adapters/copilot/src/paths.rs
 +++ b/rust/adapters/copilot/src/paths.rs
-@@ -5,6 +5,11 @@ use crate::{Result, collect_files_with_extension};
- pub const COPILOT_OTEL_FILE_EXPORTER_PATH_ENV: &str = "COPILOT_OTEL_FILE_EXPORTER_PATH";
- 
- pub(super) fn paths() -> Result<Vec<PathBuf>> {
+@@ -7,0 +8,5 @@ pub(super) fn paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("copilot") {
 +        return Ok(roots);
 +    }
 +
-     let mut files = Vec::new();
-     let mut seen = HashSet::new();
-     if let Some(home) = crate::home::home_dir() {
 diff --git a/rust/adapters/droid/src/loader.rs b/rust/adapters/droid/src/loader.rs
 index 285f5f2..6e4376f 100644
 --- a/rust/adapters/droid/src/loader.rs
 +++ b/rust/adapters/droid/src/loader.rs
-@@ -35,6 +35,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
-                     file.display()
-                 ),
-             );
+@@ -37,0 +38,9 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "droid",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
@@ -2284,66 +2070,42 @@ index 285f5f2..6e4376f 100644
 +                    file.display()
 +                ).to_string(),
 +        });
-             None
-         })
-     });
 diff --git a/rust/adapters/droid/src/paths.rs b/rust/adapters/droid/src/paths.rs
 index b2994f0..39934c4 100644
 --- a/rust/adapters/droid/src/paths.rs
 +++ b/rust/adapters/droid/src/paths.rs
-@@ -20,6 +20,11 @@ pub(super) fn discover_settings_files() -> Result<Vec<PathBuf>> {
- }
- 
- fn droid_session_paths() -> Result<Vec<PathBuf>> {
+@@ -22,0 +23,5 @@ fn droid_session_paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("droid") {
 +        return Ok(roots);
 +    }
 +
-     let raw_paths = if let Ok(paths) = env::var(DROID_SESSIONS_DIR_ENV) {
-         paths
-             .split(',')
 diff --git a/rust/adapters/gemini/src/loader.rs b/rust/adapters/gemini/src/loader.rs
 index 6a6b299..ca1c022 100644
 --- a/rust/adapters/gemini/src/loader.rs
 +++ b/rust/adapters/gemini/src/loader.rs
-@@ -31,6 +31,12 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
-                 shared,
-                 format!("Failed to read Gemini log file {}: {error}", file.display()),
-             );
+@@ -33,0 +34,6 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "gemini",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
 +            file: None,
 +            details: format!("Failed to read Gemini log file {}: {error}", file.display()).to_string(),
 +        });
-             Vec::new()
-         })
-     });
 diff --git a/rust/adapters/gemini/src/paths.rs b/rust/adapters/gemini/src/paths.rs
 index 44538db..ea618f6 100644
 --- a/rust/adapters/gemini/src/paths.rs
 +++ b/rust/adapters/gemini/src/paths.rs
-@@ -5,6 +5,11 @@ use crate::{Result, collect_files_with_extension};
- pub(super) const GEMINI_DATA_DIR_ENV: &str = "GEMINI_DATA_DIR";
- 
- fn paths() -> Result<Vec<PathBuf>> {
+@@ -7,0 +8,5 @@ fn paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("gemini") {
 +        return Ok(roots);
 +    }
 +
-     let mut paths = Vec::new();
-     let mut seen = HashSet::new();
-     if let Ok(env_paths) = env::var(GEMINI_DATA_DIR_ENV) {
 diff --git a/rust/adapters/goose/src/loader.rs b/rust/adapters/goose/src/loader.rs
 index 4efd9e4..c609f59 100644
 --- a/rust/adapters/goose/src/loader.rs
 +++ b/rust/adapters/goose/src/loader.rs
-@@ -48,6 +48,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
-                     db_path.display()
-                 ),
-             );
+@@ -50,0 +51,9 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "goose",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
@@ -2353,72 +2115,42 @@ index 4efd9e4..c609f59 100644
 +                    db_path.display()
 +                ).to_string(),
 +        });
-             Vec::new()
-         })
-     });
-@@ -78,6 +87,12 @@ fn load_entries_from_db(
-             shared,
-             format!("Failed to open Goose database: {}", db_path.display()),
-         );
+@@ -80,0 +90,6 @@ fn load_entries_from_db(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "goose",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to open Goose database: {}", db_path.display()).to_string(),
 +        });
-         return Ok(Vec::new());
-     };
-     let Ok(mut statement) = connection.prepare(GOOSE_SESSION_QUERY) else {
-@@ -85,6 +100,12 @@ fn load_entries_from_db(
-             shared,
-             format!("Failed to read Goose database: {}", db_path.display()),
-         );
+@@ -87,0 +103,6 @@ fn load_entries_from_db(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "goose",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to read Goose database: {}", db_path.display()).to_string(),
 +        });
-         return Ok(Vec::new());
-     };
- 
-@@ -102,6 +123,12 @@ fn load_entries_from_db(
-                     shared,
-                     format!("Failed to query Goose database: {}", db_path.display()),
-                 );
+@@ -104,0 +126,6 @@ fn load_entries_from_db(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "goose",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to query Goose database: {}", db_path.display()).to_string(),
 +        });
-                 break;
-             }
-         }
 diff --git a/rust/adapters/goose/src/paths.rs b/rust/adapters/goose/src/paths.rs
 index df107a6..4effaf3 100644
 --- a/rust/adapters/goose/src/paths.rs
 +++ b/rust/adapters/goose/src/paths.rs
-@@ -6,6 +6,11 @@ const GOOSE_PATH_ROOT_ENV: &str = "GOOSE_PATH_ROOT";
- pub(super) const GOOSE_DB_FILE_NAME: &str = "sessions.db";
- 
- pub(super) fn goose_db_paths() -> Result<Vec<PathBuf>> {
+@@ -8,0 +9,5 @@ pub(super) fn goose_db_paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("goose") {
 +        return Ok(roots);
 +    }
 +
-     let candidates = if let Ok(root) = env::var(GOOSE_PATH_ROOT_ENV) {
-         let root = root.trim();
-         if root.is_empty() {
 diff --git a/rust/adapters/grok/src/loader.rs b/rust/adapters/grok/src/loader.rs
 index 194dda0..0769aab 100644
 --- a/rust/adapters/grok/src/loader.rs
 +++ b/rust/adapters/grok/src/loader.rs
-@@ -38,6 +38,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
-                     session.updates.display()
-                 ),
-             );
+@@ -40,0 +41,9 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "grok",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
@@ -2428,33 +2160,23 @@ index 194dda0..0769aab 100644
 +                    session.updates.display()
 +                ).to_string(),
 +        });
-             Vec::new()
-         })
-     });
 diff --git a/rust/adapters/grok/src/paths.rs b/rust/adapters/grok/src/paths.rs
-index 42dec87..145f85b 100644
+index 42dec87..bc6bc96 100644
 --- a/rust/adapters/grok/src/paths.rs
 +++ b/rust/adapters/grok/src/paths.rs
-@@ -16,6 +16,11 @@ pub(super) struct GrokSessionFiles {
- 
- /// Resolve the Grok data root from `GROK_HOME`, then `~/.grok`.
- fn resolve_root() -> Option<PathBuf> {
-+    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
+@@ -18,0 +19,7 @@ fn resolve_root() -> Option<PathBuf> {
++    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for
++    // this load. An empty override list must never panic — fall through to
++    // the normal resolution so a bad override fails safely instead.
 +    if let Some(roots) = ccusage_core::load_context::root_override("grok") {
-+        return Some(roots[0].clone());
++        return roots.into_iter().next();
 +    }
 +
-     if let Ok(home) = env::var(GROK_HOME_ENV)
-         && !home.trim().is_empty()
-     {
 diff --git a/rust/adapters/hermes/src/loader.rs b/rust/adapters/hermes/src/loader.rs
 index 9c3c5d7..0f3a777 100644
 --- a/rust/adapters/hermes/src/loader.rs
 +++ b/rust/adapters/hermes/src/loader.rs
-@@ -49,6 +49,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
-                 db_path.display()
-             ),
-         );
+@@ -51,0 +52,9 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "hermes",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
@@ -2464,13 +2186,7 @@ index 9c3c5d7..0f3a777 100644
 +                db_path.display()
 +            ).to_string(),
 +        });
-         return Vec::new();
-     };
-     let Ok(mut statement) = connection.prepare(
-@@ -78,6 +87,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
-                 db_path.display()
-             ),
-         );
+@@ -80,0 +90,9 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "hermes",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
@@ -2480,13 +2196,7 @@ index 9c3c5d7..0f3a777 100644
 +                db_path.display()
 +            ).to_string(),
 +        });
-         return Vec::new();
-     };
-     let mut entries = Vec::new();
-@@ -97,6 +115,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
-                         db_path.display()
-                     ),
-                 );
+@@ -99,0 +118,9 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "hermes",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
@@ -2496,125 +2206,77 @@ index 9c3c5d7..0f3a777 100644
 +                        db_path.display()
 +                    ).to_string(),
 +        });
-                 break;
-             }
-         }
 diff --git a/rust/adapters/hermes/src/paths.rs b/rust/adapters/hermes/src/paths.rs
 index 9682366..6fbe850 100644
 --- a/rust/adapters/hermes/src/paths.rs
 +++ b/rust/adapters/hermes/src/paths.rs
-@@ -5,6 +5,11 @@ use crate::Result;
- const HERMES_HOME_ENV: &str = "HERMES_HOME";
- 
- pub(super) fn hermes_state_db_paths() -> Result<Vec<PathBuf>> {
+@@ -7,0 +8,5 @@ pub(super) fn hermes_state_db_paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("hermes") {
 +        return Ok(roots);
 +    }
 +
-     let homes = if let Ok(paths) = env::var(HERMES_HOME_ENV) {
-         paths
-             .split(',')
 diff --git a/rust/adapters/kilo/src/loader.rs b/rust/adapters/kilo/src/loader.rs
 index 734dcf4..bac430b 100644
 --- a/rust/adapters/kilo/src/loader.rs
 +++ b/rust/adapters/kilo/src/loader.rs
-@@ -55,6 +55,12 @@ fn load_entries_from_database(
-             shared,
-             format!("Failed to open Kilo database: {}", db_path.display()),
-         );
+@@ -57,0 +58,6 @@ fn load_entries_from_database(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "kilo",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to open Kilo database: {}", db_path.display()).to_string(),
 +        });
-         return Vec::new();
-     };
-     let Ok(mut statement) = connection.prepare("SELECT id, session_id, data FROM message") else {
-@@ -62,6 +68,12 @@ fn load_entries_from_database(
-             shared,
-             format!("Failed to read Kilo database: {}", db_path.display()),
-         );
+@@ -64,0 +71,6 @@ fn load_entries_from_database(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "kilo",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to read Kilo database: {}", db_path.display()).to_string(),
 +        });
-         return Vec::new();
-     };
-     let mut entries = Vec::new();
-@@ -98,6 +110,12 @@ fn load_entries_from_database(
-                     shared,
-                     format!("Failed to query Kilo database: {}", db_path.display()),
-                 );
+@@ -100,0 +113,6 @@ fn load_entries_from_database(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "kilo",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to query Kilo database: {}", db_path.display()).to_string(),
 +        });
-                 break;
-             }
-         }
 diff --git a/rust/adapters/kilo/src/paths.rs b/rust/adapters/kilo/src/paths.rs
 index 1553ce6..df9ae81 100644
 --- a/rust/adapters/kilo/src/paths.rs
 +++ b/rust/adapters/kilo/src/paths.rs
-@@ -10,6 +10,11 @@ pub(super) const KILO_DATA_DIR_ENV: &str = "KILO_DATA_DIR";
- pub(super) const KILO_DB_FILE_NAME: &str = "kilo.db";
- 
- pub(super) fn paths() -> Result<Vec<PathBuf>> {
+@@ -12,0 +13,5 @@ pub(super) fn paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("kilo") {
 +        return Ok(roots);
 +    }
 +
-     let mut paths = Vec::new();
-     let mut seen = HashSet::new();
-     if let Ok(env_paths) = env::var(KILO_DATA_DIR_ENV) {
 diff --git a/rust/adapters/kimi/src/loader.rs b/rust/adapters/kimi/src/loader.rs
 index 917d92a..c4a735f 100644
 --- a/rust/adapters/kimi/src/loader.rs
 +++ b/rust/adapters/kimi/src/loader.rs
-@@ -27,6 +27,12 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
-                 shared,
-                 format!("Failed to read Kimi wire file {}: {error}", file.display()),
-             );
+@@ -29,0 +30,6 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "kimi",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
 +            file: None,
 +            details: format!("Failed to read Kimi wire file {}: {error}", file.display()).to_string(),
 +        });
-             Vec::new()
-         })
-     });
 diff --git a/rust/adapters/kimi/src/paths.rs b/rust/adapters/kimi/src/paths.rs
 index 2af16ac..54cafae 100644
 --- a/rust/adapters/kimi/src/paths.rs
 +++ b/rust/adapters/kimi/src/paths.rs
-@@ -11,6 +11,11 @@ const KIMI_SESSIONS_DIR_NAME: &str = "sessions";
- const KIMI_WIRE_FILE_NAME: &str = "wire.jsonl";
- 
- fn paths() -> Result<Vec<PathBuf>> {
+@@ -13,0 +14,5 @@ fn paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("kimi") {
 +        return Ok(roots);
 +    }
 +
-     let mut paths = Vec::new();
-     let mut seen = HashSet::new();
-     if let Ok(env_paths) = env::var(KIMI_DATA_DIR_ENV) {
 diff --git a/rust/adapters/openclaw/src/loader.rs b/rust/adapters/openclaw/src/loader.rs
 index dd39a42..89067f6 100644
 --- a/rust/adapters/openclaw/src/loader.rs
 +++ b/rust/adapters/openclaw/src/loader.rs
-@@ -43,6 +43,15 @@ fn load_entries_inner(
-                         file.display()
-                     ),
-                 );
+@@ -45,0 +46,9 @@ fn load_entries_inner(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "openclaw",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
@@ -2624,46 +2286,28 @@ index dd39a42..89067f6 100644
 +                        file.display()
 +                    ).to_string(),
 +        });
-                 Vec::new()
-             })
-         });
 diff --git a/rust/adapters/openclaw/src/paths.rs b/rust/adapters/openclaw/src/paths.rs
 index 79f0229..caddbd9 100644
 --- a/rust/adapters/openclaw/src/paths.rs
 +++ b/rust/adapters/openclaw/src/paths.rs
-@@ -9,6 +9,11 @@ use crate::Result;
- const OPENCLAW_DIR_ENV: &str = "OPENCLAW_DIR";
- 
- pub(super) fn paths(custom_path: Option<&str>) -> Vec<PathBuf> {
+@@ -11,0 +12,5 @@ pub(super) fn paths(custom_path: Option<&str>) -> Vec<PathBuf> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("openclaw") {
 +        return roots;
 +    }
 +
-     if let Some(custom_path) = custom_path.filter(|path| !path.trim().is_empty()) {
-         return existing_path_list(custom_path);
-     }
 diff --git a/rust/adapters/opencode/src/loader.rs b/rust/adapters/opencode/src/loader.rs
 index 5dd1640..081e7ad 100644
 --- a/rust/adapters/opencode/src/loader.rs
 +++ b/rust/adapters/opencode/src/loader.rs
-@@ -199,6 +199,12 @@ fn load_entries_from_database(
-             shared,
-             format!("Failed to open OpenCode database: {}", db_path.display()),
-         );
+@@ -201,0 +202,6 @@ fn load_entries_from_database(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "opencode",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to open OpenCode database: {}", db_path.display()).to_string(),
 +        });
-         return Vec::new();
-     };
-     // Push the window into SQL only while a sample of `time_created` still looks
-@@ -226,6 +232,15 @@ fn load_entries_from_database(
-                 db_path.display()
-             ),
-         );
+@@ -228,0 +235,9 @@ fn load_entries_from_database(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "opencode",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
@@ -2673,39 +2317,21 @@ index 5dd1640..081e7ad 100644
 +                db_path.display()
 +            ).to_string(),
 +        });
-         prepare_message_query(&connection, DateWindow::UNBOUNDED)
-     });
-     let Some(mut statement) = statement else {
-@@ -233,6 +248,12 @@ fn load_entries_from_database(
-             shared,
-             format!("Failed to read OpenCode database: {}", db_path.display()),
-         );
+@@ -235,0 +251,6 @@ fn load_entries_from_database(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "opencode",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to read OpenCode database: {}", db_path.display()).to_string(),
 +        });
-         return Vec::new();
-     };
-     let mut entries = Vec::new();
-@@ -269,6 +290,12 @@ fn load_entries_from_database(
-                     shared,
-                     format!("Failed to query OpenCode database: {}", db_path.display()),
-                 );
+@@ -271,0 +293,6 @@ fn load_entries_from_database(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "opencode",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to query OpenCode database: {}", db_path.display()).to_string(),
 +        });
-                 break;
-             }
-         }
-@@ -294,6 +321,15 @@ fn read_message_file(
-                     path.display()
-                 ),
-             );
+@@ -296,0 +324,9 @@ fn read_message_file(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "opencode",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
@@ -2715,92 +2341,71 @@ index 5dd1640..081e7ad 100644
 +                    path.display()
 +                ).to_string(),
 +        });
-             return None;
-         }
-     };
 diff --git a/rust/adapters/opencode/src/paths.rs b/rust/adapters/opencode/src/paths.rs
 index b5a263b..e9b4b85 100644
 --- a/rust/adapters/opencode/src/paths.rs
 +++ b/rust/adapters/opencode/src/paths.rs
-@@ -3,6 +3,11 @@ use std::{collections::HashSet, env, path::PathBuf};
- use crate::Result;
- 
- pub(super) fn paths() -> Result<Vec<PathBuf>> {
+@@ -5,0 +6,5 @@ pub(super) fn paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("opencode") {
 +        return Ok(roots);
 +    }
 +
-     let mut paths = Vec::new();
-     let mut seen = HashSet::new();
-     if let Ok(env_paths) = env::var("OPENCODE_DATA_DIR") {
+diff --git a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__parser__tests__snapshots_message_to_entry_variants_and_model_candidates.snap b/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__parser__tests__snapshots_message_to_entry_variants_and_model_candidates.snap
+index bb59c8b..2e83482 100644
+--- a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__parser__tests__snapshots_message_to_entry_variants_and_model_candidates.snap
++++ b/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__parser__tests__snapshots_message_to_entry_variants_and_model_candidates.snap
+@@ -2 +2 @@
+-source: crates/ccusage/src/adapter/opencode/parser.rs
++source: adapters/opencode/src/parser.rs
 diff --git a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap b/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap
-index 0b4c67f..12866d4 100644
+index 0b4c67f..46f9928 100644
 --- a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap
 +++ b/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__report__tests__snapshots_agent_summary_json_period_keys_and_session_metadata.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/adapter/opencode/report.rs
 +source: adapters/opencode/src/report.rs
- expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, AgentReportKind::Daily, false),\n    \"weekly\": agent_summary_json(&weekly, AgentReportKind::Weekly, false),\n    \"monthly\": agent_summary_json(&monthly, AgentReportKind::Monthly, false),\n    \"session\": agent_summary_json(&session, AgentReportKind::Session, true),\n    \"dailyReport\":\n    report_from_rows(std::slice::from_ref(&daily), AgentReportKind::Daily),\n    \"sessionReport\": report_from_rows(&[session], AgentReportKind::Session),\n})"
- ---
- {
-@@ -16,6 +16,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
-         "cacheReadTokens": 5,
-         "cost": 0.25,
-         "inputTokens": 100,
+@@ -18,0 +19 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
 +        "missingPricing": false,
-         "modelName": "gpt-5.2-codex",
-         "outputTokens": 50
-       }
-@@ -43,6 +44,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
-             "cacheReadTokens": 5,
-             "cost": 0.25,
-             "inputTokens": 100,
+@@ -20 +21,2 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+-        "outputTokens": 50
++        "outputTokens": 50,
++        "reasoningTokens": 7
+@@ -45,0 +48 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
 +            "missingPricing": false,
-             "modelName": "gpt-5.2-codex",
-             "outputTokens": 50
-           }
-@@ -78,6 +80,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
-         "cacheReadTokens": 5,
-         "cost": 0.25,
-         "inputTokens": 100,
+@@ -47 +50,2 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+-            "outputTokens": 50
++            "outputTokens": 50,
++            "reasoningTokens": 7
+@@ -80,0 +85 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
 +        "missingPricing": false,
-         "modelName": "gpt-5.2-codex",
-         "outputTokens": 50
-       }
-@@ -105,6 +108,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
-         "cacheReadTokens": 5,
-         "cost": 0.25,
-         "inputTokens": 100,
+@@ -82 +87,2 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+-        "outputTokens": 50
++        "outputTokens": 50,
++        "reasoningTokens": 7
+@@ -107,0 +114 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
 +        "missingPricing": false,
-         "modelName": "gpt-5.2-codex",
-         "outputTokens": 50
-       }
-@@ -133,6 +137,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
-             "cacheReadTokens": 5,
-             "cost": 0.25,
-             "inputTokens": 100,
+@@ -109 +116,2 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+-        "outputTokens": 50
++        "outputTokens": 50,
++        "reasoningTokens": 7
+@@ -135,0 +144 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
 +            "missingPricing": false,
-             "modelName": "gpt-5.2-codex",
-             "outputTokens": 50
-           }
-@@ -169,6 +174,7 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
-         "cacheReadTokens": 5,
-         "cost": 0.25,
-         "inputTokens": 100,
+@@ -137 +146,2 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+-            "outputTokens": 50
++            "outputTokens": 50,
++            "reasoningTokens": 7
+@@ -171,0 +182 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
 +        "missingPricing": false,
-         "modelName": "gpt-5.2-codex",
-         "outputTokens": 50
-       }
+@@ -173 +184,2 @@ expression: "serde_json::json!({\n    \"daily\": agent_summary_json(&daily, Agen
+-        "outputTokens": 50
++        "outputTokens": 50,
++        "reasoningTokens": 7
 diff --git a/rust/adapters/pi/src/loader.rs b/rust/adapters/pi/src/loader.rs
 index f21e889..1149556 100644
 --- a/rust/adapters/pi/src/loader.rs
 +++ b/rust/adapters/pi/src/loader.rs
-@@ -121,6 +121,15 @@ fn load_entries_from_paths(
-                         file.display()
-                     ),
-                 );
+@@ -123,0 +124,9 @@ fn load_entries_from_paths(
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "pi",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
@@ -2810,62 +2415,39 @@ index f21e889..1149556 100644
 +                        file.display()
 +                    ).to_string(),
 +        });
-                 Vec::new()
-             })
-         });
 diff --git a/rust/adapters/pi/src/paths.rs b/rust/adapters/pi/src/paths.rs
 index 8149202..e32d71a 100644
 --- a/rust/adapters/pi/src/paths.rs
 +++ b/rust/adapters/pi/src/paths.rs
-@@ -5,6 +5,11 @@ use crate::{Result, path_utils::expand_home_path};
- const PI_AGENT_DIR_ENV: &str = "PI_AGENT_DIR";
- 
- pub fn paths(custom_path: Option<&str>) -> Result<Vec<PathBuf>> {
+@@ -7,0 +8,5 @@ pub fn paths(custom_path: Option<&str>) -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("pi") {
 +        return Ok(roots);
 +    }
 +
-     if let Some(custom_path) = custom_path.filter(|path| !path.trim().is_empty()) {
-         return Ok(existing_path_list(custom_path));
-     }
 diff --git a/rust/adapters/qwen/src/lib.rs b/rust/adapters/qwen/src/lib.rs
-index cccf5dc..c9fb8fc 100644
+index cccf5dc..904d033 100644
 --- a/rust/adapters/qwen/src/lib.rs
 +++ b/rust/adapters/qwen/src/lib.rs
-@@ -140,7 +140,10 @@ mod tests {
-                 "outputTokens": 50,
-                 "cacheCreationTokens": 0,
-                 "cacheReadTokens": 5,
+@@ -143 +143,5 @@ mod tests {
 -                "cost": 0.0
 +                "cost": 0.0,
 +                // Downstream (Coding Agent Monitor) 0002 patch: missingPricing
-+                // is now serialized on model breakdowns.
-+                "missingPricing": false
-             }])
-         );
-     }
++                // and reasoningTokens are now serialized on model breakdowns.
++                "missingPricing": false,
++                "reasoningTokens": 10
 diff --git a/rust/adapters/qwen/src/parser.rs b/rust/adapters/qwen/src/parser.rs
 index 270c67b..1ea9b2b 100644
 --- a/rust/adapters/qwen/src/parser.rs
 +++ b/rust/adapters/qwen/src/parser.rs
-@@ -78,6 +78,12 @@ pub(super) fn load_entries(shared: &SharedArgs) -> Result<Vec<LoadedEntry>> {
-                     shared,
-                     format!("Failed to read Qwen chat file {}: {error}", file.display()),
-                 );
+@@ -80,0 +81,6 @@ pub(super) fn load_entries(shared: &SharedArgs) -> Result<Vec<LoadedEntry>> {
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "qwen",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
 +            file: None,
 +            details: format!("Failed to read Qwen chat file {}: {error}", file.display()).to_string(),
 +        });
-                 Vec::new()
-             },
-         )
-@@ -267,6 +273,15 @@ fn file_timestamp(file: &Path, shared: &SharedArgs) -> TimestampMs {
-                     file.display()
-                 ),
-             );
+@@ -269,0 +276,9 @@ fn file_timestamp(file: &Path, shared: &SharedArgs) -> TimestampMs {
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "qwen",
 +            kind: ccusage_core::load_context::LoadDiagKind::CorruptFile,
@@ -2875,71 +2457,35 @@ index 270c67b..1ea9b2b 100644
 +                    file.display()
 +                ).to_string(),
 +        });
-             system_time_timestamp(SystemTime::now())
-         }
-     }
 diff --git a/rust/adapters/qwen/src/paths.rs b/rust/adapters/qwen/src/paths.rs
 index b4cab63..0f5aad5 100644
 --- a/rust/adapters/qwen/src/paths.rs
 +++ b/rust/adapters/qwen/src/paths.rs
-@@ -9,6 +9,11 @@ use crate::{Result, collect_files_with_extension};
- const QWEN_DATA_DIR_ENV: &str = "QWEN_DATA_DIR";
- 
- fn paths() -> Result<Vec<PathBuf>> {
+@@ -11,0 +12,5 @@ fn paths() -> Result<Vec<PathBuf>> {
 +    // Downstream (Coding Agent Monitor) 0002 patch: explicit data roots for this load.
 +    if let Some(roots) = ccusage_core::load_context::root_override("qwen") {
 +        return Ok(roots);
 +    }
 +
-     let candidates = if let Ok(paths) = env::var(QWEN_DATA_DIR_ENV) {
-         paths
-             .split(',')
 diff --git a/rust/crates/ccusage-adapter-all/Cargo.toml b/rust/crates/ccusage-adapter-all/Cargo.toml
 index 88aae66..c7c44c5 100644
 --- a/rust/crates/ccusage-adapter-all/Cargo.toml
 +++ b/rust/crates/ccusage-adapter-all/Cargo.toml
-@@ -6,6 +6,7 @@ publish.workspace = true
- 
- [dependencies]
- ccusage-adapter-amp.workspace = true
+@@ -8,0 +9 @@ ccusage-adapter-amp.workspace = true
 +ccusage-adapter-antigravity.workspace = true
- ccusage-adapter-claude.workspace = true
- ccusage-adapter-codebuff.workspace = true
- ccusage-adapter-codex.workspace = true
 diff --git a/rust/crates/ccusage-adapter-all/src/lib.rs b/rust/crates/ccusage-adapter-all/src/lib.rs
-index c9e42ef..df838bf 100644
+index c9e42ef..69e37b4 100644
 --- a/rust/crates/ccusage-adapter-all/src/lib.rs
 +++ b/rust/crates/ccusage-adapter-all/src/lib.rs
-@@ -2,6 +2,8 @@ mod loader;
- mod report;
- mod types;
- 
+@@ -4,0 +5,2 @@ mod types;
 +use std::path::PathBuf;
 +
- use ccusage_adapter_codex::CodexGroup;
- #[cfg(test)]
- use ccusage_adapter_codex::CodexModelUsage;
-@@ -10,6 +12,7 @@ use ccusage_core::*;
- 
- mod adapter {
-     pub use ccusage_adapter_amp as amp;
+@@ -12,0 +15 @@ mod adapter {
 +    pub use ccusage_adapter_antigravity as antigravity;
-     pub use ccusage_adapter_claude as claude;
-     pub use ccusage_adapter_codebuff as codebuff;
-     pub use ccusage_adapter_codex as codex;
-@@ -29,7 +32,7 @@ mod adapter {
- 
- use crate::{
-     Result,
+@@ -32 +35 @@ use crate::{
 -    cli::{AgentCommandArgs, AgentReportKind},
 +    cli::{AgentCommandArgs, AgentReportKind, SharedArgs},
-     print_json_or_jq, wants_json,
- };
- 
-@@ -67,6 +70,126 @@ pub fn run(args: AgentCommandArgs) -> Result<()> {
-     report::print_table(&result.rows, kind, &shared, &result.detected_agents)
- }
- 
+@@ -69,0 +73,121 @@ pub fn run(args: AgentCommandArgs) -> Result<()> {
 +/// Downstream (Coding Agent Monitor) collector entry point: loads the unified
 +/// daily report rows in-process and returns the same JSON report shape that
 +/// `ccusage daily --json --by-agent` prints - without going through the CLI
@@ -2988,8 +2534,9 @@ index c9e42ef..df838bf 100644
 +/// `root_override` installs explicit data roots for this one load; when
 +/// `Some`, the agent's path resolver uses them instead of reading the process
 +/// environment or default home directories. When `None`, the vendor resolves
-+/// roots from the environment as the CLI does. The override is thread-local
-+/// and cleared before this function returns.
++/// roots from the environment as the CLI does. The override is load-scoped:
++/// it is installed on entry and cleared before this function returns, and
++/// loads serialize behind a mutex (see `load_context`).
 +///
 +/// `shared` should set `json: true`, `offline: true`, and (for deterministic
 +/// diagnostics) `single_thread: true`.
@@ -3060,28 +2607,16 @@ index c9e42ef..df838bf 100644
 +    }
 +}
 +
- fn requested_sections(
-     command_kind: AgentReportKind,
-     sections: Vec<AgentReportKind>,
 diff --git a/rust/crates/ccusage-adapter-all/src/loader.rs b/rust/crates/ccusage-adapter-all/src/loader.rs
-index c2ece6c..67eff36 100644
+index c2ece6c..3c5cda6 100644
 --- a/rust/crates/ccusage-adapter-all/src/loader.rs
 +++ b/rust/crates/ccusage-adapter-all/src/loader.rs
-@@ -11,8 +11,8 @@ use crate::{
-     BUILT_IN_AGENT_NAMES, CodexGroup, LoadedEntry, ModelBreakdown, PricingMap, Result,
-     SessionAccumulator, UsageSummary,
-     adapter::{
+@@ -14,2 +14,2 @@ use crate::{
 -        amp, claude, codebuff, codex, copilot, droid, gemini, goose, grok, hermes, kilo, kimi,
 -        openclaw, opencode, pi, qwen,
 +        amp, antigravity, claude, codebuff, codex, copilot, droid, gemini, goose, grok, hermes,
 +        kilo, kimi, openclaw, opencode, pi, qwen,
-     },
-     cli::{AgentReportKind, CodexSpeed, NamedPiStore, SharedArgs, WeekDay},
-     filter_loaded_entries_by_date, json_float,
-@@ -27,9 +27,21 @@ use super::{
- };
- 
- pub(super) fn load_rows(kind: AgentReportKind, shared: &SharedArgs) -> Result<AllLoadResult> {
+@@ -29,0 +30,12 @@ pub(super) fn load_rows(kind: AgentReportKind, shared: &SharedArgs) -> Result<Al
 +    load_rows_filtered(kind, shared, None)
 +}
 +
@@ -3094,38 +2629,18 @@ index c2ece6c..67eff36 100644
 +    shared: &SharedArgs,
 +    agent_filter: Option<&str>,
 +) -> Result<AllLoadResult> {
-     let pricing = load_pricing(shared);
-     let load_kind = load_kind_for_report(kind);
+@@ -32 +44 @@ pub(super) fn load_rows(kind: AgentReportKind, shared: &SharedArgs) -> Result<Al
 -    let loaded = load_base_rows(load_kind, shared, &pricing)?;
 +    let loaded = load_base_rows(load_kind, shared, &pricing, agent_filter)?;
-     Ok(AllLoadResult {
-         rows: finish_rows(kind, loaded.rows, shared),
-         detected_agents: loaded.detected_agents,
-@@ -42,10 +54,10 @@ pub(super) fn load_sections(
- ) -> Result<AllSectionsLoadResult> {
-     let pricing = load_pricing(shared);
-     let daily_base = needs_daily_family(kinds)
+@@ -45 +57 @@ pub(super) fn load_sections(
 -        .then(|| load_base_rows(AgentReportKind::Daily, shared, &pricing))
 +        .then(|| load_base_rows(AgentReportKind::Daily, shared, &pricing, None))
-         .transpose()?;
-     let session_base = needs_session(kinds)
+@@ -48 +60 @@ pub(super) fn load_sections(
 -        .then(|| load_base_rows(AgentReportKind::Session, shared, &pricing))
 +        .then(|| load_base_rows(AgentReportKind::Session, shared, &pricing, None))
-         .transpose()?;
- 
-     let daily_detected_agents = daily_base
-@@ -101,6 +113,7 @@ fn load_base_rows(
-     load_kind: AgentReportKind,
-     shared: &SharedArgs,
-     pricing: &PricingMap,
+@@ -103,0 +116 @@ fn load_base_rows(
 +    agent_filter: Option<&str>,
- ) -> Result<AllLoadResult> {
-     let mut progress = crate::progress::UsageLoadProgress::new(
-         crate::log_level() != Some(0)
-@@ -325,6 +338,21 @@ fn load_base_rows(
-                 Ok(rows)
-             }),
-         },
+@@ -327,0 +341,15 @@ fn load_base_rows(
 +        AgentLoadSpec {
 +            index: 16,
 +            agent: BUILT_IN_AGENT_NAMES[16],
@@ -3141,62 +2656,93 @@ index c2ece6c..67eff36 100644
 +                )
 +            }),
 +        },
-     ];
-     let named_pi_stores = resolve_named_pi_store_paths(&shared.pi_stores)?;
-     for store in named_pi_stores {
-@@ -348,6 +376,12 @@ fn load_base_rows(
-             }),
-         });
-     }
+@@ -350,0 +379,6 @@ fn load_base_rows(
 +    if let Some(agent) = agent_filter {
 +        specs.retain(|spec| spec.agent == agent);
 +        if specs.is_empty() {
 +            return Err(crate::cli_error(format!("unknown agent '{agent}'")));
 +        }
 +    }
-     let loaded = load_agent_rows_parallel(specs, &mut progress)?;
-     let mut detected_agents = Vec::new();
-     let mut rows = Vec::new();
+@@ -756,0 +791,4 @@ fn summary_rows(
++                // Downstream (Coding Agent Monitor) 0002 patch: carry the
++                // reasoning-like extra tokens (codex reasoning, antigravity
++                // thinking, opencode fallbacks) into the report rows.
++                extra_total_tokens: summary.extra_total_tokens,
+@@ -824,0 +863,3 @@ where
++        // Downstream (Coding Agent Monitor) 0002 patch: codex reasoning rides
++        // the row-level reasoning slot (same semantics as extra tokens).
++        extra_total_tokens: group.reasoning_output_tokens,
 diff --git a/rust/crates/ccusage-adapter-all/src/report.rs b/rust/crates/ccusage-adapter-all/src/report.rs
-index 601461c..64077b2 100644
+index 601461c..cc392fc 100644
 --- a/rust/crates/ccusage-adapter-all/src/report.rs
 +++ b/rust/crates/ccusage-adapter-all/src/report.rs
-@@ -590,6 +590,7 @@ fn agent_label(agent: &str) -> &str {
-         "kimi" => "Kimi",
-         "qwen" => "Qwen",
-         "grok" => "Grok",
+@@ -167,0 +168,3 @@ fn agent_json(row: &AllRow) -> Value {
++        // Downstream (Coding Agent Monitor) 0002 patch: reasoning-like extra
++        // tokens, additive field.
++        "extraTotalTokens": row.extra_total_tokens,
+@@ -592,0 +596 @@ fn agent_label(agent: &str) -> &str {
 +        "antigravity" => "Antigravity",
-         _ => agent,
-     }
- }
 diff --git a/rust/crates/ccusage-adapter-all/src/snapshots/ccusage_adapter_all__tests__renders_multi_section_json_with_command_totals.snap b/rust/crates/ccusage-adapter-all/src/snapshots/ccusage_adapter_all__tests__renders_multi_section_json_with_command_totals.snap
-index 79604f2..2e77696 100644
+index 79604f2..bfc77da 100644
 --- a/rust/crates/ccusage-adapter-all/src/snapshots/ccusage_adapter_all__tests__renders_multi_section_json_with_command_totals.snap
 +++ b/rust/crates/ccusage-adapter-all/src/snapshots/ccusage_adapter_all__tests__renders_multi_section_json_with_command_totals.snap
-@@ -1,6 +1,5 @@
- ---
+@@ -2,2 +2 @@
 -source: crates/ccusage/src/adapter/all/tests.rs
 -assertion_line: 466
 +source: crates/ccusage-adapter-all/src/tests.rs
- expression: "serde_json::to_string_pretty(&report).unwrap()"
- ---
- {
+@@ -11,0 +11 @@ expression: "serde_json::to_string_pretty(&report).unwrap()"
++      "extraTotalTokens": 0,
+@@ -32,0 +33 @@ expression: "serde_json::to_string_pretty(&report).unwrap()"
++      "extraTotalTokens": 0,
+@@ -53,0 +55 @@ expression: "serde_json::to_string_pretty(&report).unwrap()"
++      "extraTotalTokens": 0,
 diff --git a/rust/crates/ccusage-adapter-all/src/tests.rs b/rust/crates/ccusage-adapter-all/src/tests.rs
-index e7db150..2dbeae7 100644
+index e7db150..187d01b 100644
 --- a/rust/crates/ccusage-adapter-all/src/tests.rs
 +++ b/rust/crates/ccusage-adapter-all/src/tests.rs
-@@ -560,6 +560,7 @@ fn isolated_agent_env(
-         "KIMI_DATA_DIR",
-         "QWEN_DATA_DIR",
-         "GROK_HOME",
+@@ -31,0 +32 @@ fn test_agent_rows(agent: &'static str) -> AgentRows {
++            extra_total_tokens: 0,
+@@ -92,0 +94 @@ fn aggregates_daily_agent_rows_by_period() {
++            extra_total_tokens: 0,
+@@ -107,0 +110 @@ fn aggregates_daily_agent_rows_by_period() {
++            extra_total_tokens: 0,
+@@ -149,0 +153 @@ fn merges_same_agent_daily_rows_into_one_monthly_breakdown() {
++            extra_total_tokens: 0,
+@@ -172,0 +177 @@ fn merges_same_agent_daily_rows_into_one_monthly_breakdown() {
++            extra_total_tokens: 0,
+@@ -195,0 +201 @@ fn merges_same_agent_daily_rows_into_one_monthly_breakdown() {
++            extra_total_tokens: 0,
+@@ -269,0 +276 @@ fn renders_all_report_json_with_period_and_agent_metadata() {
++            extra_total_tokens: 0,
+@@ -295,0 +303 @@ fn renders_by_agent_json_breakdowns_when_requested() {
++            extra_total_tokens: 0,
+@@ -308,0 +317 @@ fn renders_by_agent_json_breakdowns_when_requested() {
++            extra_total_tokens: 0,
+@@ -331,0 +341 @@ fn renders_by_agent_json_breakdowns_when_requested() {
++            extra_total_tokens: 0,
+@@ -394,0 +405 @@ fn omits_by_agent_json_breakdowns_by_default() {
++            extra_total_tokens: 0,
+@@ -419,0 +431 @@ fn renders_multi_section_json_with_command_totals() {
++            extra_total_tokens: 0,
+@@ -435,0 +448 @@ fn renders_multi_section_json_with_command_totals() {
++            extra_total_tokens: 0,
+@@ -562,0 +576 @@ fn isolated_agent_env(
 +        "ANTIGRAVITY_DATA_DIR",
-     ]
-     .into_iter()
-     .map(|key| (key, None::<OsString>))
-@@ -1002,3 +1003,177 @@ fn full_table_columns_include_cache_and_total_token_metrics() {
-     );
-     assert_eq!(headers.len(), aligns.len());
- }
+@@ -770,0 +785 @@ fn aggregates_model_breakdowns_across_agents() {
++            extra_total_tokens: 0,
+@@ -793,0 +809 @@ fn aggregates_model_breakdowns_across_agents() {
++            extra_total_tokens: 0,
+@@ -850,0 +867 @@ fn displays_total_tokens_with_cache_tokens_like_typescript_table() {
++            extra_total_tokens: 0,
+@@ -873,0 +891 @@ fn report_title_uses_detected_agents_even_when_filtered_rows_are_sparse() {
++            extra_total_tokens: 0,
+@@ -903,0 +922 @@ fn all_table_rows_match_main_agent_breakdown_display() {
++            extra_total_tokens: 0,
+@@ -915,0 +935 @@ fn all_table_rows_match_main_agent_breakdown_display() {
++            extra_total_tokens: 0,
+@@ -950,0 +971 @@ fn all_report_title_lists_detected_agents() {
++            extra_total_tokens: 0,
+@@ -1004,0 +1026,174 @@ fn full_table_columns_include_cache_and_total_token_metrics() {
 +
 +// ---- Downstream (Coding Agent Monitor) 0002 patch: per-agent loader ----
 +
@@ -3371,14 +2917,25 @@ index e7db150..2dbeae7 100644
 +        }
 +    }
 +}
+diff --git a/rust/crates/ccusage-adapter-all/src/types.rs b/rust/crates/ccusage-adapter-all/src/types.rs
+index da3638f..f1d6a06 100644
+--- a/rust/crates/ccusage-adapter-all/src/types.rs
++++ b/rust/crates/ccusage-adapter-all/src/types.rs
+@@ -15,0 +16,3 @@ pub(super) struct AllRow {
++    // Downstream (Coding Agent Monitor) 0002 patch: reasoning-like extra
++    // tokens, carried into the report rows.
++    pub(super) extra_total_tokens: u64,
+@@ -70,0 +74 @@ pub(super) struct AllAccumulator {
++    extra_total_tokens: u64,
+@@ -84,0 +89 @@ impl AllAccumulator {
++        self.extra_total_tokens += row.extra_total_tokens;
+@@ -121,0 +127 @@ impl AllAccumulator {
++            extra_total_tokens: self.extra_total_tokens,
 diff --git a/rust/crates/ccusage-core/build.rs b/rust/crates/ccusage-core/build.rs
 index 0783b82..fff5b1c 100644
 --- a/rust/crates/ccusage-core/build.rs
 +++ b/rust/crates/ccusage-core/build.rs
-@@ -23,8 +23,22 @@ fn main() {
-         println!("cargo:rerun-if-changed={}", path.display());
-         fs::read_to_string(path).expect("read pricing snapshot from CCUSAGE_PRICING_JSON_PATH")
-     } else {
+@@ -26,2 +26,16 @@ fn main() {
 -        println!("cargo:rerun-if-changed={FLAKE_LOCK_JSON}");
 -        fetch_pricing_json()
 +        // Downstream (Coding Agent Monitor) default: the pinned LiteLLM
@@ -3397,36 +2954,21 @@ index 0783b82..fff5b1c 100644
 +            println!("cargo:rerun-if-changed={FLAKE_LOCK_JSON}");
 +            fetch_pricing_json()
 +        }
-     };
-     let pricing_json = compact_pricing_json(&pricing_json).expect("compact LiteLLM pricing JSON");
- 
 diff --git a/rust/crates/ccusage-core/src/lib.rs b/rust/crates/ccusage-core/src/lib.rs
 index a1e2a89..87c8490 100644
 --- a/rust/crates/ccusage-core/src/lib.rs
 +++ b/rust/crates/ccusage-core/src/lib.rs
-@@ -5,6 +5,7 @@ pub mod cost;
- pub mod date_utils;
- pub mod fast;
- pub mod home;
+@@ -7,0 +8 @@ pub mod home;
 +pub mod load_context;
- pub mod last_window;
- pub mod logger;
- pub mod model_aliases;
-@@ -56,7 +57,7 @@ pub const USAGE_COMPACT_WIDTH_THRESHOLD: usize = 100;
- 
- pub const BUILT_IN_AGENT_NAMES: &[&str] = &[
-     "claude", "codex", "opencode", "amp", "droid", "codebuff", "hermes", "pi", "goose", "openclaw",
+@@ -59 +60 @@ pub const BUILT_IN_AGENT_NAMES: &[&str] = &[
 -    "kilo", "copilot", "gemini", "kimi", "qwen", "grok",
 +    "kilo", "copilot", "gemini", "kimi", "qwen", "grok", "antigravity",
- ];
- 
- pub type Result<T> = std::result::Result<T, CliError>;
 diff --git a/rust/crates/ccusage-core/src/load_context.rs b/rust/crates/ccusage-core/src/load_context.rs
 new file mode 100644
-index 0000000..aa9ef96
+index 0000000..4d230f5
 --- /dev/null
 +++ b/rust/crates/ccusage-core/src/load_context.rs
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,181 @@
 +//! Load-scoped context for in-process collectors: structured diagnostics,
 +//! structured load failures, and per-load data-root overrides.
 +//!
@@ -3501,8 +3043,68 @@ index 0000000..aa9ef96
 +    slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 +}
 +
-+/// Records a recoverable problem for the current load.
++/// Downstream (Coding Agent Monitor) 0002 patch: central sanitization applied
++/// to every diagnostic/failure before it is stored. Masks absolute path
++/// occurrences (Windows drive-letter and UNC, common POSIX roots) so details
++/// never carry full user paths, log contents, or other sensitive material.
++/// Vendor `debug_log` output is untouched — it stays a local-only channel.
++fn sanitize_details(text: &str) -> String {
++    let bytes = text.as_bytes();
++    let mut out = String::with_capacity(text.len());
++    let mut i = 0;
++    while i < bytes.len() {
++        let rest = &text[i..];
++        let masked_prefix: Option<usize> = if rest.starts_with("\\\\?\\") || rest.starts_with("\\\\")
++        {
++            Some(2)
++        } else if bytes.len() > i + 2
++            && bytes[i].is_ascii_alphabetic()
++            && bytes[i + 1] == b':'
++            && (bytes[i + 2] == b'\\' || bytes[i + 2] == b'/')
++        {
++            Some(3)
++        } else {
++            ["/home/", "/Users/", "/root/", "/tmp/", "/var/"]
++                .iter()
++                .find(|prefix| rest.starts_with(**prefix))
++                .map(|prefix| prefix.len())
++        };
++        match masked_prefix {
++            Some(prefix_len) => {
++                // Consume the rest of the path run (up to whitespace, quote,
++                // or bracket) and replace the whole occurrence with "[path]".
++                let mut end = prefix_len;
++                for ch in rest[prefix_len..].chars() {
++                    if ch.is_whitespace() || ch == '"' || ch == '\'' || ch == ')' || ch == ']' {
++                        break;
++                    }
++                    end += ch.len_utf8();
++                }
++                out.push_str("[path]");
++                i += end;
++            }
++            None => {
++                let ch = rest.chars().next().expect("non-empty remainder");
++                out.push(ch);
++                i += ch.len_utf8();
++            }
++        }
++    }
++    out
++}
++
++/// Records a recoverable problem for the current load. The diagnostic is
++/// sanitized centrally before storage — recording sites cannot forget.
 +pub fn record(diag: LoadDiag) {
++    let mut diag = diag;
++    diag.details = sanitize_details(&diag.details);
++    if let Some(file) = &diag.file {
++        // Structured file field: basename only, defence in depth against
++        // recording sites passing a full path.
++        diag.file = std::path::Path::new(file)
++            .file_name()
++            .map(|name| name.to_string_lossy().into_owned());
++    }
 +    lock(&DIAGNOSTICS).push(diag);
 +}
 +
@@ -3511,12 +3113,16 @@ index 0000000..aa9ef96
 +    std::mem::take(&mut lock(&DIAGNOSTICS))
 +}
 +
-+/// Raises a structured failure for the current load. Callers that need to
-+/// keep the existing `Result<_, CliError>` flow short-circuiting should
-+/// return their normal error too; the collector entry point consults this
-+/// slot first when mapping failures.
++/// Raises a structured failure for the current load. The details are
++/// sanitized centrally before storage. Callers that need to keep the existing
++/// `Result<_, CliError>` flow short-circuiting should return their normal
++/// error too; the collector entry point consults this slot first when mapping
++/// failures.
 +pub fn raise_failure(failure: LoadFailure) {
-+    *lock(&FAILURE) = Some(failure);
++    *lock(&FAILURE) = Some(LoadFailure {
++        kind: failure.kind,
++        details: sanitize_details(&failure.details),
++    });
 +}
 +
 +/// Takes the structured failure recorded for the current load, if any.
@@ -3548,10 +3154,7 @@ diff --git a/rust/crates/ccusage-core/src/models-dev-pricing.json b/rust/crates/
 index 1d4a722..cc26d18 100644
 --- a/rust/crates/ccusage-core/src/models-dev-pricing.json
 +++ b/rust/crates/ccusage-core/src/models-dev-pricing.json
-@@ -9268,6 +9268,17 @@
- 			"context": 1048576
- 		}
- 	},
+@@ -9270,0 +9271,11 @@
 +	"gemini-3.1-pro": {
 +		"cost": {
 +			"cache_read": 0.2,
@@ -3563,339 +3166,227 @@ index 1d4a722..cc26d18 100644
 +			"context": 1048576
 +		}
 +	},
- 	"gemini-3.1-pro-preview": {
- 		"cost": {
- 			"cache_read": 0.2,
 diff --git a/rust/crates/ccusage-core/src/pricing.rs b/rust/crates/ccusage-core/src/pricing.rs
 index f080002..6ad6603 100644
 --- a/rust/crates/ccusage-core/src/pricing.rs
 +++ b/rust/crates/ccusage-core/src/pricing.rs
-@@ -3931,7 +3931,9 @@ mod tests {
- 
-         assert!(pricing.find("claude-opus-4.8-20260528").is_none());
-         assert!(pricing.find("claude-opus-4-9").is_none());
+@@ -3934 +3934,3 @@ mod tests {
 -        assert!(pricing.find("claude-opus-5").is_none());
 +        // claude-opus-5 is priced by the embedded models.dev snapshot; use a
 +        // version no source publishes yet for the unknown-version assertion.
 +        assert!(pricing.find("claude-opus-6").is_none());
-         assert!(pricing.find("claude-opus-4.70").is_none());
-         assert!(pricing.find("claude-opus-4-20250514").is_some());
-     }
 diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_group_project_output_orders_named_projects_and_unknown_bucket.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_group_project_output_orders_named_projects_and_unknown_bucket.snap
-index 14ac4eb..e2efabc 100644
+index 14ac4eb..aa531f1 100644
 --- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_group_project_output_orders_named_projects_and_unknown_bucket.snap
 +++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_group_project_output_orders_named_projects_and_unknown_bucket.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/output.rs
 +source: crates/ccusage-core/src/output.rs
- expression: "group_project_output(&[named, unknown, other])"
- ---
- {
-@@ -15,6 +15,7 @@ expression: "group_project_output(&[named, unknown, other])"
-           "cacheReadTokens": 10,
-           "cost": 0.3,
-           "inputTokens": 900,
+@@ -17,0 +18 @@ expression: "group_project_output(&[named, unknown, other])"
 +          "missingPricing": false,
-           "modelName": "gpt-5.2-codex",
-           "outputTokens": 300
-         },
-@@ -23,6 +24,7 @@ expression: "group_project_output(&[named, unknown, other])"
-           "cacheReadTokens": 0,
-           "cost": 0.12,
-           "inputTokens": 334,
+@@ -19 +20,2 @@ expression: "group_project_output(&[named, unknown, other])"
+-          "outputTokens": 300
++          "outputTokens": 300,
++          "reasoningTokens": 0
+@@ -25,0 +28 @@ expression: "group_project_output(&[named, unknown, other])"
 +          "missingPricing": false,
-           "modelName": "claude-sonnet-4-20250514",
-           "outputTokens": 267
-         }
-@@ -49,6 +51,7 @@ expression: "group_project_output(&[named, unknown, other])"
-           "cacheReadTokens": 10,
-           "cost": 0.3,
-           "inputTokens": 900,
+@@ -27 +30,2 @@ expression: "group_project_output(&[named, unknown, other])"
+-          "outputTokens": 267
++          "outputTokens": 267,
++          "reasoningTokens": 0
+@@ -51,0 +56 @@ expression: "group_project_output(&[named, unknown, other])"
 +          "missingPricing": false,
-           "modelName": "gpt-5.2-codex",
-           "outputTokens": 300
-         },
-@@ -57,6 +60,7 @@ expression: "group_project_output(&[named, unknown, other])"
-           "cacheReadTokens": 0,
-           "cost": 0.12,
-           "inputTokens": 334,
+@@ -53 +58,2 @@ expression: "group_project_output(&[named, unknown, other])"
+-          "outputTokens": 300
++          "outputTokens": 300,
++          "reasoningTokens": 0
+@@ -59,0 +66 @@ expression: "group_project_output(&[named, unknown, other])"
 +          "missingPricing": false,
-           "modelName": "claude-sonnet-4-20250514",
-           "outputTokens": 267
-         }
-@@ -83,6 +87,7 @@ expression: "group_project_output(&[named, unknown, other])"
-           "cacheReadTokens": 10,
-           "cost": 0.3,
-           "inputTokens": 900,
+@@ -61 +68,2 @@ expression: "group_project_output(&[named, unknown, other])"
+-          "outputTokens": 267
++          "outputTokens": 267,
++          "reasoningTokens": 0
+@@ -85,0 +94 @@ expression: "group_project_output(&[named, unknown, other])"
 +          "missingPricing": false,
-           "modelName": "gpt-5.2-codex",
-           "outputTokens": 300
-         },
-@@ -91,6 +96,7 @@ expression: "group_project_output(&[named, unknown, other])"
-           "cacheReadTokens": 0,
-           "cost": 0.12,
-           "inputTokens": 334,
+@@ -87 +96,2 @@ expression: "group_project_output(&[named, unknown, other])"
+-          "outputTokens": 300
++          "outputTokens": 300,
++          "reasoningTokens": 0
+@@ -93,0 +104 @@ expression: "group_project_output(&[named, unknown, other])"
 +          "missingPricing": false,
-           "modelName": "claude-sonnet-4-20250514",
-           "outputTokens": 267
-         }
+@@ -95 +106,2 @@ expression: "group_project_output(&[named, unknown, other])"
+-          "outputTokens": 267
++          "outputTokens": 267,
++          "reasoningTokens": 0
 diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_model_multiline_formatting_sorts_dedupes_and_shortens_names.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_model_multiline_formatting_sorts_dedupes_and_shortens_names.snap
 index 3047436..50da0b6 100644
 --- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_model_multiline_formatting_sorts_dedupes_and_shortens_names.snap
 +++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_model_multiline_formatting_sorts_dedupes_and_shortens_names.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/output.rs
 +source: crates/ccusage-core/src/output.rs
- expression: format_models_multiline(&models)
- ---
- - gpt-5.2-codex
 diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_session_summary_json_with_present_and_missing_options.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_session_summary_json_with_present_and_missing_options.snap
-index 1940024..5efcaaa 100644
+index 1940024..da84012 100644
 --- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_session_summary_json_with_present_and_missing_options.snap
 +++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_session_summary_json_with_present_and_missing_options.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/output.rs
 +source: crates/ccusage-core/src/output.rs
- expression: session_summary_json(&row)
- ---
- {
-@@ -14,6 +14,7 @@ expression: session_summary_json(&row)
-       "cacheReadTokens": 10,
-       "cost": 0.3,
-       "inputTokens": 900,
+@@ -16,0 +17 @@ expression: session_summary_json(&row)
 +      "missingPricing": false,
-       "modelName": "gpt-5.2-codex",
-       "outputTokens": 300
-     },
-@@ -22,6 +23,7 @@ expression: session_summary_json(&row)
-       "cacheReadTokens": 0,
-       "cost": 0.12,
-       "inputTokens": 334,
+@@ -18 +19,2 @@ expression: session_summary_json(&row)
+-      "outputTokens": 300
++      "outputTokens": 300,
++      "reasoningTokens": 0
+@@ -24,0 +27 @@ expression: session_summary_json(&row)
 +      "missingPricing": false,
-       "modelName": "claude-sonnet-4-20250514",
-       "outputTokens": 267
-     }
+@@ -26 +29,2 @@ expression: session_summary_json(&row)
+-      "outputTokens": 267
++      "outputTokens": 267,
++      "reasoningTokens": 0
 diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_summary_json_with_optional_fields_and_model_breakdowns.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_summary_json_with_optional_fields_and_model_breakdowns.snap
-index c1b5d7e..b5abfe7 100644
+index c1b5d7e..5ec96d0 100644
 --- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_summary_json_with_optional_fields_and_model_breakdowns.snap
 +++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_summary_json_with_optional_fields_and_model_breakdowns.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/output.rs
 +source: crates/ccusage-core/src/output.rs
- expression: summary_json(&row)
- ---
- {
-@@ -14,6 +14,7 @@ expression: summary_json(&row)
-       "cacheReadTokens": 10,
-       "cost": 0.3,
-       "inputTokens": 900,
+@@ -16,0 +17 @@ expression: summary_json(&row)
 +      "missingPricing": false,
-       "modelName": "gpt-5.2-codex",
-       "outputTokens": 300
-     },
-@@ -22,6 +23,7 @@ expression: summary_json(&row)
-       "cacheReadTokens": 0,
-       "cost": 0.12,
-       "inputTokens": 334,
+@@ -18 +19,2 @@ expression: summary_json(&row)
+-      "outputTokens": 300
++      "outputTokens": 300,
++      "reasoningTokens": 0
+@@ -24,0 +27 @@ expression: summary_json(&row)
 +      "missingPricing": false,
-       "modelName": "claude-sonnet-4-20250514",
-       "outputTokens": 267
-     }
+@@ -26 +29,2 @@ expression: summary_json(&row)
+-      "outputTokens": 267
++      "outputTokens": 267,
++      "reasoningTokens": 0
 diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_totals_json_with_extra_tokens_credits_and_zero_credit_omission.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_totals_json_with_extra_tokens_credits_and_zero_credit_omission.snap
 index a65f5c8..16427cc 100644
 --- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_totals_json_with_extra_tokens_credits_and_zero_credit_omission.snap
 +++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__output__tests__snapshots_totals_json_with_extra_tokens_credits_and_zero_credit_omission.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/output.rs
 +source: crates/ccusage-core/src/output.rs
- expression: "totals_json(&[first, second])"
- ---
- {
 diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_bucket_aggregation_for_week_boundaries_invalid_dates_and_model_merging.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_bucket_aggregation_for_week_boundaries_invalid_dates_and_model_merging.snap
-index 1a4be51..ba79b92 100644
+index 1a4be51..e85e890 100644
 --- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_bucket_aggregation_for_week_boundaries_invalid_dates_and_model_merging.snap
 +++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_bucket_aggregation_for_week_boundaries_invalid_dates_and_model_merging.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/summary.rs
 +source: crates/ccusage-core/src/summary.rs
- expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
- ---
- {
-@@ -16,6 +16,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
-           "cacheReadTokens": 2,
-           "cost": 0.125,
-           "inputTokens": 100,
+@@ -18,0 +19 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
 +          "missingPricing": false,
-           "modelName": "gpt-5.2-codex",
-           "outputTokens": 10
-         }
-@@ -39,6 +40,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
-           "cacheReadTokens": 2,
-           "cost": 0.5,
-           "inputTokens": 300,
+@@ -20 +21,2 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+-          "outputTokens": 10
++          "outputTokens": 10,
++          "reasoningTokens": 3
+@@ -41,0 +44 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
 +          "missingPricing": false,
-           "modelName": "gpt-5.2-codex",
-           "outputTokens": 10
-         },
-@@ -47,6 +49,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
-           "cacheReadTokens": 2,
-           "cost": 0.25,
-           "inputTokens": 200,
+@@ -43 +46,2 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+-          "outputTokens": 10
++          "outputTokens": 10,
++          "reasoningTokens": 3
+@@ -49,0 +54 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
 +          "missingPricing": false,
-           "modelName": "claude-sonnet-4-20250514",
-           "outputTokens": 10
-         }
-@@ -71,6 +74,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
-           "cacheReadTokens": 2,
-           "cost": 0.0,
-           "inputTokens": 1,
+@@ -51 +56,2 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+-          "outputTokens": 10
++          "outputTokens": 10,
++          "reasoningTokens": 3
+@@ -73,0 +80 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
 +          "missingPricing": false,
-           "modelName": "unknown-model",
-           "outputTokens": 10
-         }
-@@ -96,6 +100,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
-           "cacheReadTokens": 2,
-           "cost": 0.25,
-           "inputTokens": 200,
+@@ -75 +82,2 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+-          "outputTokens": 10
++          "outputTokens": 10,
++          "reasoningTokens": 3
+@@ -98,0 +107 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
 +          "missingPricing": false,
-           "modelName": "claude-sonnet-4-20250514",
-           "outputTokens": 10
-         },
-@@ -104,6 +109,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
-           "cacheReadTokens": 2,
-           "cost": 0.125,
-           "inputTokens": 100,
+@@ -100 +109,2 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+-          "outputTokens": 10
++          "outputTokens": 10,
++          "reasoningTokens": 3
+@@ -106,0 +117 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
 +          "missingPricing": false,
-           "modelName": "gpt-5.2-codex",
-           "outputTokens": 10
-         }
-@@ -128,6 +134,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
-           "cacheReadTokens": 2,
-           "cost": 0.5,
-           "inputTokens": 300,
+@@ -108 +119,2 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+-          "outputTokens": 10
++          "outputTokens": 10,
++          "reasoningTokens": 3
+@@ -130,0 +143 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
 +          "missingPricing": false,
-           "modelName": "gpt-5.2-codex",
-           "outputTokens": 10
-         }
-@@ -151,6 +158,7 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
-           "cacheReadTokens": 2,
-           "cost": 0.0,
-           "inputTokens": 1,
+@@ -132 +145,2 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+-          "outputTokens": 10
++          "outputTokens": 10,
++          "reasoningTokens": 3
+@@ -153,0 +168 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
 +          "missingPricing": false,
-           "modelName": "unknown-model",
-           "outputTokens": 10
-         }
+@@ -155 +170,2 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
+-          "outputTokens": 10
++          "outputTokens": 10,
++          "reasoningTokens": 3
 diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_filter_and_sort_summaries_since_until_inclusive.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_filter_and_sort_summaries_since_until_inclusive.snap
-index 19dc21d..4c33ed3 100644
+index 19dc21d..e1e0478 100644
 --- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_filter_and_sort_summaries_since_until_inclusive.snap
 +++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_filter_and_sort_summaries_since_until_inclusive.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/summary.rs
 +source: crates/ccusage-core/src/summary.rs
- expression: rows
- ---
- [
-@@ -22,7 +22,8 @@ expression: rows
-         "outputTokens": 10,
-         "cacheCreationTokens": 1,
-         "cacheReadTokens": 2,
+@@ -25 +25,3 @@ expression: rows
 -        "cost": 0.5
++        "reasoningTokens": 3,
 +        "cost": 0.5,
 +        "missingPricing": false
-       }
-     ]
-   },
-@@ -45,7 +46,8 @@ expression: rows
-         "outputTokens": 10,
-         "cacheCreationTokens": 1,
-         "cacheReadTokens": 2,
+@@ -48 +50,3 @@ expression: rows
 -        "cost": 0.25
++        "reasoningTokens": 3,
 +        "cost": 0.25,
 +        "missingPricing": false
-       }
-     ]
-   }
 diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_session_accumulator_latest_metadata_versions_and_timezone.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_session_accumulator_latest_metadata_versions_and_timezone.snap
-index 731d68e..698d634 100644
+index 731d68e..0e0a085 100644
 --- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_session_accumulator_latest_metadata_versions_and_timezone.snap
 +++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_session_accumulator_latest_metadata_versions_and_timezone.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/summary.rs
 +source: crates/ccusage-core/src/summary.rs
- expression: row
- ---
- {
-@@ -25,7 +25,8 @@ expression: row
-       "outputTokens": 10,
-       "cacheCreationTokens": 0,
-       "cacheReadTokens": 0,
+@@ -28 +28,3 @@ expression: row
 -      "cost": 0.25
++      "reasoningTokens": 3,
 +      "cost": 0.25,
 +      "missingPricing": false
-     },
-     {
-       "modelName": "gpt-5.2-codex",
-@@ -33,7 +34,8 @@ expression: row
-       "outputTokens": 50,
-       "cacheCreationTokens": 10,
-       "cacheReadTokens": 5,
+@@ -36 +38,3 @@ expression: row
 -      "cost": 0.125
++      "reasoningTokens": 0,
 +      "cost": 0.125,
 +      "missingPricing": false
-     }
-   ],
-   "versions": [
 diff --git a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_summarize_by_key_aggregates_counts_costs_and_breakdowns.snap b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_summarize_by_key_aggregates_counts_costs_and_breakdowns.snap
-index af1eccb..3d05f5c 100644
+index af1eccb..c34e142 100644
 --- a/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_summarize_by_key_aggregates_counts_costs_and_breakdowns.snap
 +++ b/rust/crates/ccusage-core/src/snapshots/ccusage_core__summary__tests__snapshots_summarize_by_key_aggregates_counts_costs_and_breakdowns.snap
-@@ -1,5 +1,5 @@
- ---
+@@ -2 +2 @@
 -source: crates/ccusage/src/summary.rs
 +source: crates/ccusage-core/src/summary.rs
- expression: rows
- ---
- [
-@@ -23,7 +23,8 @@ expression: rows
-         "outputTokens": 80,
-         "cacheCreationTokens": 20,
-         "cacheReadTokens": 8,
+@@ -26 +26,3 @@ expression: rows
 -        "cost": 0.25
++        "reasoningTokens": 0,
 +        "cost": 0.25,
 +        "missingPricing": false
-       },
-       {
-         "modelName": "gpt-5.2-codex",
-@@ -31,7 +32,8 @@ expression: rows
-         "outputTokens": 50,
-         "cacheCreationTokens": 10,
-         "cacheReadTokens": 5,
+@@ -34 +36,3 @@ expression: rows
 -        "cost": 0.125
++        "reasoningTokens": 7,
 +        "cost": 0.125,
 +        "missingPricing": false
-       }
-     ],
-     "project": "/workspace/api"
 diff --git a/rust/crates/ccusage-core/src/types.rs b/rust/crates/ccusage-core/src/types.rs
-index ce23b69..8e93078 100644
+index ce23b69..9c421e6 100644
 --- a/rust/crates/ccusage-core/src/types.rs
 +++ b/rust/crates/ccusage-core/src/types.rs
-@@ -101,7 +101,9 @@ pub struct ModelBreakdown {
-     #[serde(skip_serializing)]
-     pub extra_total_tokens: u64,
-     pub cost: f64,
+@@ -101 +101,3 @@ pub struct ModelBreakdown {
+-    #[serde(skip_serializing)]
++    // Downstream (Coding Agent Monitor) 0002 patch: serialized as the
++    // reasoning-like token count (additive field).
++    #[serde(rename = "reasoningTokens")]
+@@ -104 +106,3 @@ pub struct ModelBreakdown {
 -    #[serde(skip_serializing)]
 +    // Downstream (Coding Agent Monitor) 0002 patch: serialized so in-process
 +    // collectors can distinguish "priced at zero" from "no pricing entry"
 +    // (the product null-vs-zero cost contract). Upstream skips this field.
-     pub missing_pricing: bool,
- }
- 

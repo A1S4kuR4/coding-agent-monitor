@@ -1,0 +1,1 @@
+{"id":"T-thread-a","messages":[{"role":"user","content":"hi"},{"role":"assistant","usage":{"model":"claude-haiku-4-5-20251001","inputTokens":10,"outputTokens":178,"cacheCreationInputTokens":986,"cacheReadInputTokens":11372,"timestamp":"2026-01-19T11:42:10.652Z"}}]}

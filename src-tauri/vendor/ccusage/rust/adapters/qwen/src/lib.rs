@@ -142,8 +142,9 @@ mod tests {
                 "cacheReadTokens": 5,
                 "cost": 0.0,
                 // Downstream (Coding Agent Monitor) 0002 patch: missingPricing
-                // is now serialized on model breakdowns.
-                "missingPricing": false
+                // and reasoningTokens are now serialized on model breakdowns.
+                "missingPricing": false,
+                "reasoningTokens": 10
             }])
         );
     }

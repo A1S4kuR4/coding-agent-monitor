@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "request_id": "golden-copilot-basic",
+  "status": "ok",
+  "report": {
+    "records": [
+      {
+        "date": "2026-04-11",
+        "agent": "copilot",
+        "input_tokens": "19329",
+        "output_tokens": "281",
+        "cache_creation_tokens": "25",
+        "cache_read_tokens": "123",
+        "reasoning_tokens": "128",
+        "unclassified_tokens": "0",
+        "total_tokens": "19886",
+        "cost_nano_usd": "64252650",
+        "models_used": [
+          "claude-sonnet-4"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "claude-sonnet-4",
+            "input_tokens": "19329",
+            "output_tokens": "281",
+            "cache_creation_tokens": "25",
+            "cache_read_tokens": "123",
+            "reasoning_tokens": "128",
+            "missing_pricing": false,
+            "cost_nano_usd": "64252650"
+          }
+        ],
+        "models_missing_pricing": []
+      }
+    ],
+    "diagnostics": []
+  }
+}

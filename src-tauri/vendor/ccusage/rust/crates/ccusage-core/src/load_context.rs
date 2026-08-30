@@ -72,8 +72,68 @@ fn lock<T>(slot: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Records a recoverable problem for the current load.
+/// Downstream (Coding Agent Monitor) 0002 patch: central sanitization applied
+/// to every diagnostic/failure before it is stored. Masks absolute path
+/// occurrences (Windows drive-letter and UNC, common POSIX roots) so details
+/// never carry full user paths, log contents, or other sensitive material.
+/// Vendor `debug_log` output is untouched — it stays a local-only channel.
+fn sanitize_details(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let rest = &text[i..];
+        let masked_prefix: Option<usize> = if rest.starts_with("\\\\?\\") || rest.starts_with("\\\\")
+        {
+            Some(2)
+        } else if bytes.len() > i + 2
+            && bytes[i].is_ascii_alphabetic()
+            && bytes[i + 1] == b':'
+            && (bytes[i + 2] == b'\\' || bytes[i + 2] == b'/')
+        {
+            Some(3)
+        } else {
+            ["/home/", "/Users/", "/root/", "/tmp/", "/var/"]
+                .iter()
+                .find(|prefix| rest.starts_with(**prefix))
+                .map(|prefix| prefix.len())
+        };
+        match masked_prefix {
+            Some(prefix_len) => {
+                // Consume the rest of the path run (up to whitespace, quote,
+                // or bracket) and replace the whole occurrence with "[path]".
+                let mut end = prefix_len;
+                for ch in rest[prefix_len..].chars() {
+                    if ch.is_whitespace() || ch == '"' || ch == '\'' || ch == ')' || ch == ']' {
+                        break;
+                    }
+                    end += ch.len_utf8();
+                }
+                out.push_str("[path]");
+                i += end;
+            }
+            None => {
+                let ch = rest.chars().next().expect("non-empty remainder");
+                out.push(ch);
+                i += ch.len_utf8();
+            }
+        }
+    }
+    out
+}
+
+/// Records a recoverable problem for the current load. The diagnostic is
+/// sanitized centrally before storage — recording sites cannot forget.
 pub fn record(diag: LoadDiag) {
+    let mut diag = diag;
+    diag.details = sanitize_details(&diag.details);
+    if let Some(file) = &diag.file {
+        // Structured file field: basename only, defence in depth against
+        // recording sites passing a full path.
+        diag.file = std::path::Path::new(file)
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned());
+    }
     lock(&DIAGNOSTICS).push(diag);
 }
 
@@ -82,12 +142,16 @@ pub fn drain_diags() -> Vec<LoadDiag> {
     std::mem::take(&mut lock(&DIAGNOSTICS))
 }
 
-/// Raises a structured failure for the current load. Callers that need to
-/// keep the existing `Result<_, CliError>` flow short-circuiting should
-/// return their normal error too; the collector entry point consults this
-/// slot first when mapping failures.
+/// Raises a structured failure for the current load. The details are
+/// sanitized centrally before storage. Callers that need to keep the existing
+/// `Result<_, CliError>` flow short-circuiting should return their normal
+/// error too; the collector entry point consults this slot first when mapping
+/// failures.
 pub fn raise_failure(failure: LoadFailure) {
-    *lock(&FAILURE) = Some(failure);
+    *lock(&FAILURE) = Some(LoadFailure {
+        kind: failure.kind,
+        details: sanitize_details(&failure.details),
+    });
 }
 
 /// Takes the structured failure recorded for the current load, if any.

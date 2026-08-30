@@ -91,11 +91,17 @@ pub struct ReportV1 {
 }
 
 /// Error payload. `message` is display-quality text; never a Rust `Debug`
-/// string or backtrace.
+/// string or backtrace. `agent` keeps the error's agent attribution (agent
+/// id, when the classification carries one); `vendor` is present only for
+/// vendor-classified errors.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorV1 {
     pub code: ErrorCodeV1,
     pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vendor: Option<String>,
 }
 
 /// Structured error codes, mirroring [`CollectorError`] classifications.
@@ -111,6 +117,7 @@ pub enum ErrorCodeV1 {
     Timeout,
     Cancelled,
     Internal,
+    Protocol,
 }
 
 /// Wire form of a daily aggregate record. Token counts and costs are decimal
@@ -123,6 +130,8 @@ pub struct UsageRecordV1 {
     pub output_tokens: String,
     pub cache_creation_tokens: String,
     pub cache_read_tokens: String,
+    pub reasoning_tokens: String,
+    pub unclassified_tokens: String,
     pub total_tokens: String,
     pub cost_nano_usd: Option<String>,
     pub models_used: Vec<String>,
@@ -138,6 +147,7 @@ pub struct ModelBreakdownV1 {
     pub output_tokens: String,
     pub cache_creation_tokens: String,
     pub cache_read_tokens: String,
+    pub reasoning_tokens: String,
     pub missing_pricing: bool,
     pub cost_nano_usd: Option<String>,
 }
@@ -192,12 +202,14 @@ impl CollectorRequestV1 {
                 DataSource::Paths(roots.into_iter().map(PathBuf::from).collect())
             }
         };
-        Ok(CollectRequest {
+        let domain = CollectRequest {
             agent,
             window,
             timezone: super::TimeZoneSpec(self.timezone),
             source,
-        })
+        };
+        domain.validate()?;
+        Ok(domain)
     }
 }
 
@@ -234,6 +246,8 @@ impl CollectorResponseV1 {
 
     /// Builds an error response from a domain error. The message is the
     /// error's `Display` output — clean text, no debug dumps or backtraces.
+    /// Agent attribution and vendor labels travel in structured fields so the
+    /// receiver can rebuild the real classification.
     pub fn error(request_id: impl Into<String>, error: &CollectorError) -> Self {
         Self {
             version: PROTOCOL_VERSION,
@@ -242,46 +256,146 @@ impl CollectorResponseV1 {
                 error: ErrorV1 {
                     code: error_code(error),
                     message: error.to_string(),
+                    agent: error_agent(error).map(|agent| agent.id().to_string()),
+                    vendor: error_vendor(error),
                 },
             },
         }
     }
 
+    /// Parses, version-gates, and validates a wire response. Malformed
+    /// payloads map to [`CollectorError::Protocol`] — never to a collector
+    /// business error.
+    pub fn from_wire(json: &str) -> Result<Self, CollectorError> {
+        let parsed: Self =
+            serde_json::from_str(json).map_err(|error| CollectorError::Protocol {
+                details: format!("malformed collector response: {error}"),
+            })?;
+        parsed.validate()?;
+        Ok(parsed)
+    }
+
+    /// Validates an already-deserialized response: version gate first, then
+    /// request id, agent ids, dates, integer/cost encodings, diagnostic kinds
+    /// and the record token invariant.
+    pub fn validate(&self) -> Result<(), CollectorError> {
+        if self.version != PROTOCOL_VERSION {
+            return Err(CollectorError::Protocol {
+                details: format!(
+                    "unsupported protocol version {} (expected {PROTOCOL_VERSION})",
+                    self.version
+                ),
+            });
+        }
+        if self.request_id.is_empty() || self.request_id.len() > super::MAX_REQUEST_ID_LEN {
+            return Err(CollectorError::Protocol {
+                details: format!(
+                    "request id must be 1..={}_LEN bytes",
+                    super::MAX_REQUEST_ID_LEN
+                ),
+            });
+        }
+        let protocol_error = |details: String| CollectorError::Protocol { details };
+        match &self.outcome {
+            OutcomeV1::Ok { report } => {
+                for record in &report.records {
+                    let rebuilt = record_from_v1(record)
+                        .map_err(|error| protocol_error(error.to_string()))?;
+                    if !super::token_bucket_invariant_holds(&rebuilt)
+                        && !report
+                            .diagnostics
+                            .iter()
+                            .any(|diag| diag.kind == "invariant_violation")
+                    {
+                        return Err(protocol_error(format!(
+                            "record for {} {} violates the token bucket invariant",
+                            record.date, record.agent
+                        )));
+                    }
+                }
+                for diag in &report.diagnostics {
+                    match diag_kind_from_str(&diag.kind) {
+                        Some(_) => {}
+                        None => {
+                            return Err(protocol_error(format!(
+                                "unknown diagnostic kind {:?}",
+                                diag.kind
+                            )));
+                        }
+                    }
+                }
+                Ok(())
+            }
+            OutcomeV1::Error { error } => {
+                if error.message.is_empty() {
+                    return Err(protocol_error(
+                        "error response carries an empty message".to_string(),
+                    ));
+                }
+                if let Some(agent) = &error.agent {
+                    if super::AgentKind::from_id(agent).is_none() {
+                        return Err(protocol_error(format!("unknown agent id {agent:?}")));
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+
     /// The domain error behind an error outcome, or `None` for success.
+    ///
+    /// Agent attribution comes from the payload's structured `agent` field;
+    /// agent-classified errors without a known agent degrade to
+    /// [`CollectorError::Protocol`] rather than being misattributed.
     pub fn as_error(&self) -> Option<CollectorError> {
         match &self.outcome {
             OutcomeV1::Ok { .. } => None,
-            OutcomeV1::Error { error, .. } => Some(match error.code {
-                ErrorCodeV1::InvalidRequest => CollectorError::InvalidRequest {
-                    details: error.message.clone(),
-                },
-                ErrorCodeV1::SourceUnavailable => CollectorError::SourceUnavailable {
-                    agent: AgentKind::Claude,
-                    details: error.message.clone(),
-                },
-                ErrorCodeV1::CorruptData => CollectorError::CorruptData {
-                    agent: AgentKind::Claude,
-                    details: error.message.clone(),
-                },
-                ErrorCodeV1::DatabaseQuery => CollectorError::DatabaseQuery {
-                    agent: AgentKind::Claude,
-                    details: error.message.clone(),
-                },
-                ErrorCodeV1::VendorAdapter => CollectorError::VendorAdapter {
-                    vendor: "vendor",
-                    details: error.message.clone(),
-                },
-                ErrorCodeV1::PricingUnavailable => CollectorError::PricingUnavailable {
-                    details: error.message.clone(),
-                },
-                ErrorCodeV1::Timeout => CollectorError::Timeout {
-                    details: error.message.clone(),
-                },
-                ErrorCodeV1::Cancelled => CollectorError::Cancelled,
-                ErrorCodeV1::Internal => CollectorError::Internal {
-                    details: error.message.clone(),
-                },
-            }),
+            OutcomeV1::Error { error, .. } => {
+                let agent = error.agent.as_deref().and_then(super::AgentKind::from_id);
+                let message = error.message.clone();
+                let attribution_lost = || {
+                    Some(CollectorError::Protocol {
+                        details: format!("error response lost its agent attribution: {message}"),
+                    })
+                };
+                Some(match error.code {
+                    ErrorCodeV1::InvalidRequest => {
+                        CollectorError::InvalidRequest { details: message }
+                    }
+                    ErrorCodeV1::SourceUnavailable => match agent {
+                        Some(agent) => CollectorError::SourceUnavailable {
+                            agent,
+                            details: message,
+                        },
+                        None => return attribution_lost(),
+                    },
+                    ErrorCodeV1::CorruptData => match agent {
+                        Some(agent) => CollectorError::CorruptData {
+                            agent,
+                            details: message,
+                        },
+                        None => return attribution_lost(),
+                    },
+                    ErrorCodeV1::DatabaseQuery => match agent {
+                        Some(agent) => CollectorError::DatabaseQuery {
+                            agent,
+                            details: message,
+                        },
+                        None => return attribution_lost(),
+                    },
+                    ErrorCodeV1::VendorAdapter => CollectorError::VendorAdapter {
+                        vendor: error.vendor.clone().unwrap_or_else(|| "vendor".to_string()),
+                        details: message,
+                    },
+                    ErrorCodeV1::PricingUnavailable => {
+                        CollectorError::PricingUnavailable { details: message }
+                    }
+                    ErrorCodeV1::Timeout => CollectorError::Timeout { details: message },
+                    ErrorCodeV1::Cancelled => CollectorError::Cancelled,
+                    ErrorCodeV1::Internal => CollectorError::Internal { details: message },
+                    ErrorCodeV1::Protocol => CollectorError::Protocol { details: message },
+                })
+            }
         }
     }
 }
@@ -292,6 +406,34 @@ fn diag_kind_str(kind: crate::collector::DiagnosticKind) -> &'static str {
         crate::collector::DiagnosticKind::CorruptRecord => "corrupt_record",
         crate::collector::DiagnosticKind::DatabaseError => "database_error",
         crate::collector::DiagnosticKind::SourceUnreadable => "source_unreadable",
+        crate::collector::DiagnosticKind::InvariantViolation => "invariant_violation",
+    }
+}
+
+fn diag_kind_from_str(kind: &str) -> Option<crate::collector::DiagnosticKind> {
+    match kind {
+        "corrupt_file" => Some(crate::collector::DiagnosticKind::CorruptFile),
+        "corrupt_record" => Some(crate::collector::DiagnosticKind::CorruptRecord),
+        "database_error" => Some(crate::collector::DiagnosticKind::DatabaseError),
+        "source_unreadable" => Some(crate::collector::DiagnosticKind::SourceUnreadable),
+        "invariant_violation" => Some(crate::collector::DiagnosticKind::InvariantViolation),
+        _ => None,
+    }
+}
+
+fn error_agent(error: &CollectorError) -> Option<AgentKind> {
+    match error {
+        CollectorError::SourceUnavailable { agent, .. }
+        | CollectorError::CorruptData { agent, .. }
+        | CollectorError::DatabaseQuery { agent, .. } => Some(*agent),
+        _ => None,
+    }
+}
+
+fn error_vendor(error: &CollectorError) -> Option<String> {
+    match error {
+        CollectorError::VendorAdapter { vendor, .. } => Some(vendor.clone()),
+        _ => None,
     }
 }
 
@@ -306,6 +448,7 @@ fn error_code(error: &CollectorError) -> ErrorCodeV1 {
         CollectorError::Timeout { .. } => ErrorCodeV1::Timeout,
         CollectorError::Cancelled => ErrorCodeV1::Cancelled,
         CollectorError::Internal { .. } => ErrorCodeV1::Internal,
+        CollectorError::Protocol { .. } => ErrorCodeV1::Protocol,
     }
 }
 
@@ -314,7 +457,7 @@ fn u64_str(value: u64) -> String {
 }
 
 fn parse_u64(text: &str) -> Result<u64, CollectorError> {
-    text.parse().map_err(|error| CollectorError::Internal {
+    text.parse().map_err(|error| CollectorError::Protocol {
         details: format!("malformed token count {text:?}: {error}"),
     })
 }
@@ -331,6 +474,8 @@ fn record_to_v1(record: &UsageRecord) -> UsageRecordV1 {
         output_tokens: u64_str(record.output_tokens),
         cache_creation_tokens: u64_str(record.cache_creation_tokens),
         cache_read_tokens: u64_str(record.cache_read_tokens),
+        reasoning_tokens: u64_str(record.reasoning_tokens),
+        unclassified_tokens: u64_str(record.unclassified_tokens),
         total_tokens: u64_str(record.total_tokens),
         cost_nano_usd: record.cost.map(|cost| i128_str(cost.as_nano_usd())),
         models_used: record.models_used.iter().map(|m| m.0.clone()).collect(),
@@ -343,6 +488,7 @@ fn record_to_v1(record: &UsageRecord) -> UsageRecordV1 {
                 output_tokens: u64_str(breakdown.output_tokens),
                 cache_creation_tokens: u64_str(breakdown.cache_creation_tokens),
                 cache_read_tokens: u64_str(breakdown.cache_read_tokens),
+                reasoning_tokens: u64_str(breakdown.reasoning_tokens),
                 missing_pricing: breakdown.missing_pricing,
                 cost_nano_usd: breakdown.cost.map(|cost| i128_str(cost.as_nano_usd())),
             })
@@ -358,7 +504,7 @@ fn record_to_v1(record: &UsageRecord) -> UsageRecordV1 {
 /// Rebuilds a domain record from its wire form (used by round-trip tests and
 /// by the Phase 2 worker when it must hand domain types to the UI layer).
 pub fn record_from_v1(record: &UsageRecordV1) -> Result<UsageRecord, CollectorError> {
-    let agent = AgentKind::from_id(&record.agent).ok_or_else(|| CollectorError::Internal {
+    let agent = AgentKind::from_id(&record.agent).ok_or_else(|| CollectorError::Protocol {
         details: format!("unknown agent id {:?}", record.agent),
     })?;
     let date = parse_date(&record.date)?;
@@ -368,7 +514,7 @@ pub fn record_from_v1(record: &UsageRecordV1) -> Result<UsageRecord, CollectorEr
         .map(|text| {
             text.parse::<i128>()
                 .map(CostNanoUsd)
-                .map_err(|error| CollectorError::Internal {
+                .map_err(|error| CollectorError::Protocol {
                     details: format!("malformed cost {text:?}: {error}"),
                 })
         })
@@ -380,6 +526,8 @@ pub fn record_from_v1(record: &UsageRecordV1) -> Result<UsageRecord, CollectorEr
         output_tokens: parse_u64(&record.output_tokens)?,
         cache_creation_tokens: parse_u64(&record.cache_creation_tokens)?,
         cache_read_tokens: parse_u64(&record.cache_read_tokens)?,
+        reasoning_tokens: parse_u64(&record.reasoning_tokens)?,
+        unclassified_tokens: parse_u64(&record.unclassified_tokens)?,
         total_tokens: parse_u64(&record.total_tokens)?,
         cost,
         models_used: record
@@ -396,7 +544,7 @@ pub fn record_from_v1(record: &UsageRecordV1) -> Result<UsageRecord, CollectorEr
                     .as_deref()
                     .map(|text| {
                         text.parse::<i128>().map(CostNanoUsd).map_err(|error| {
-                            CollectorError::Internal {
+                            CollectorError::Protocol {
                                 details: format!("malformed cost {text:?}: {error}"),
                             }
                         })
@@ -408,6 +556,7 @@ pub fn record_from_v1(record: &UsageRecordV1) -> Result<UsageRecord, CollectorEr
                     output_tokens: parse_u64(&breakdown.output_tokens)?,
                     cache_creation_tokens: parse_u64(&breakdown.cache_creation_tokens)?,
                     cache_read_tokens: parse_u64(&breakdown.cache_read_tokens)?,
+                    reasoning_tokens: parse_u64(&breakdown.reasoning_tokens)?,
                     missing_pricing: breakdown.missing_pricing,
                     cost,
                 })

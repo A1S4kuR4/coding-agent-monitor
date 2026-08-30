@@ -22,6 +22,7 @@ expression: rows
         "outputTokens": 10,
         "cacheCreationTokens": 1,
         "cacheReadTokens": 2,
+        "reasoningTokens": 3,
         "cost": 0.5,
         "missingPricing": false
       }
@@ -46,6 +47,7 @@ expression: rows
         "outputTokens": 10,
         "cacheCreationTokens": 1,
         "cacheReadTokens": 2,
+        "reasoningTokens": 3,
         "cost": 0.25,
         "missingPricing": false
       }

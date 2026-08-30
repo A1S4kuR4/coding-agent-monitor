@@ -5,12 +5,14 @@
 
 mod common;
 
+use std::fs;
+
 use coding_agent_monitor_lib::collector::{
     ccusage::AgentCollector, AgentKind, CollectRequest, CollectResult, Collector, CostNanoUsd,
 };
 use common::{
     claude_line, codex_line, date, fixture_root, isolate_env, model, window, write_antigravity_db,
-    write_claude_session, write_codex_session, DAY_1, DAY_1_SECONDS, DAY_3,
+    write_claude_session, write_codex_session, DAY_1, DAY_1_SECONDS, DAY_2_SECONDS, DAY_3,
 };
 
 fn collect(agent: AgentKind, request: &CollectRequest) -> CollectResult {
@@ -176,11 +178,67 @@ fn reasoning_tokens_are_outside_the_daily_token_totals() {
     assert_eq!(record.input_tokens, 900);
     assert_eq!(record.cache_read_tokens, 100);
     assert_eq!(record.output_tokens, 200);
+    // The source explicitly reports 20 reasoning tokens; the remaining delta
+    // against the agent-reported total (the double-counted cached input) is
+    // unclassified, never silently folded into reasoning.
+    assert_eq!(record.reasoning_tokens, 20);
+    assert_eq!(record.unclassified_tokens, 100);
     assert_eq!(
         record.total_tokens, 1_320,
-        "reasoning counts toward total_tokens but has no dedicated bucket: \
-         900 input + 100 cache read + 200 output + 20 reasoning"
+        "900 input + 100 cache read + 200 output + 20 reasoning + 100 unclassified"
     );
+    assert!(coding_agent_monitor_lib::collector::token_bucket_invariant_holds(record));
+}
+
+#[test]
+fn token_bucket_violation_surfaces_as_diagnostic() {
+    let root = fixture_root("invariant");
+    // Agent-reported total (150) is LESS than its own buckets
+    // (1000 input + 100 cached + 200 output + 20 reasoning): the vendor
+    // passes the numbers through, the collector clamps unclassified to 0 and
+    // flags the violation — never silently rewriting vendor numbers.
+    let line = r#"{"timestamp":"2026-01-02T08:01:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-5.2","last_token_usage":{"input_tokens":1000,"cached_input_tokens":100,"output_tokens":200,"reasoning_output_tokens":20,"total_tokens":150}}}}"#;
+    write_codex_session(&root, "session-a.jsonl", &[line.to_string()]);
+    let _env = isolate_env(&root);
+
+    let result = collect(AgentKind::Codex, &CollectRequest::new(AgentKind::Codex));
+    assert_eq!(result.records.len(), 1);
+    let record = &result.records[0];
+    assert_eq!(record.total_tokens, 150, "vendor total passed through");
+    assert_eq!(record.unclassified_tokens, 0, "clamped, not fabricated");
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|diag| diag.kind
+            == coding_agent_monitor_lib::collector::DiagnosticKind::InvariantViolation));
+    assert!(
+        !coding_agent_monitor_lib::collector::token_bucket_invariant_holds(record),
+        "violating records do not pretend the invariant holds"
+    );
+}
+
+#[test]
+fn u64_boundary_tokens_do_not_panic_and_use_saturating_semantics() {
+    let root = fixture_root("u64-edge");
+    // total == u64::MAX with buckets that would overflow when summed: the
+    // checked arithmetic clamps and flags instead of panicking or wrapping.
+    let line = r#"{"timestamp":"2026-01-02T08:01:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-5.2","last_token_usage":{"input_tokens":18446744073709551615,"cached_input_tokens":0,"output_tokens":18446744073709551615,"reasoning_output_tokens":0,"total_tokens":18446744073709551615}}}}"#;
+    write_codex_session(&root, "session-a.jsonl", &[line.to_string()]);
+    let _env = isolate_env(&root);
+
+    let result = collect(AgentKind::Codex, &CollectRequest::new(AgentKind::Codex));
+    assert_eq!(result.records.len(), 1);
+    let record = &result.records[0];
+    assert_eq!(
+        record.input_tokens,
+        u64::MAX,
+        "non-cached input saturates (u64::MAX - 0 cached)"
+    );
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|diag| diag.kind
+            == coding_agent_monitor_lib::collector::DiagnosticKind::InvariantViolation));
 }
 
 #[test]
@@ -385,4 +443,134 @@ fn antigravity_records_keep_deterministic_order_across_databases() {
     let mut sorted = dates.clone();
     sorted.sort();
     assert_eq!(dates, sorted, "records must come back date-ascending");
+}
+
+// --- Input bounds (worker stdin hardening groundwork) -----------------------
+
+#[test]
+fn empty_paths_source_is_rejected_safely() {
+    let root = fixture_root("bounds-empty");
+    let _env = isolate_env(&root);
+    let request = CollectRequest::new(AgentKind::Claude).with_source(
+        coding_agent_monitor_lib::collector::DataSource::Paths(vec![]),
+    );
+    let error = AgentCollector::new(AgentKind::Claude)
+        .collect(&request)
+        .expect_err("empty roots must be rejected");
+    assert!(matches!(
+        error,
+        coding_agent_monitor_lib::collector::CollectorError::InvalidRequest { .. }
+    ));
+}
+
+#[test]
+fn oversized_inputs_are_rejected_without_panicking() {
+    let root = fixture_root("bounds-oversize");
+    let _env = isolate_env(&root);
+    let collector = AgentCollector::new(AgentKind::Claude);
+
+    // Too many roots.
+    let many = vec![root.clone(); 17];
+    let error = collector
+        .collect(
+            &CollectRequest::new(AgentKind::Claude)
+                .with_source(coding_agent_monitor_lib::collector::DataSource::Paths(many)),
+        )
+        .expect_err("root count cap");
+    assert!(matches!(
+        error,
+        coding_agent_monitor_lib::collector::CollectorError::InvalidRequest { .. }
+    ));
+
+    // One oversized root path.
+    let long = root.join("x".repeat(5000));
+    let error = collector
+        .collect(&CollectRequest::new(AgentKind::Claude).with_source(
+            coding_agent_monitor_lib::collector::DataSource::Paths(vec![long]),
+        ))
+        .expect_err("path length cap");
+    assert!(matches!(
+        error,
+        coding_agent_monitor_lib::collector::CollectorError::InvalidRequest { .. }
+    ));
+}
+
+#[test]
+fn invalid_timezone_does_not_panic() {
+    let root = fixture_root("bounds-tz");
+    let _env = isolate_env(&root);
+    write_claude_session(
+        &root,
+        "session-a.jsonl",
+        &[claude_line(
+            "2026-01-02T00:00:00.000Z",
+            "req-tz",
+            "claude-sonnet-4-20250514",
+            100,
+            10,
+            0,
+            Some(0.01),
+        )],
+    );
+    let request = CollectRequest::new(AgentKind::Claude).with_timezone(
+        coding_agent_monitor_lib::collector::TimeZoneSpec("Not/A-Zone!!".to_string()),
+    );
+    // The vendor falls back to UTC for an unknown zone; either way this must
+    // not panic and must not error.
+    let result = collect(AgentKind::Claude, &request);
+    assert_eq!(result.records.len(), 1);
+}
+
+#[test]
+fn multibyte_and_space_paths_and_under_limit_lengths_pass() {
+    let root = fixture_root("bounds-ok");
+    let nested = root.join("数据 目录/claude with spaces");
+    fs::create_dir_all(nested.join("projects/cam")).expect("create non-ASCII dirs");
+    fs::write(
+        nested.join("projects/cam/session-a.jsonl"),
+        claude_line(
+            "2026-01-02T00:00:00.000Z",
+            "req-uni",
+            "claude-sonnet-4-20250514",
+            100,
+            10,
+            0,
+            Some(0.01),
+        ),
+    )
+    .expect("write fixture");
+    let _env = isolate_env(&root);
+    let request = CollectRequest::new(AgentKind::Claude).with_source(
+        coding_agent_monitor_lib::collector::DataSource::Paths(vec![nested]),
+    );
+    let result = collect(AgentKind::Claude, &request);
+    assert_eq!(result.records.len(), 1);
+}
+
+#[test]
+fn diagnostics_never_leak_absolute_paths() {
+    // The fixture root name carries a unique marker; if any diagnostic detail
+    // or file field leaked the full path, the serialized response would
+    // contain the marker.
+    const MARKER: &str = "UNIQUEPATHMARKER7f3a";
+    let root = fixture_root(MARKER);
+    let dir = root.join("conversations");
+    fs::create_dir_all(&dir).expect("create antigravity fixture dir");
+    fs::write(dir.join("broken.db"), b"definitely not a sqlite database")
+        .expect("write corrupt db");
+    let _env = isolate_env(&root);
+
+    let result = collect(
+        AgentKind::Antigravity,
+        &CollectRequest::new(AgentKind::Antigravity),
+    );
+    let response = coding_agent_monitor_lib::collector::protocol::CollectorResponseV1::ok(
+        "req-sanitize",
+        &result,
+    );
+    let json = serde_json::to_string(&response).expect("serialize response");
+    assert!(
+        !json.contains(MARKER),
+        "serialized response must not contain the absolute path marker"
+    );
 }

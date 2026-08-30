@@ -788,6 +788,10 @@ fn summary_rows(
                 output_tokens: summary.output_tokens,
                 cache_creation_tokens: summary.cache_creation_tokens,
                 cache_read_tokens: summary.cache_read_tokens,
+                // Downstream (Coding Agent Monitor) 0002 patch: carry the
+                // reasoning-like extra tokens (codex reasoning, antigravity
+                // thinking, opencode fallbacks) into the report rows.
+                extra_total_tokens: summary.extra_total_tokens,
                 total_tokens,
                 total_cost: summary.total_cost,
                 metadata,
@@ -856,6 +860,9 @@ where
         output_tokens: group.output_tokens,
         cache_creation_tokens: 0,
         cache_read_tokens: group.cached_input_tokens,
+        // Downstream (Coding Agent Monitor) 0002 patch: codex reasoning rides
+        // the row-level reasoning slot (same semantics as extra tokens).
+        extra_total_tokens: group.reasoning_output_tokens,
         total_tokens: group.total_tokens,
         total_cost: codex::calculate_group_cost(group, pricing, speed),
         metadata: Some(json!({

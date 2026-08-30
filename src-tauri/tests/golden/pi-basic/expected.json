@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "request_id": "golden-pi-basic",
+  "status": "ok",
+  "report": {
+    "records": [
+      {
+        "date": "2026-01-02",
+        "agent": "pi",
+        "input_tokens": "0",
+        "output_tokens": "333",
+        "cache_creation_tokens": "0",
+        "cache_read_tokens": "0",
+        "reasoning_tokens": "0",
+        "unclassified_tokens": "0",
+        "total_tokens": "333",
+        "cost_nano_usd": "3330000",
+        "models_used": [
+          "[pi] gpt-5"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "[pi] gpt-5",
+            "input_tokens": "0",
+            "output_tokens": "333",
+            "cache_creation_tokens": "0",
+            "cache_read_tokens": "0",
+            "reasoning_tokens": "0",
+            "missing_pricing": false,
+            "cost_nano_usd": "3330000"
+          }
+        ],
+        "models_missing_pricing": []
+      }
+    ],
+    "diagnostics": []
+  }
+}

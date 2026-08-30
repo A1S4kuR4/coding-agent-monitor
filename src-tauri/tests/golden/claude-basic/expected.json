@@ -11,6 +11,8 @@
         "output_tokens": "50",
         "cache_creation_tokens": "0",
         "cache_read_tokens": "10",
+        "reasoning_tokens": "0",
+        "unclassified_tokens": "0",
         "total_tokens": "160",
         "cost_nano_usd": "10000000",
         "models_used": [
@@ -23,6 +25,7 @@
             "output_tokens": "50",
             "cache_creation_tokens": "0",
             "cache_read_tokens": "10",
+            "reasoning_tokens": "0",
             "missing_pricing": false,
             "cost_nano_usd": "10000000"
           }
@@ -36,6 +39,8 @@
         "output_tokens": "30",
         "cache_creation_tokens": "5",
         "cache_read_tokens": "3",
+        "reasoning_tokens": "0",
+        "unclassified_tokens": "0",
         "total_tokens": "338",
         "cost_nano_usd": "125000000",
         "models_used": [
@@ -48,6 +53,7 @@
             "output_tokens": "30",
             "cache_creation_tokens": "5",
             "cache_read_tokens": "3",
+            "reasoning_tokens": "0",
             "missing_pricing": false,
             "cost_nano_usd": "125000000"
           }

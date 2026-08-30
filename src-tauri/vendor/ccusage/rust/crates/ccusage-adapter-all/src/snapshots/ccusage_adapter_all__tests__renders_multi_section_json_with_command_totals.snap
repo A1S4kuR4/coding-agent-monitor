@@ -8,6 +8,7 @@ expression: "serde_json::to_string_pretty(&report).unwrap()"
       "agent": "all",
       "cacheCreationTokens": 0,
       "cacheReadTokens": 10,
+      "extraTotalTokens": 0,
       "inputTokens": 100,
       "metadata": {
         "agents": [
@@ -29,6 +30,7 @@ expression: "serde_json::to_string_pretty(&report).unwrap()"
       "agent": "all",
       "cacheCreationTokens": 0,
       "cacheReadTokens": 10,
+      "extraTotalTokens": 0,
       "inputTokens": 100,
       "metadata": {
         "agents": [
@@ -50,6 +52,7 @@ expression: "serde_json::to_string_pretty(&report).unwrap()"
       "agent": "codex",
       "cacheCreationTokens": 0,
       "cacheReadTokens": 10,
+      "extraTotalTokens": 0,
       "inputTokens": 100,
       "metadata": {
         "lastActivity": "2026-01-02T00:00:00.000Z"

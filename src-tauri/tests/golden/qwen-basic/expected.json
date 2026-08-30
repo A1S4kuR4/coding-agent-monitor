@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "request_id": "golden-qwen-basic",
+  "status": "ok",
+  "report": {
+    "records": [
+      {
+        "date": "2026-02-23",
+        "agent": "qwen",
+        "input_tokens": "100",
+        "output_tokens": "50",
+        "cache_creation_tokens": "0",
+        "cache_read_tokens": "5",
+        "reasoning_tokens": "10",
+        "unclassified_tokens": "0",
+        "total_tokens": "165",
+        "cost_nano_usd": "400500",
+        "models_used": [
+          "qwen3-coder-plus"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "qwen3-coder-plus",
+            "input_tokens": "100",
+            "output_tokens": "50",
+            "cache_creation_tokens": "0",
+            "cache_read_tokens": "5",
+            "reasoning_tokens": "10",
+            "missing_pricing": false,
+            "cost_nano_usd": "400500"
+          }
+        ],
+        "models_missing_pricing": []
+      }
+    ],
+    "diagnostics": []
+  }
+}

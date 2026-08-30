@@ -1,0 +1,1 @@
+{"timestamp":1750000000,"params":{"sessionId":"sess-load","update":{"sessionUpdate":"turn_completed","usage":{"inputTokens":100,"outputTokens":20,"cachedReadTokens":40,"reasoningTokens":10,"modelUsage":{"grok-4.5-build":{"inputTokens":100,"outputTokens":20,"cachedReadTokens":40,"reasoningTokens":10}}}}},"_meta":{"eventId":"evt-1"}}

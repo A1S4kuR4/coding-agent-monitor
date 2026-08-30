@@ -15,13 +15,13 @@
 //! - **Record granularity.** One [`UsageRecord`] per *daily aggregate per
 //!   agent* — the granularity the vendored unified report provides reliably.
 //!   Session-level records are a later extension.
-//! - **Data sources.** [`DataSource::Environment`] resolves each agent's data
+//! - **Data sources.** [`DataSource::Environment`] resolves the agent's data
 //!   root from the process environment (`CLAUDE_CONFIG_DIR`,
-//!   `ANTIGRAVITY_DATA_DIR`, …), exactly like the vendored CLI. The vendor
-//!   seam scans *all* registered agents in one pass, so a misconfigured
-//!   directory of an *unrelated* agent fails every collector request; per-agent
-//!   isolation requires a vendor-side per-agent load API (Phase 2
-//!   prerequisite, see `docs/V0.3_PHASE1_COLLECTOR_DESIGN.md`).
+//!   `ANTIGRAVITY_DATA_DIR`, …), exactly like the vendored CLI;
+//!   [`DataSource::Paths`] carries explicit roots. Both reach the vendor's
+//!   per-agent loader (`daily_report_for_agent`), which runs exactly one
+//!   agent's spec: other agents' data roots are never initialized, validated,
+//!   or scanned, and one agent's failure cannot affect another.
 //! - **No vendor types leak.** Public items here reference nothing from
 //!   `ccusage_*` crates. `serde_json::Value` appears only inside
 //!   [`collector::ccusage`], never in signatures.
@@ -264,7 +264,58 @@ impl CollectRequest {
         self.source = source;
         self
     }
+
+    /// Validates every externally supplied value against the input bounds.
+    /// Called by every collector before touching the vendor and by the V1
+    /// protocol decoder, so malformed input fails safely regardless of entry
+    /// point (worker stdin hardening lands in Phase 2 on top of this).
+    pub fn validate(&self) -> Result<(), CollectorError> {
+        if self.timezone.0.is_empty() || self.timezone.0.len() > MAX_TIMEZONE_LEN {
+            return Err(CollectorError::InvalidRequest {
+                details: format!(
+                    "timezone must be 1..={MAX_TIMEZONE_LEN} bytes, got {}",
+                    self.timezone.0.len()
+                ),
+            });
+        }
+        match &self.source {
+            DataSource::Environment => Ok(()),
+            DataSource::Paths(roots) => {
+                if roots.is_empty() {
+                    return Err(CollectorError::InvalidRequest {
+                        details: "explicit data roots must not be empty".to_string(),
+                    });
+                }
+                if roots.len() > MAX_SOURCE_ROOTS {
+                    return Err(CollectorError::InvalidRequest {
+                        details: format!(
+                            "too many data roots: {} (max {MAX_SOURCE_ROOTS})",
+                            roots.len()
+                        ),
+                    });
+                }
+                for root in roots {
+                    let len = root.as_os_str().len();
+                    if len == 0 || len > MAX_ROOT_PATH_LEN {
+                        return Err(CollectorError::InvalidRequest {
+                            details: format!(
+                                "data root length must be 1..={MAX_ROOT_PATH_LEN}, got {len}"
+                            ),
+                        });
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
 }
+
+/// Input bounds for collector requests (worker stdin hardening in Phase 2
+/// builds on these).
+pub const MAX_SOURCE_ROOTS: usize = 16;
+pub const MAX_ROOT_PATH_LEN: usize = 4096;
+pub const MAX_REQUEST_ID_LEN: usize = 128;
+pub const MAX_TIMEZONE_LEN: usize = 64;
 
 /// Stable model identifier as reported by the agent's own logs.
 ///
@@ -339,6 +390,9 @@ pub struct ModelBreakdown {
     pub output_tokens: u64,
     pub cache_creation_tokens: u64,
     pub cache_read_tokens: u64,
+    /// Reasoning/thinking tokens the source explicitly reports for this
+    /// model. `unclassified` is only meaningful at record level.
+    pub reasoning_tokens: u64,
     /// The vendor has no pricing entry for this model; its raw cost is a zero
     /// placeholder and `cost` here is `None`.
     pub missing_pricing: bool,
@@ -357,6 +411,16 @@ pub struct UsageRecord {
     pub output_tokens: u64,
     pub cache_creation_tokens: u64,
     pub cache_read_tokens: u64,
+    /// Additive reasoning/thinking tokens the source explicitly reports
+    /// (codex `reasoning_output_tokens`, antigravity thinking per the #1487
+    /// semantics, opencode fallbacks). Not folded into any other bucket.
+    pub reasoning_tokens: u64,
+    /// The portion of `total_tokens` that cannot be attributed to any bucket
+    /// (e.g. codex's agent-reported total double-counting cached input).
+    /// Computed as the saturating remainder of the invariant below; a
+    /// violation (buckets + reasoning > total) yields `unclassified == 0`
+    /// plus an [`DiagnosticKind::InvariantViolation`] diagnostic.
+    pub unclassified_tokens: u64,
     pub total_tokens: u64,
     /// `None` = pricing unavailable (no priced model contributed). See the
     /// null-vs-zero contract in the module docs.
@@ -367,6 +431,21 @@ pub struct UsageRecord {
     pub model_breakdowns: Vec<ModelBreakdown>,
     /// Models that contributed tokens but have no pricing data, sorted.
     pub models_missing_pricing: Vec<ModelName>,
+}
+
+/// The record-level token invariant: the four regular buckets plus reasoning
+/// plus unclassified must account for the agent-reported total. Clean data
+/// always satisfies it; violations are flagged via
+/// [`DiagnosticKind::InvariantViolation`] instead of silently rewritten.
+pub fn token_bucket_invariant_holds(record: &UsageRecord) -> bool {
+    Some(record.total_tokens)
+        == record
+            .input_tokens
+            .checked_add(record.output_tokens)
+            .and_then(|sum| sum.checked_add(record.cache_creation_tokens))
+            .and_then(|sum| sum.checked_add(record.cache_read_tokens))
+            .and_then(|sum| sum.checked_add(record.reasoning_tokens))
+            .and_then(|sum| sum.checked_add(record.unclassified_tokens))
 }
 
 impl UsageRecord {
@@ -382,6 +461,8 @@ impl UsageRecord {
         output_tokens: u64,
         cache_creation_tokens: u64,
         cache_read_tokens: u64,
+        reasoning_tokens: u64,
+        unclassified_tokens: u64,
         total_tokens: u64,
         cost: Option<CostNanoUsd>,
         models_used: Vec<ModelName>,
@@ -395,6 +476,8 @@ impl UsageRecord {
             output_tokens,
             cache_creation_tokens,
             cache_read_tokens,
+            reasoning_tokens,
+            unclassified_tokens,
             total_tokens,
             cost,
             models_used,
@@ -433,6 +516,13 @@ pub enum DiagnosticKind {
     DatabaseError,
     /// A data source existed but could not be read.
     SourceUnreadable,
+    /// The source's own token buckets violate the record invariant
+    /// (`input + output + cache_creation + cache_read + reasoning +
+    /// unclassified == total`). Vendor numbers are passed through untouched
+    /// (`unclassified` is clamped to 0) and the violation is flagged here —
+    /// consumers must not assume the invariant holds when this diagnostic is
+    /// present.
+    InvariantViolation,
 }
 
 /// One recoverable problem observed during collection. Details are short and

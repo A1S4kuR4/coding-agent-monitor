@@ -13,6 +13,9 @@ pub(super) struct AllRow {
     pub(super) output_tokens: u64,
     pub(super) cache_creation_tokens: u64,
     pub(super) cache_read_tokens: u64,
+    // Downstream (Coding Agent Monitor) 0002 patch: reasoning-like extra
+    // tokens, carried into the report rows.
+    pub(super) extra_total_tokens: u64,
     pub(super) total_tokens: u64,
     pub(super) total_cost: f64,
     pub(super) metadata: Option<Value>,
@@ -68,6 +71,7 @@ pub(super) struct AllAccumulator {
     cache_creation_tokens: u64,
     cache_read_tokens: u64,
     total_tokens: u64,
+    extra_total_tokens: u64,
     total_cost: f64,
     models: BTreeSet<String>,
     agents: BTreeSet<&'static str>,
@@ -82,6 +86,7 @@ impl AllAccumulator {
         self.cache_creation_tokens += row.cache_creation_tokens;
         self.cache_read_tokens += row.cache_read_tokens;
         self.total_tokens += row.total_tokens;
+        self.extra_total_tokens += row.extra_total_tokens;
         self.total_cost += row.total_cost;
         self.models.extend(row.models_used.iter().cloned());
         if let Some(agents) = row.metadata_agents.as_ref() {
@@ -119,6 +124,7 @@ impl AllAccumulator {
             output_tokens: self.output_tokens,
             cache_creation_tokens: self.cache_creation_tokens,
             cache_read_tokens: self.cache_read_tokens,
+            extra_total_tokens: self.extra_total_tokens,
             total_tokens: self.total_tokens,
             total_cost: self.total_cost,
             metadata: None,

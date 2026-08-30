@@ -18,6 +18,8 @@ fn sample_record(input: u64, cost: Option<i128>) -> UsageRecord {
         50,
         0,
         10,
+        0,
+        0,
         input + 60,
         cost.map(CostNanoUsd::from_nano),
         vec![ModelName("claude-sonnet-4-20250514".to_string())],
@@ -110,13 +112,12 @@ fn error_response_carries_structured_code_and_clean_message() {
         }
         other => panic!("expected error outcome, got {other:?}"),
     }
-    // `as_error` is a lossy reconstruction (code + message): the code must
-    // round-trip and the original detail text must be contained in the
-    // display message.
+    // `as_error` restores the real agent attribution from the structured
+    // field; the detail text must be contained in the display message.
     let rebuilt = parsed.as_error().expect("error outcome");
     assert!(matches!(
         rebuilt,
-        CollectorError::SourceUnavailable { agent: AgentKind::Claude, ref details }
+        CollectorError::SourceUnavailable { agent: AgentKind::Codex, ref details }
             if details.contains("codex data root missing")
     ));
 }
@@ -174,4 +175,103 @@ fn domain_request_maps_to_v1_request() {
     assert_eq!(wire.agent, "goose");
     let rebuilt = wire.clone().into_domain().expect("domain");
     assert_eq!(rebuilt, domain);
+}
+
+#[test]
+fn error_responses_keep_real_agent_attribution() {
+    for (agent, code) in [
+        (AgentKind::Codex, ErrorCodeV1::SourceUnavailable),
+        (AgentKind::Antigravity, ErrorCodeV1::CorruptData),
+        (AgentKind::Goose, ErrorCodeV1::DatabaseQuery),
+    ] {
+        let error = match code {
+            ErrorCodeV1::SourceUnavailable => CollectorError::SourceUnavailable {
+                agent,
+                details: format!("{} data root missing", agent.label()),
+            },
+            ErrorCodeV1::CorruptData => CollectorError::CorruptData {
+                agent,
+                details: format!("{} data corrupt", agent.label()),
+            },
+            _ => CollectorError::DatabaseQuery {
+                agent,
+                details: format!("{} database failed", agent.label()),
+            },
+        };
+        let response = CollectorResponseV1::error("req-agent", &error);
+        let json = serde_json::to_string(&response).expect("serialize");
+        let parsed: CollectorResponseV1 = serde_json::from_str(&json).expect("deserialize");
+        parsed.validate().expect("attribution survives the wire");
+        match parsed.as_error().expect("error outcome") {
+            CollectorError::SourceUnavailable { agent: got, .. }
+            | CollectorError::CorruptData { agent: got, .. }
+            | CollectorError::DatabaseQuery { agent: got, .. } => assert_eq!(got, agent),
+            other => panic!("wrong classification: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn error_response_carries_vendor_label() {
+    let error = CollectorError::VendorAdapter {
+        vendor: "ccusage v20.0.20".to_string(),
+        details: "engine failed".to_string(),
+    };
+    let response = CollectorResponseV1::error("req-vendor", &error);
+    let json = serde_json::to_string(&response).expect("serialize");
+    assert!(json.contains("ccusage v20.0.20"));
+    let parsed: CollectorResponseV1 = serde_json::from_str(&json).expect("deserialize");
+    match parsed.as_error().expect("error") {
+        CollectorError::VendorAdapter { vendor, .. } => {
+            assert_eq!(vendor, "ccusage v20.0.20")
+        }
+        other => panic!("wrong classification: {other:?}"),
+    }
+}
+
+#[test]
+fn agent_classified_error_without_attribution_degrades_to_protocol() {
+    let json = format!(
+        r#"{{"version":{PROTOCOL_VERSION},"request_id":"req-lost","status":"error","error":{{"code":"source_unavailable","message":"root missing"}}}}"#
+    );
+    let parsed: CollectorResponseV1 = serde_json::from_str(&json).expect("deserialize");
+    parsed.validate().expect("structurally valid");
+    match parsed.as_error().expect("error") {
+        CollectorError::Protocol { .. } => {}
+        other => panic!("misattributed error must degrade to Protocol, got {other:?}"),
+    }
+}
+
+#[test]
+fn response_version_mismatch_is_rejected() {
+    let json = r#"{"version":99,"request_id":"req-v","status":"ok","report":{"records":[],"diagnostics":[]}}"#;
+    let error = CollectorResponseV1::from_wire(json).expect_err("version gate");
+    assert!(matches!(error, CollectorError::Protocol { .. }));
+}
+
+#[test]
+fn malformed_response_maps_to_protocol_error() {
+    let error = CollectorResponseV1::from_wire("not json at all").expect_err("malformed");
+    assert!(matches!(error, CollectorError::Protocol { .. }));
+    let error = CollectorResponseV1::from_wire(
+        r#"{"version":1,"request_id":"","status":"ok","report":{"records":[],"diagnostics":[]}}"#,
+    )
+    .expect_err("empty request id");
+    assert!(matches!(error, CollectorError::Protocol { .. }));
+    let error = CollectorResponseV1::from_wire(
+        r#"{"version":1,"request_id":"req","status":"ok","report":{"records":[{"date":"2099-13-99","agent":"codex","input_tokens":"1","output_tokens":"0","cache_creation_tokens":"0","cache_read_tokens":"0","reasoning_tokens":"0","unclassified_tokens":"0","total_tokens":"1","cost_nano_usd":null,"models_used":[],"model_breakdowns":[],"models_missing_pricing":[]}],"diagnostics":[]"#,
+    )
+    .expect_err("bad date + truncated");
+    assert!(matches!(error, CollectorError::Protocol { .. }));
+}
+
+#[test]
+fn invariant_violation_diagnostic_passes_validation() {
+    // A record that violates the invariant is valid on the wire as long as
+    // the violation is flagged — the receiver must not re-derive it.
+    let json = format!(
+        r#"{{"version":{PROTOCOL_VERSION},"request_id":"req-inv","status":"ok","report":{{"records":[{{"date":"2099-01-02","agent":"codex","input_tokens":"1000","output_tokens":"200","cache_creation_tokens":"0","cache_read_tokens":"100","reasoning_tokens":"20","unclassified_tokens":"0","total_tokens":"150","cost_nano_usd":null,"models_used":[],"model_breakdowns":[],"models_missing_pricing":[]}}],"diagnostics":[{{"kind":"invariant_violation","file":null,"details":"buckets exceed total"}}]}}}}"#
+    );
+    let parsed = CollectorResponseV1::from_wire(&json).expect("flagged violation is valid");
+    assert!(parsed.as_error().is_none());
 }

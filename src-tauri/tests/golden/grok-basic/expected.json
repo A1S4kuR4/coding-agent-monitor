@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "request_id": "golden-grok-basic",
+  "status": "ok",
+  "report": {
+    "records": [
+      {
+        "date": "2025-06-15",
+        "agent": "grok",
+        "input_tokens": "60",
+        "output_tokens": "20",
+        "cache_creation_tokens": "0",
+        "cache_read_tokens": "40",
+        "reasoning_tokens": "0",
+        "unclassified_tokens": "0",
+        "total_tokens": "120",
+        "cost_nano_usd": "252000",
+        "models_used": [
+          "grok-4.5-build"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "grok-4.5-build",
+            "input_tokens": "60",
+            "output_tokens": "20",
+            "cache_creation_tokens": "0",
+            "cache_read_tokens": "40",
+            "reasoning_tokens": "0",
+            "missing_pricing": false,
+            "cost_nano_usd": "252000"
+          }
+        ],
+        "models_missing_pricing": []
+      }
+    ],
+    "diagnostics": []
+  }
+}

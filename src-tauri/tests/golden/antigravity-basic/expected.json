@@ -11,6 +11,8 @@
         "output_tokens": "604",
         "cache_creation_tokens": "0",
         "cache_read_tokens": "10",
+        "reasoning_tokens": "0",
+        "unclassified_tokens": "0",
         "total_tokens": "7935",
         "cost_nano_usd": "21892000",
         "models_used": [
@@ -23,6 +25,7 @@
             "output_tokens": "604",
             "cache_creation_tokens": "0",
             "cache_read_tokens": "10",
+            "reasoning_tokens": "0",
             "missing_pricing": false,
             "cost_nano_usd": "21892000"
           }

@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "request_id": "golden-gemini-basic",
+  "status": "ok",
+  "report": {
+    "records": [
+      {
+        "date": "2026-05-17",
+        "agent": "gemini",
+        "input_tokens": "3808",
+        "output_tokens": "23",
+        "cache_creation_tokens": "0",
+        "cache_read_tokens": "11526",
+        "reasoning_tokens": "919",
+        "unclassified_tokens": "0",
+        "total_tokens": "16276",
+        "cost_nano_usd": "5306300",
+        "models_used": [
+          "gemini-3-flash-preview"
+        ],
+        "model_breakdowns": [
+          {
+            "model": "gemini-3-flash-preview",
+            "input_tokens": "3808",
+            "output_tokens": "23",
+            "cache_creation_tokens": "0",
+            "cache_read_tokens": "11526",
+            "reasoning_tokens": "919",
+            "missing_pricing": false,
+            "cost_nano_usd": "5306300"
+          }
+        ],
+        "models_missing_pricing": []
+      }
+    ],
+    "diagnostics": []
+  }
+}

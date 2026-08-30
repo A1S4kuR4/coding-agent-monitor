@@ -98,7 +98,9 @@ pub struct ModelBreakdown {
     pub output_tokens: u64,
     pub cache_creation_tokens: u64,
     pub cache_read_tokens: u64,
-    #[serde(skip_serializing)]
+    // Downstream (Coding Agent Monitor) 0002 patch: serialized as the
+    // reasoning-like token count (additive field).
+    #[serde(rename = "reasoningTokens")]
     pub extra_total_tokens: u64,
     pub cost: f64,
     // Downstream (Coding Agent Monitor) 0002 patch: serialized so in-process

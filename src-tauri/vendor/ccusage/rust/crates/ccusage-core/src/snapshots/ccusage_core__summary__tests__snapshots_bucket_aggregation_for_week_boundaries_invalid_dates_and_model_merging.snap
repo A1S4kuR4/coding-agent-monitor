@@ -18,7 +18,8 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "inputTokens": 100,
           "missingPricing": false,
           "modelName": "gpt-5.2-codex",
-          "outputTokens": 10
+          "outputTokens": 10,
+          "reasoningTokens": 3
         }
       ],
       "modelsUsed": [
@@ -42,7 +43,8 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "inputTokens": 300,
           "missingPricing": false,
           "modelName": "gpt-5.2-codex",
-          "outputTokens": 10
+          "outputTokens": 10,
+          "reasoningTokens": 3
         },
         {
           "cacheCreationTokens": 1,
@@ -51,7 +53,8 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "inputTokens": 200,
           "missingPricing": false,
           "modelName": "claude-sonnet-4-20250514",
-          "outputTokens": 10
+          "outputTokens": 10,
+          "reasoningTokens": 3
         }
       ],
       "modelsUsed": [
@@ -76,7 +79,8 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "inputTokens": 1,
           "missingPricing": false,
           "modelName": "unknown-model",
-          "outputTokens": 10
+          "outputTokens": 10,
+          "reasoningTokens": 3
         }
       ],
       "modelsUsed": [
@@ -102,7 +106,8 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "inputTokens": 200,
           "missingPricing": false,
           "modelName": "claude-sonnet-4-20250514",
-          "outputTokens": 10
+          "outputTokens": 10,
+          "reasoningTokens": 3
         },
         {
           "cacheCreationTokens": 1,
@@ -111,7 +116,8 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "inputTokens": 100,
           "missingPricing": false,
           "modelName": "gpt-5.2-codex",
-          "outputTokens": 10
+          "outputTokens": 10,
+          "reasoningTokens": 3
         }
       ],
       "modelsUsed": [
@@ -136,7 +142,8 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "inputTokens": 300,
           "missingPricing": false,
           "modelName": "gpt-5.2-codex",
-          "outputTokens": 10
+          "outputTokens": 10,
+          "reasoningTokens": 3
         }
       ],
       "modelsUsed": [
@@ -160,7 +167,8 @@ expression: "serde_json::json!({ \"weekly\": weekly, \"monthly\": monthly, })"
           "inputTokens": 1,
           "missingPricing": false,
           "modelName": "unknown-model",
-          "outputTokens": 10
+          "outputTokens": 10,
+          "reasoningTokens": 3
         }
       ],
       "modelsUsed": [
