@@ -17,7 +17,7 @@ tree = "c489445deffa68bcf863ed97ca29dce948c40509"
 base_commit = "739e88fa67b9e584dfa9722c8207fa8b09b62802"
 patch_file = "patches/0001-antigravity-c58c1b3.patch"
 license = "MIT"
-note = "closed, unmerged downstream patch; ported manually onto the split-adapter v20.0.20 architecture (see PATCHES.md)"
+note = "closed, unmerged downstream patch; ported manually onto the split-adapter v20.0.20 architecture; the apply-able representation of every committed downstream edit is patches/0002-cam-downstream-v20.0.20.patch (see PATCHES.md)"
 
 [litellm_pricing]
 repo = "https://github.com/BerriAI/litellm"
@@ -32,7 +32,7 @@ upstream = "https://github.com/ccusage/ccusage/blob/bd7f89b469aee5635fb2e6722dd6
 entries = 2275
 sha256 = "719203dac7ed169af7288449eb6dc0b89026fa4ebdb609b27eeb0c5adf98e528"
 sha256_upstream_pristine = "be347bd498cb046c2045e018e068aa228a76b34485613e2254f21a48b889eecd"
-divergence = "0001 patch: additive merge of 'gemini-3.1-pro' from PR #1487 fork c58c1b3aab2eacc82add250c8229bb6192e4489b; all other entries pristine upstream"
+divergence = "0002 patch: additive merge of 'gemini-3.1-pro' from PR #1487 fork c58c1b3aab2eacc82add250c8229bb6192e4489b; all other entries pristine upstream"
 
 [archive_digests]
 # SHA-512 of the GitHub codeload tar.gz archives observed during the import.

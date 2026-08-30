@@ -13,6 +13,6 @@
     "entries": 2275,
     "sha256": "719203dac7ed169af7288449eb6dc0b89026fa4ebdb609b27eeb0c5adf98e528",
     "sha256_upstream_pristine": "be347bd498cb046c2045e018e068aa228a76b34485613e2254f21a48b889eecd",
-    "divergence": "0001 patch: additive merge of the antigravity alias entry \"gemini-3.1-pro\" from the PR #1487 snapshot (fork c58c1b3aab2eacc82add250c8229bb6192e4489b); everything else is the pristine upstream blob. Antigravity model ids gemini-3.5-flash-high/-medium/-extra-low, gpt-oss-120b-medium and gemini-3-flash-a/b/c have no entry in either snapshot and intentionally stay unpriced (null cost), see PATCHES.md."
+    "divergence": "0002 patch: additive merge of the antigravity alias entry \"gemini-3.1-pro\" from the PR #1487 snapshot (fork c58c1b3aab2eacc82add250c8229bb6192e4489b); everything else is the pristine upstream blob. Antigravity model ids gemini-3.5-flash-high/-medium/-extra-low, gpt-oss-120b-medium and gemini-3-flash-a/b/c have no entry in either snapshot and intentionally stay unpriced (null cost), see PATCHES.md."
   }
 }
