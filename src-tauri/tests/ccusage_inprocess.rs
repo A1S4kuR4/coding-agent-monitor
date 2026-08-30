@@ -7,8 +7,10 @@
 //! this seam yet (Phase 1+ decision).
 
 use std::{
+    ffi::OsString,
     fs,
     path::{Path, PathBuf},
+    sync::{Mutex, MutexGuard},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -39,23 +41,39 @@ const AGENT_ENV_KEYS: [&str; 17] = [
     "ANTIGRAVITY_DATA_DIR",
 ];
 
-/// RAII guard restoring every touched env var on drop, so parallel CAM tests
-/// are not affected by process-global env mutations.
-struct EnvGuard(Vec<&'static str>);
+/// Serializes every env-mutating test in this binary. Env vars are process
+/// state, not thread state: two concurrent fixture tests would race even with
+/// per-test restore guards. Future Collector fixture tests that touch the
+/// process environment must acquire this same lock.
+static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+/// RAII guard: saves each var's previous value when set and restores exactly
+/// that value (or the var's absence) on drop.
+struct EnvGuard {
+    _serial: MutexGuard<'static, ()>,
+    saved: Vec<(&'static str, Option<OsString>)>,
+}
 
 impl EnvGuard {
-    fn set(key: &'static str, value: &Path) {
-        // SAFETY: single-threaded test setup; the guard restores the previous
-        // value (or removes it) when dropped.
+    fn set(&mut self, key: &'static str, value: &Path) {
+        self.saved.push((key, std::env::var_os(key)));
+        // SAFETY: env-mutating tests hold ENV_LOCK for their whole body, so
+        // no other test thread reads or writes the environment concurrently;
+        // the guard restores the saved value when dropped.
         unsafe { std::env::set_var(key, value) };
     }
 }
 
 impl Drop for EnvGuard {
     fn drop(&mut self) {
-        for key in &self.0 {
+        for (key, previous) in self.saved.iter().rev() {
             // SAFETY: see EnvGuard::set.
-            unsafe { std::env::remove_var(key) };
+            unsafe {
+                match previous {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                }
+            }
         }
     }
 }
@@ -70,6 +88,9 @@ fn temp_fixture_root() -> PathBuf {
 
 #[test]
 fn daily_report_json_by_agent_collects_claude_fixture_in_process() {
+    // Held for the whole test: guards both the fixture env writes and the
+    // vendored loaders' env reads.
+    let _serial = ENV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let root = temp_fixture_root();
     fs::create_dir_all(root.join("claude/projects/cam")).expect("create claude fixture");
     fs::create_dir_all(root.join("antigravity")).expect("create antigravity fixture");
@@ -81,15 +102,17 @@ fn daily_report_json_by_agent_collects_claude_fixture_in_process() {
 
     // Isolate every agent at an empty directory; HOME/USERPROFILE/XDG too.
     // CLAUDE_CONFIG_DIR must be the config root containing `projects/`.
-    let mut touched = Vec::new();
+    let mut env = EnvGuard {
+        _serial,
+        saved: Vec::new(),
+    };
     for key in AGENT_ENV_KEYS {
         let value = if key == "CLAUDE_CONFIG_DIR" {
             root.join("claude")
         } else {
             root.clone()
         };
-        EnvGuard::set(key, &value);
-        touched.push(key);
+        env.set(key, &value);
     }
     for (key, value) in [
         ("HOME", root.join("empty-home")),
@@ -97,10 +120,8 @@ fn daily_report_json_by_agent_collects_claude_fixture_in_process() {
         ("XDG_CONFIG_HOME", root.join("empty-xdg-config")),
     ] {
         fs::create_dir_all(&value).expect("create home fixture");
-        EnvGuard::set(key, &value);
-        touched.push(key);
+        env.set(key, &value);
     }
-    let _env = EnvGuard(touched);
 
     let shared = SharedArgs {
         json: true,

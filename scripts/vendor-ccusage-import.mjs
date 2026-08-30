@@ -280,17 +280,14 @@ function main() {
 		if (!fs.existsSync(repoPatch)) {
 			throw new Error(`CAM patch missing from the repository: ${repoPatch}`);
 		}
-		execFileSync("git", ["apply", "--check", path.join("patches", patchFile)], {
-			cwd: staging,
-			maxBuffer: 64 * 1024 * 1024,
-		});
-		execFileSync("git", ["apply", path.join("patches", patchFile)], {
-			cwd: staging,
-			maxBuffer: 64 * 1024 * 1024,
-		});
-		// Keep the applied patch in the staged patches/ dir so the committed
-		// set matches what the rebuild used.
+		// GNU patch, not `git apply`: staging may live inside this repository,
+		// and git apply resolves patch paths against the enclosing repo root
+		// rather than the cwd. `-f` makes any failed hunk fail the import.
 		fs.copyFileSync(repoPatch, path.join(staging, "patches", patchFile));
+		execFileSync("patch", ["-p1", "-f", "--no-backup-if-mismatch", "-i", path.join("patches", patchFile)], {
+			cwd: staging,
+			maxBuffer: 64 * 1024 * 1024,
+		});
 	}
 	for (const patchFile of REFERENCE_PATCHES) {
 		if (!fs.existsSync(path.join(vendorRoot, "patches", patchFile))) {

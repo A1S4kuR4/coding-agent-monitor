@@ -155,10 +155,16 @@ written against an older snapshot). The vendored tree asserts
 
 ## Regression risk & upgrade path
 
-- Re-imports via `scripts/vendor-ccusage-import.mjs` reset `rust/` to
-  pristine upstream and **erase both patches**; 0001's port and 0002's
-  adaptations must be reapplied (the script's header documents this — it is
-  the intended upgrade flow, run manually).
+- `scripts/vendor-ccusage-import.mjs` rebuilds the vendor tree from the pinned
+  commits and **automatically re-applies this patch series** as
+  `patches/0002-cam-downstream-v20.0.20.patch` (the apply-able representation
+  of every committed downstream edit; 0001 is the verbatim upstream PR diff,
+  kept as an audit reference only — it does not apply to v20.0.20). Before
+  swapping, the rebuild is byte-compared against the committed vendor blobs;
+  any drift aborts the import. Direct vendor edits must therefore be folded
+  back into 0002 (see the script header for the regeneration flow) or the
+  next rebuild will fail by design. `pnpm vendor:verify` re-checks the
+  committed state offline at any time.
 - All changes above are confined to `rust/crates/ccusage-core` +
   `rust/crates/ccusage-adapter-all` + the new `rust/adapters/antigravity`
   crate; no adapter behavior other than antigravity registration is touched.
