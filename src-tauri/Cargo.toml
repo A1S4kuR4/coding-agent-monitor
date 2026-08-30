@@ -15,6 +15,10 @@ license = "MIT"
 name = "coding_agent_monitor_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[dev-dependencies]
+# Source-file integrity verification in the SQLite safety tests.
+sha2 = "0.10"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

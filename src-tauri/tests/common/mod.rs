@@ -267,3 +267,168 @@ pub fn window(start: &str, end: &str) -> CollectWindow {
 pub fn model(name: &str) -> ModelName {
     ModelName(name.to_string())
 }
+
+// --- SQLite agent schema builders (real vendored schemas, no mocks) --------
+//
+// Shapes audited against each vendored adapter's loader/parser and its own
+// unit tests. All builders create REAL SQLite databases via the sqlite crate.
+
+use sqlite::Connection;
+
+/// Antigravity: `<root>/conversations/<name>.db` (see write_antigravity_db).
+
+/// Goose: `<root>/sessions.db` with the vendored `sessions` schema.
+pub fn create_goose_db(path: &Path) {
+    // Recreate from scratch so repeated runs start clean.
+    let _ = fs::remove_file(path);
+    let db = Connection::open(path).expect("open goose db");
+    db.execute(
+        r#"
+CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    model_config_json TEXT,
+    provider_name TEXT,
+    created_at TEXT,
+    total_tokens INTEGER,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    accumulated_total_tokens INTEGER,
+    accumulated_input_tokens INTEGER,
+    accumulated_output_tokens INTEGER
+)
+"#,
+    )
+    .expect("create goose sessions table");
+}
+
+pub fn insert_goose_session(
+    path: &Path,
+    id: &str,
+    model_config: &str,
+    created_at: &str,
+    total: i64,
+    input: i64,
+    output: i64,
+) {
+    let db = Connection::open(path).expect("open goose db");
+    let mut statement = db
+        .prepare("INSERT INTO sessions (id, model_config_json, provider_name, created_at, total_tokens, input_tokens, output_tokens) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
+        .expect("prepare goose insert");
+    statement.bind((1, id)).unwrap();
+    statement.bind((2, model_config)).unwrap();
+    statement.bind((3, "anthropic")).unwrap();
+    statement.bind((4, created_at)).unwrap();
+    statement.bind((5, total)).unwrap();
+    statement.bind((6, input)).unwrap();
+    statement.bind((7, output)).unwrap();
+    statement.next().expect("insert goose row");
+}
+
+/// Hermes: `<root>/state.db` with the vendored `sessions` schema.
+pub fn create_hermes_db(path: &Path) {
+    let _ = fs::remove_file(path);
+    let db = Connection::open(path).expect("open hermes db");
+    db.execute(
+        r#"
+CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    model TEXT,
+    started_at REAL NOT NULL,
+    message_count INTEGER DEFAULT 0,
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    cache_read_tokens INTEGER DEFAULT 0,
+    cache_write_tokens INTEGER DEFAULT 0,
+    reasoning_tokens INTEGER DEFAULT 0,
+    billing_provider TEXT,
+    estimated_cost_usd REAL,
+    actual_cost_usd REAL
+)
+"#,
+    )
+    .expect("create hermes sessions table");
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn insert_hermes_session(
+    path: &Path,
+    id: &str,
+    model: &str,
+    started_at: f64,
+    input: i64,
+    output: i64,
+    cache_read: i64,
+    cache_write: i64,
+    reasoning: i64,
+    estimated_cost: f64,
+    actual_cost: Option<f64>,
+) {
+    let db = Connection::open(path).expect("open hermes db");
+    let mut statement = db.prepare("INSERT INTO sessions (id, source, model, started_at, message_count, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, billing_provider, estimated_cost_usd, actual_cost_usd) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)").expect("prepare hermes insert");
+    statement.bind((1, id)).unwrap();
+    statement.bind((2, "cli")).unwrap();
+    statement.bind((3, model)).unwrap();
+    statement.bind((4, started_at)).unwrap();
+    statement.bind((5, 1)).unwrap();
+    statement.bind((6, input)).unwrap();
+    statement.bind((7, output)).unwrap();
+    statement.bind((8, cache_read)).unwrap();
+    statement.bind((9, cache_write)).unwrap();
+    statement.bind((10, reasoning)).unwrap();
+    statement.bind((11, "anthropic")).unwrap();
+    statement.bind((12, estimated_cost)).unwrap();
+    match actual_cost {
+        Some(value) => statement.bind((13, value)).unwrap(),
+        None => statement.bind((13, ())).unwrap(),
+    }
+    statement.next().expect("insert hermes row");
+}
+
+/// Kilo: `<root>/kilo.db` with the vendored `message` schema.
+pub fn create_kilo_db(path: &Path) {
+    let _ = fs::remove_file(path);
+    let db = Connection::open(path).expect("open kilo db");
+    db.execute("CREATE TABLE message (id TEXT, session_id TEXT, data TEXT)")
+        .expect("create kilo message table");
+}
+
+pub fn insert_kilo_message(path: &Path, id: &str, session_id: &str, data: &str) {
+    let db = Connection::open(path).expect("open kilo db");
+    let mut statement = db
+        .prepare("INSERT INTO message (id, session_id, data) VALUES (?1, ?2, ?3)")
+        .expect("prepare kilo insert");
+    statement.bind((1, id)).unwrap();
+    statement.bind((2, session_id)).unwrap();
+    statement.bind((3, data)).unwrap();
+    statement.next().expect("insert kilo row");
+}
+
+/// OpenCode: `<root>/opencode.db` with the vendored `message` schema
+/// (current layout with the `time_created` column).
+pub fn create_opencode_db(path: &Path) {
+    let _ = fs::remove_file(path);
+    let db = Connection::open(path).expect("open opencode db");
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER NOT NULL DEFAULT 0, data TEXT)",
+    )
+    .expect("create opencode message table");
+}
+
+pub fn insert_opencode_message(
+    path: &Path,
+    id: &str,
+    session_id: &str,
+    time_created: i64,
+    data: &str,
+) {
+    let db = Connection::open(path).expect("open opencode db");
+    let mut statement = db
+        .prepare("INSERT INTO message (id, session_id, time_created, data) VALUES (?1, ?2, ?3, ?4)")
+        .expect("prepare opencode insert");
+    statement.bind((1, id)).unwrap();
+    statement.bind((2, session_id)).unwrap();
+    statement.bind((3, time_created)).unwrap();
+    statement.bind((4, data)).unwrap();
+    statement.next().expect("insert opencode row");
+}

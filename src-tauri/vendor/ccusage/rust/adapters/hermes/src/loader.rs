@@ -40,8 +40,9 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
 
 fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry> {
     let Ok(connection) =
-        sqlite::Connection::open_with_flags(db_path, sqlite::OpenFlags::new().with_read_only())
+        ccusage_adapter_common::open_source_db_readonly(db_path)
     else {
+
         crate::debug_log(
             shared,
             format!(

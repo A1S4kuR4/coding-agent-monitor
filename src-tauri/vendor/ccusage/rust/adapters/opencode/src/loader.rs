@@ -193,8 +193,9 @@ fn load_entries_from_database(
     window: DateWindow,
 ) -> Vec<LoadedEntry> {
     let Ok(connection) =
-        sqlite::Connection::open_with_flags(db_path, sqlite::OpenFlags::new().with_read_only())
+        ccusage_adapter_common::open_source_db_readonly(db_path)
     else {
+
         debug_log(
             shared,
             format!("Failed to open OpenCode database: {}", db_path.display()),

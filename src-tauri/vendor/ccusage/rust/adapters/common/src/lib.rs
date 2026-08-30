@@ -167,3 +167,73 @@ mod tests {
         assert!(read_files_parallel(&empty, false, |_| 0_u8).is_empty());
     }
 }
+
+// Downstream (Coding Agent Monitor) 0002 patch: bounded lock waiting for
+// read-only source database connections. A held exclusive lock must surface
+// as a skipped-source diagnostic within this budget, never block a UI refresh
+// or a future worker indefinitely.
+pub const SOURCE_DB_BUSY_TIMEOUT_MS: usize = 2_000;
+
+/// Downstream (Coding Agent Monitor) 0002 patch: unified read-only opening
+/// policy for agent source databases.
+///
+/// - The connection is always `SQLITE_OPEN_READONLY` (no CREATE, no writes).
+/// - If no `-wal`/`-shm` sidecars exist, the file is opened with
+///   `immutable=1`: SQLite treats it as a static file, so collection can
+///   never create sidecar files, take locks, or leave journals in the
+///   agent's directory. Correct because a WAL-mode database without sidecars
+///   has been fully checkpointed by its owner.
+/// - If sidecars DO exist (a live writer is present), the database is opened
+///   read-only without `immutable` so in-WAL committed data stays visible;
+///   the sidecars already exist, so the collector creates nothing new.
+/// - A bounded busy timeout keeps lock contention non-blocking.
+///
+/// Note: the no-sidecars check and the open are not atomic. A writer that
+/// starts mid-read is out of scope for Phase 1's short reads; the Phase 3
+/// worker owns the full concurrency policy.
+pub fn open_source_db_readonly(path: &Path) -> sqlite::Result<sqlite::Connection> {
+    let wal = PathBuf::from(format!("{}-wal", path.display()));
+    let shm = PathBuf::from(format!("{}-shm", path.display()));
+    let has_live_sidecars = wal.exists() || shm.exists();
+    let mut connection = if has_live_sidecars {
+        sqlite::Connection::open_with_flags(
+            path,
+            sqlite::OpenFlags::new().with_read_only(),
+        )?
+    } else {
+        sqlite::Connection::open_with_flags(
+            immutable_uri(path).as_str(),
+            sqlite::OpenFlags::new().with_read_only().with_uri(),
+        )?
+    };
+    connection.set_busy_timeout(SOURCE_DB_BUSY_TIMEOUT_MS)?;
+    Ok(connection)
+}
+
+/// Builds a `file:…?immutable=1` URI with the path percent-encoded.
+fn immutable_uri(path: &Path) -> String {
+    let text = path.to_string_lossy().replace('\\', "/");
+    let mut uri = String::with_capacity(text.len() * 3 + 24);
+    // `file:///C:/…` for Windows drive paths, `file:///home/…` for POSIX —
+    // always an empty authority so SQLite does not parse the drive as a host.
+    uri.push_str("file:///");
+    if text.starts_with('/') {
+        // POSIX absolute path already carries its slash.
+        uri.pop();
+    }
+    for byte in text.as_bytes() {
+        let ch = *byte as char;
+        // SQLite URI unreserved set plus the path separators we need; every
+        // other byte (space, CJK, punctuation) is percent-encoded so spaces
+        // and multibyte names survive the URI parse.
+        let keep = ch.is_ascii_alphanumeric()
+            || matches!(ch, '-' | '_' | '.' | '~' | '/' | ':');
+        if keep {
+            uri.push(ch);
+        } else {
+            uri.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    uri.push_str("?immutable=1");
+    uri
+}
