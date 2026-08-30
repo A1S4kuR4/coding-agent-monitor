@@ -18,3 +18,7 @@
 *.icns binary
 *.ico binary
 *.png binary
+# Embedded unified diffs are data files: their whitespace (context lines
+# carrying tab-indented upstream JSON) is meaningful and must not be
+# "fixed" by git or flagged by git diff --check.
+src-tauri/vendor/ccusage/patches/*.patch -whitespace
