@@ -281,20 +281,24 @@ fn handle_snapshot_request(text: &str) -> Vec<u8> {
                 // returning wrong data. Discard all partial results, emit a
                 // whole-worker fatal error, and let the worker exit.
                 //
-                // We deliberately return a single-agent error document (NOT a
-                // valid CollectorSnapshotResponseV1) so the supervisor's
-                // snapshot parsing fails, mapping to `Protocol` — the parent
-                // never sees or caches partial results.
-                return serialize_response(&CollectorResponseV1::error(
-                    request_id.clone(),
-                    &CollectorError::Internal {
-                        details: format!(
+                // We return a valid CollectorSnapshotResponseV1 with
+                // `fatal_error` set so the supervisor correctly maps this to
+                // `Internal` — never `Protocol` or a partial result.
+                return serialize_response(&CollectorSnapshotResponseV1 {
+                    version: SNAPSHOT_PROTOCOL_VERSION,
+                    request_id: request_id.clone(),
+                    fatal_error: Some(crate::collector::protocol::ErrorV1 {
+                        code: crate::collector::protocol::ErrorCodeV1::Internal,
+                        message: format!(
                             "collector worker panicked while reading {} usage; \
-                             entire snapshot aborted to prevent untrustworthy results",
+                                 entire snapshot aborted to prevent untrustworthy results",
                             agent.label()
                         ),
-                    },
-                ));
+                        agent: Some(agent.id().to_string()),
+                        vendor: Some("ccusage v20.0.20".to_string()),
+                    }),
+                    agents: Vec::new(),
+                });
             }
         };
         agent_snapshots.push(AgentSnapshotV1 {
@@ -306,6 +310,7 @@ fn handle_snapshot_request(text: &str) -> Vec<u8> {
     serialize_response(&CollectorSnapshotResponseV1 {
         version: SNAPSHOT_PROTOCOL_VERSION,
         request_id,
+        fatal_error: None,
         agents: agent_snapshots,
     })
 }

@@ -64,13 +64,51 @@ pub struct AgentSnapshotV1 {
 }
 
 /// A versioned batch snapshot response.
+///
+/// Two forms:
+/// - **Complete**: `fatal_error` is `None` and `agents` carries per-agent
+///   outcomes (some may independently be `Error`).
+/// - **Fatal**: `fatal_error` is `Some` and `agents` is empty — the entire
+///   batch aborted (e.g. worker panic) and no partial results exist. The
+///   supervisor maps this to `Internal`, never `Protocol`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollectorSnapshotResponseV1 {
     pub version: u32,
     pub request_id: String,
-    /// Agents ordered by the vendor registry order, dates ascending within
-    /// each agent.
+    /// Present only when the whole batch aborted (e.g. panic in the shared
+    /// engine). The supervisor maps this to `Internal`, never `Protocol`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fatal_error: Option<ErrorV1>,
+    /// Per-agent outcomes. Empty when `fatal_error` is present.
+    #[serde(default)]
     pub agents: Vec<AgentSnapshotV1>,
+}
+
+impl CollectorSnapshotResponseV1 {
+    /// Builds a whole-batch fatal error response (no partial agent results).
+    pub fn fatal(
+        request_id: impl Into<String>,
+        code: crate::collector::protocol::ErrorCodeV1,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            version: SNAPSHOT_PROTOCOL_VERSION,
+            request_id: request_id.into(),
+            fatal_error: Some(ErrorV1 {
+                code,
+                message: message.into(),
+                agent: None,
+                vendor: Some("ccusage v20.0.20".to_string()),
+            }),
+            agents: Vec::new(),
+        }
+    }
+
+    /// Returns the fatal error if this response represents a whole-batch
+    /// abort.
+    pub fn fatal_error(&self) -> Option<&ErrorV1> {
+        self.fatal_error.as_ref()
+    }
 }
 
 impl CollectorSnapshotRequestV1 {
@@ -191,6 +229,7 @@ impl CollectorSnapshotResponseV1 {
         Self {
             version: SNAPSHOT_PROTOCOL_VERSION,
             request_id: request_id.into(),
+            fatal_error: None,
             agents: results
                 .into_iter()
                 .map(|(agent, result)| {
@@ -243,6 +282,21 @@ impl CollectorSnapshotResponseV1 {
                     self.request_id.len()
                 ),
             });
+        }
+        // Whole-batch fatal error: no per-agent results exist, but the error
+        // must be well-formed.
+        if let Some(fatal) = &self.fatal_error {
+            if fatal.message.is_empty() {
+                return Err(CollectorError::Protocol {
+                    details: "fatal error carries an empty message".to_string(),
+                });
+            }
+            if !self.agents.is_empty() {
+                return Err(CollectorError::Protocol {
+                    details: "fatal error response must not carry agent results".to_string(),
+                });
+            }
+            return Ok(());
         }
         let mut seen = std::collections::BTreeSet::new();
         for agent_snapshot in &self.agents {
@@ -320,6 +374,12 @@ impl CollectorSnapshotResponseV1 {
     pub fn into_domain_results(
         self,
     ) -> Result<Vec<(AgentKind, Result<CollectResult, CollectorError>)>, CollectorError> {
+        // Whole-batch fatal error: no per-agent results exist.
+        if let Some(fatal) = &self.fatal_error {
+            return Err(CollectorError::Internal {
+                details: fatal.message.clone(),
+            });
+        }
         let mut results = Vec::with_capacity(self.agents.len());
         for agent_snapshot in self.agents {
             let agent = AgentKind::from_id(&agent_snapshot.agent).ok_or_else(|| {

@@ -14,9 +14,7 @@ use std::time::{Duration, Instant};
 use coding_agent_monitor_lib::collector::protocol::{
     CollectorRequestV1, CollectorResponseV1, DataSourceV1, ErrorCodeV1, OutcomeV1, PROTOCOL_VERSION,
 };
-use coding_agent_monitor_lib::collector::snapshot_protocol::{
-    CollectorSnapshotRequestV1,
-};
+use coding_agent_monitor_lib::collector::snapshot_protocol::CollectorSnapshotRequestV1;
 use coding_agent_monitor_lib::collector::{
     supervisor, worker, worker_runner, AgentKind, CollectorError, DataSource,
 };

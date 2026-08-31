@@ -163,6 +163,12 @@ pub fn collect_snapshot_with_options(
         ));
     }
     response.validate()?;
+    // Whole-batch fatal error: map to Internal (never Protocol or partial).
+    if let Some(fatal) = response.fatal_error() {
+        return Err(CollectorError::Internal {
+            details: fatal.message.clone(),
+        });
+    }
     Ok(response)
 }
 
