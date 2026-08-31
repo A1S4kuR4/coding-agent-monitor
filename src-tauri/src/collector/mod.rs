@@ -45,6 +45,7 @@ use chrono::NaiveDate;
 
 pub mod ccusage;
 pub mod protocol;
+pub mod snapshot_protocol;
 pub mod supervisor;
 pub mod worker;
 pub mod worker_runner;

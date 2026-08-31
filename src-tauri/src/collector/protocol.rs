@@ -213,7 +213,7 @@ impl CollectorRequestV1 {
     }
 }
 
-fn parse_date(text: &str) -> Result<chrono::NaiveDate, CollectorError> {
+pub(super) fn parse_date(text: &str) -> Result<chrono::NaiveDate, CollectorError> {
     chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d").map_err(|error| {
         CollectorError::InvalidRequest {
             details: format!("invalid date {text:?}: {error}"),

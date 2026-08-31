@@ -337,6 +337,132 @@ pub fn normalize_reports(
             });
     }
 
+    let last7_days = summarize_days(&by_date, today)?;
+    let today_summary = last7_days
+        .last()
+        .cloned()
+        .expect("a seven-day range always contains today");
+
+    Ok(UsageSummary {
+        collected_at: collected_at.to_string(),
+        today: today_summary,
+        last7_days,
+    })
+}
+
+/// Phase 4A: converts a worker batch snapshot into the same `UsageSummary`
+/// the v0.2 sidecar path produces. Successful agents contribute their daily
+/// records; agents with structured errors are **rejected** — the whole
+/// refresh fails with the first agent error, matching the v0.2 behavior where
+/// a sidecar failure fails the refresh and the previous cache remains.
+/// (Per-record diagnostics inside successful agents — skipped corrupt files,
+/// SQLite skips — keep the v0.2 semantics: data survives, the diagnostic
+/// surfaces through the collector contract.)
+///
+/// Reasoning/unclassified use the Phase 1 six-bucket rule: source-reported
+/// additive reasoning rides the reasoning bucket; the residual
+/// (`total - input - output - cacheRead - cacheCreation - reasoning`) is
+/// unclassified. The six counts equal the total by construction.
+///
+/// JS-safe bound: per-agent and per-day totals above 2^53-1 are rejected
+/// exactly like the sidecar path (`emit_day_total`/`validate_row_total`
+/// equivalents), so no lossy number ever reaches the frontend.
+pub fn normalize_snapshot(
+    snapshot: &crate::collector::snapshot_protocol::CollectorSnapshotResponseV1,
+    today: &str,
+    collected_at: &str,
+) -> Result<UsageSummary, AppError> {
+    let today = NaiveDate::parse_from_str(today, "%Y-%m-%d")
+        .map_err(|error| AppError::invalid_date(error.to_string()))?;
+
+    let mut by_date = BTreeMap::<String, BTreeMap<String, AgentTotals>>::new();
+    for agent_snapshot in &snapshot.agents {
+        let report = match &agent_snapshot.outcome {
+            crate::collector::snapshot_protocol::AgentSnapshotOutcomeV1::Ok { report } => report,
+            crate::collector::snapshot_protocol::AgentSnapshotOutcomeV1::Error { error } => {
+                // Partial-failure policy: a structured agent error is fatal for
+                // the whole refresh (v0.2-consistent). The caller keeps the
+                // previous cache; no partial UsageSummary is emitted.
+                return Err(AppError::invalid_ccusage(
+                    agent_snapshot.agent.as_str(),
+                    error.message.clone(),
+                ));
+            }
+        };
+        for wire_record in &report.records {
+            // Wire → domain conversion re-applies the six-bucket invariant and
+            // JS-safe parsing before any aggregation.
+            let record =
+                crate::collector::protocol::record_from_v1(wire_record).map_err(|error| {
+                    AppError::invalid_ccusage(&agent_snapshot.agent, error.to_string())
+                })?;
+            let date_key = record.date.format("%Y-%m-%d").to_string();
+            let total_cost = record.cost.map(|cost| {
+                // Nano-USD → f64 exactly as the v0.2 sidecar path reports
+                // costs (f64 USD). One rounding at this boundary; all parity
+                // comparisons use nano-USD before this point.
+                cost.as_nano_usd() as f64 / 1_000_000_000.0
+            });
+            let day = by_date.entry(date_key).or_default();
+            let agent_totals = day.entry(record.agent.id().to_string()).or_default();
+            agent_totals.tokens = agent_totals.tokens.saturating_add(record.total_tokens);
+            agent_totals.input = agent_totals.input.saturating_add(record.input_tokens);
+            agent_totals.output = agent_totals.output.saturating_add(record.output_tokens);
+            agent_totals.cache_read = agent_totals
+                .cache_read
+                .saturating_add(record.cache_read_tokens);
+            agent_totals.cache_creation = agent_totals
+                .cache_creation
+                .saturating_add(record.cache_creation_tokens);
+            agent_totals.reasoning = agent_totals
+                .reasoning
+                .saturating_add(record.reasoning_tokens);
+            match total_cost {
+                Some(cost) if cost.is_finite() => agent_totals.cost_sum += cost,
+                _ => agent_totals.cost_known = false,
+            }
+            for breakdown in &record.model_breakdowns {
+                let entry = agent_totals
+                    .models
+                    .entry(breakdown.model.0.clone())
+                    .or_default();
+                entry.input = entry.input.saturating_add(breakdown.input_tokens);
+                entry.output = entry.output.saturating_add(breakdown.output_tokens);
+                entry.cache_read = entry.cache_read.saturating_add(breakdown.cache_read_tokens);
+                entry.cache_creation = entry
+                    .cache_creation
+                    .saturating_add(breakdown.cache_creation_tokens);
+                entry.total = entry
+                    .total
+                    .saturating_add(breakdown.input_tokens)
+                    .saturating_add(breakdown.output_tokens)
+                    .saturating_add(breakdown.cache_read_tokens)
+                    .saturating_add(breakdown.cache_creation_tokens);
+            }
+        }
+    }
+
+    let last7_days = summarize_days(&by_date, today)?;
+    let today_summary = last7_days
+        .last()
+        .cloned()
+        .expect("a seven-day range always contains today");
+
+    Ok(UsageSummary {
+        collected_at: collected_at.to_string(),
+        today: today_summary,
+        last7_days,
+    })
+}
+
+/// Shared seven-day summarization over per-day agent aggregates. Both the
+/// sidecar path and the worker snapshot path converge here so the
+/// UsageSummary semantics (day gap zero-fill, ordering, JS-safe totals,
+/// six-bucket breakdown, cache share) live in exactly one place.
+fn summarize_days(
+    by_date: &BTreeMap<String, BTreeMap<String, AgentTotals>>,
+    today: chrono::NaiveDate,
+) -> Result<Vec<DailyUsage>, AppError> {
     let mut last7_days = Vec::with_capacity(7);
     for days_ago in (0..7).rev() {
         let date = today - Duration::days(days_ago);
@@ -365,17 +491,7 @@ pub fn normalize_reports(
             agents,
         });
     }
-
-    let today_summary = last7_days
-        .last()
-        .cloned()
-        .expect("a seven-day range always contains today");
-
-    Ok(UsageSummary {
-        collected_at: collected_at.to_string(),
-        today: today_summary,
-        last7_days,
-    })
+    Ok(last7_days)
 }
 
 /// Computes the day's estimated cost and cache-input share from its active

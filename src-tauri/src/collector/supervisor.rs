@@ -95,19 +95,96 @@ pub fn collect_with_options(
     timeout: Duration,
 ) -> Result<CollectResult, CollectorError> {
     let protocol_error = |details: String| CollectorError::Protocol { details };
+    let request_bytes = serde_json::to_vec(request)
+        .map_err(|error| protocol_error(format!("failed to serialize request: {error}")))?;
+    let raw = run_worker_raw(&request_bytes, cancel, timeout)?;
+    let text = std::str::from_utf8(&raw)
+        .map_err(|_| protocol_error("worker stdout is not valid UTF-8".to_string()))?;
+    let response = CollectorResponseV1::from_wire(text)?;
+    if response.version != PROTOCOL_VERSION {
+        return Err(protocol_error(format!(
+            "worker response version {} (expected {PROTOCOL_VERSION})",
+            response.version
+        )));
+    }
+    if response.request_id != request.request_id {
+        return Err(protocol_error(
+            "worker response request_id does not match the request".to_string(),
+        ));
+    }
+    match &response.outcome {
+        OutcomeV1::Ok { report } => {
+            let agent = AgentKind::from_id(&request.agent)
+                .ok_or_else(|| protocol_error(format!("unknown agent id {:?}", request.agent)))?;
+            result_from_wire_report(agent, report)
+        }
+        OutcomeV1::Error { error } => Ok(Err(CollectorError::Protocol {
+            details: error.message.clone(),
+        })?),
+    }
+}
+
+/// Runs one batch snapshot collection in a worker child process (Phase 4A:
+/// one refresh = one worker = one full-agent snapshot).
+pub fn collect_snapshot(
+    request: &super::snapshot_protocol::CollectorSnapshotRequestV1,
+) -> Result<super::snapshot_protocol::CollectorSnapshotResponseV1, CollectorError> {
+    collect_snapshot_with_options(request, &NEVER_CANCEL, DEFAULT_WORKER_TIMEOUT)
+}
+
+/// Snapshot variant of [`collect_with_options`].
+pub fn collect_snapshot_with_options(
+    request: &super::snapshot_protocol::CollectorSnapshotRequestV1,
+    cancel: &AtomicBool,
+    timeout: Duration,
+) -> Result<super::snapshot_protocol::CollectorSnapshotResponseV1, CollectorError> {
+    let protocol_error = |details: String| CollectorError::Protocol { details };
+    let request_bytes = serde_json::to_vec(request)
+        .map_err(|error| protocol_error(format!("failed to serialize request: {error}")))?;
+    let raw = run_worker_raw(&request_bytes, cancel, timeout)?;
+    let text = std::str::from_utf8(&raw)
+        .map_err(|_| protocol_error("worker stdout is not valid UTF-8".to_string()))?;
+    let response: super::snapshot_protocol::CollectorSnapshotResponseV1 =
+        serde_json::from_str(text).map_err(|error| {
+            protocol_error(format!(
+                "worker snapshot response is not exactly one document: {error}"
+            ))
+        })?;
+    if response.version != super::snapshot_protocol::SNAPSHOT_PROTOCOL_VERSION {
+        return Err(protocol_error(format!(
+            "worker snapshot response version {} (expected {})",
+            response.version,
+            super::snapshot_protocol::SNAPSHOT_PROTOCOL_VERSION
+        )));
+    }
+    if response.request_id != request.request_id {
+        return Err(protocol_error(
+            "worker snapshot response request_id does not match the request".to_string(),
+        ));
+    }
+    response.validate()?;
+    Ok(response)
+}
+
+/// The shared process pipeline: serialize the request, spawn the worker, feed
+/// stdin, drain pipes, enforce timeout/cancel, and return validated stdout
+/// bytes. The caller owns protocol-level validation of the response document.
+fn run_worker_raw(
+    request_bytes: &[u8],
+    cancel: &AtomicBool,
+    timeout: Duration,
+) -> Result<Vec<u8>, CollectorError> {
+    let protocol_error = |details: String| CollectorError::Protocol { details };
     if crate::sidecar::is_shutting_down() || cancel.load(Ordering::SeqCst) {
         return Err(CollectorError::Cancelled);
     }
-
-    let request_bytes = serde_json::to_vec(request)
-        .map_err(|error| protocol_error(format!("failed to serialize request: {error}")))?;
 
     let (mut child, stdin, stdout, stderr) = spawn_worker()?;
 
     // Feed the request and close stdin immediately: the worker reads to EOF.
     let write_result = {
         let mut stdin = stdin;
-        let result = stdin.write_all(&request_bytes).and_then(|_| stdin.flush());
+        let result = stdin.write_all(request_bytes).and_then(|_| stdin.flush());
         // Dropping stdin closes the pipe even on write failure.
         result
     };
@@ -187,31 +264,7 @@ pub fn collect_with_options(
                     details: "collector worker produced no output".to_string(),
                 });
             }
-            let text = std::str::from_utf8(&stdout)
-                .map_err(|_| protocol_error("worker stdout is not valid UTF-8".to_string()))?;
-            let response = CollectorResponseV1::from_wire(text)?;
-            if response.version != PROTOCOL_VERSION {
-                return Err(protocol_error(format!(
-                    "worker response version {} (expected {PROTOCOL_VERSION})",
-                    response.version
-                )));
-            }
-            if response.request_id != request.request_id {
-                return Err(protocol_error(
-                    "worker response request_id does not match the request".to_string(),
-                ));
-            }
-            match &response.outcome {
-                OutcomeV1::Ok { report } => {
-                    let agent = AgentKind::from_id(&request.agent).ok_or_else(|| {
-                        protocol_error(format!("unknown agent id {:?}", request.agent))
-                    })?;
-                    result_from_wire_report(agent, report)
-                }
-                OutcomeV1::Error { error } => Ok(Err(CollectorError::Protocol {
-                    details: error.message.clone(),
-                })?),
-            }
+            Ok(stdout)
         }
     }
 }

@@ -2,9 +2,11 @@ pub mod collector;
 mod commands;
 mod db;
 mod error;
-mod sidecar;
+// The sidecar/usage modules are pub so the shadow harness (dev/test only) can
+// drive both collection paths and compare their UsageSummary outputs.
+pub mod sidecar;
 mod tray;
-mod usage;
+pub mod usage;
 
 use tauri::{RunEvent, WindowEvent};
 

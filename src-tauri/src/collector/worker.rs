@@ -1,15 +1,17 @@
-//! Internal single-shot collector worker.
+//! Internal collector worker.
 //!
-//! The product executable doubles as the Phase 3 collector worker when launched
-//! with [`INTERNAL_FLAG`] as the first argument. The flag is checked in `main`
+//! The product executable doubles as the collector worker when launched with
+//! [`INTERNAL_FLAG`] as the first argument. The flag is checked in `main`
 //! before any Tauri/DB/tray initialization, so worker mode never touches the
 //! UI stack, the app database, or the sidecar runner.
 //!
 //! Contract (see `docs/V0.3_PHASE3_WORKER.md`):
-//! - stdin carries exactly one `CollectorRequestV1` JSON document, terminated
-//!   by EOF (trailing whitespace allowed, anything else rejected);
-//! - stdout carries exactly one `CollectorResponseV1` JSON document — no
-//!   banners, logs, progress, or panic text;
+//! - stdin carries exactly one request JSON document — a single-agent
+//!   `CollectorRequestV1` (the internal primitive) or a batch
+//!   `CollectorSnapshotRequestV1` (the product refresh form) — terminated by
+//!   EOF (trailing whitespace allowed, anything else rejected);
+//! - stdout carries exactly one response JSON document — no banners, logs,
+//!   progress, or panic text;
 //! - diagnostics and debug output go to stderr (sanitized), which the parent
 //!   reads with a byte cap;
 //! - the process exits 0 when a response was written (success or structured
@@ -21,9 +23,11 @@
 use std::io::{Read, Write};
 
 use super::protocol::{record_from_v1, CollectorRequestV1, CollectorResponseV1};
-use super::{
-    ccusage::AgentCollector, AgentKind, CollectResult, Collector, CollectorError, DiagnosticKind,
+use super::snapshot_protocol::{
+    AgentSnapshotOutcomeV1, AgentSnapshotV1, CollectorSnapshotRequestV1,
+    CollectorSnapshotResponseV1, SNAPSHOT_PROTOCOL_VERSION,
 };
+use super::{ccusage::AgentCollector, AgentKind, Collector, CollectorError, DiagnosticKind};
 
 /// The single internal argument that turns the product executable into a
 /// collector worker. Never advertised anywhere user-visible.
@@ -120,9 +124,14 @@ fn write_once(response_bytes: &[u8]) -> i32 {
 /// Builds the wire bytes of a structured error response.
 fn error_response_bytes(error: &CollectorError) -> Vec<u8> {
     let response = CollectorResponseV1::error("worker-internal", error);
-    let mut bytes = serde_json::to_vec(&response).unwrap_or_else(|_| {
-        // Serialization of our own error type cannot fail; the fallback keeps
-        // the "exactly one document" contract even under that impossibility.
+    serialize_response(&response)
+}
+
+/// Serializes a response document to wire bytes (with trailing newline). The
+/// fallback keeps the "exactly one document" contract even if serialization of
+/// our own types fails (which cannot happen).
+fn serialize_response<T: serde::Serialize>(response: &T) -> Vec<u8> {
+    let mut bytes = serde_json::to_vec(response).unwrap_or_else(|_| {
         br#"{"version":1,"request_id":"worker-internal","status":"error","error":{"code":"internal","message":"collector worker failed"}}"#.to_vec()
     });
     bytes.push(b'\n');
@@ -133,29 +142,29 @@ fn error_response_bytes(error: &CollectorError) -> Vec<u8> {
 /// write to stdout, or the bytes of a structured failure document when the
 /// transport itself was invalid.
 pub fn handle_request_bytes(input: &[u8]) -> Result<Vec<u8>, Vec<u8>> {
-    let response = handle_request(input);
-    let mut bytes = match serde_json::to_vec(&response) {
-        Ok(bytes) => bytes,
-        Err(_) => {
-            return Err(error_response_bytes(&CollectorError::Internal {
-                details: "collector worker failed to serialize the response".to_string(),
-            }))
-        }
-    };
+    let bytes = handle_request(input);
     if bytes.len() > MAX_STDOUT_BYTES {
         return Err(error_response_bytes(&CollectorError::Internal {
             details: "collector response exceeded the stdout size limit".to_string(),
         }));
     }
-    bytes.push(b'\n');
     Ok(bytes)
 }
 
-/// Executes one request and builds the response envelope.
-fn handle_request(input: &[u8]) -> CollectorResponseV1 {
-    let transport_error = |details: String| {
-        CollectorResponseV1::error("unknown", &CollectorError::Protocol { details })
-    };
+/// True when the payload is a batch snapshot request (has an `agents` array).
+fn is_snapshot_request(text: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(text)
+        .ok()
+        .is_some_and(|value| value.get("agents").is_some_and(serde_json::Value::is_array))
+}
+
+/// Executes one request and returns the response wire bytes. Snapshot requests
+/// (with an `agents` array) collect every listed agent serially in-process in
+/// deterministic registry order; single requests remain the internal
+/// primitive.
+fn handle_request(input: &[u8]) -> Vec<u8> {
+    let transport_error =
+        |details: String| error_response_bytes(&CollectorError::Protocol { details });
 
     if input.len() > MAX_STDIN_BYTES {
         return transport_error(format!(
@@ -173,6 +182,9 @@ fn handle_request(input: &[u8]) -> CollectorResponseV1 {
             ))
         }
     };
+    if is_snapshot_request(text) {
+        return handle_snapshot_request(text);
+    }
     // serde rejects trailing content after the first JSON document (only
     // whitespace is tolerated), which enforces the one-request contract.
     let request: CollectorRequestV1 = match serde_json::from_str(text) {
@@ -189,34 +201,112 @@ fn handle_request(input: &[u8]) -> CollectorResponseV1 {
         Ok(domain) => {
             let collector = AgentCollector::new(domain.agent);
             match Collector::collect(&collector, &domain) {
-                Ok(result) => CollectorResponseV1::ok(request_id, &result),
-                Err(error) => CollectorResponseV1::error(request_id, &error),
+                Ok(result) => serialize_response(&CollectorResponseV1::ok(request_id, &result)),
+                Err(error) => serialize_response(&CollectorResponseV1::error(request_id, &error)),
             }
         }
-        Err(error) => CollectorResponseV1::error(request_id, &error),
+        Err(error) => serialize_response(&CollectorResponseV1::error(request_id, &error)),
     }
 }
 
-/// A short, path-free description of a UTF-8 failure.
-fn sanitized_utf8_error(error: std::str::Utf8Error) -> String {
-    match error.error_len() {
-        Some(len) => format!(
-            "invalid byte sequence of {} byte(s) near offset {}",
-            len,
-            error.valid_up_to()
-        ),
-        None => format!(
-            "incomplete byte sequence near offset {}",
-            error.valid_up_to()
-        ),
+/// Executes a batch snapshot request: every listed agent is collected
+/// serially in the worker process (deterministic registry order), each with
+/// its own captured outcome.
+///
+/// Per-agent failure policy — **isolate and continue**: a panic inside one
+/// agent's loader is caught with `catch_unwind`, recorded as that agent's
+/// structured VendorAdapter error, and the remaining agents proceed. A panic
+/// that corrupts process state beyond even this recording is absorbed by the
+/// outer `catch_unwind` in `run_worker_stdio`, which emits a whole-worker
+/// fatal response — never half a stdout document.
+fn handle_snapshot_request(text: &str) -> Vec<u8> {
+    let transport_error =
+        |details: String| error_response_bytes(&CollectorError::Protocol { details });
+
+    let request: CollectorSnapshotRequestV1 = match serde_json::from_str(text) {
+        Ok(request) => request,
+        Err(error) => {
+            return transport_error(format!(
+                "request is not exactly one CollectorSnapshotRequestV1 document: {}",
+                error
+            ))
+        }
+    };
+    let request_id = request.request_id.clone();
+    let requests = match request.into_domain() {
+        Ok(requests) => requests,
+        Err(error) => return serialize_response(&CollectorResponseV1::error(request_id, &error)),
+    };
+
+    let mut agent_snapshots = Vec::with_capacity(requests.len());
+    for domain in requests {
+        let agent = domain.agent;
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let collector = AgentCollector::new(agent);
+            Collector::collect(&collector, &domain)
+        }));
+        let snapshot_outcome = match outcome {
+            Ok(Ok(result)) => {
+                let response = CollectorResponseV1::ok("internal", &result);
+                match response.outcome {
+                    crate::collector::protocol::OutcomeV1::Ok { report } => {
+                        AgentSnapshotOutcomeV1::Ok { report }
+                    }
+                    crate::collector::protocol::OutcomeV1::Error { error } => {
+                        AgentSnapshotOutcomeV1::Error { error }
+                    }
+                }
+            }
+            Ok(Err(error)) => {
+                let response = CollectorResponseV1::error("internal", &error);
+                match response.outcome {
+                    crate::collector::protocol::OutcomeV1::Error { error } => {
+                        AgentSnapshotOutcomeV1::Error { error }
+                    }
+                    crate::collector::protocol::OutcomeV1::Ok { .. } => {
+                        unreachable!("error() always errors")
+                    }
+                }
+            }
+            Err(_panic) => {
+                let response = CollectorResponseV1::error(
+                    "internal",
+                    &CollectorError::VendorAdapter {
+                        vendor: "ccusage v20.0.20".to_string(),
+                        details: format!(
+                            "collector panicked while reading {} usage",
+                            agent.label()
+                        ),
+                    },
+                );
+                match response.outcome {
+                    crate::collector::protocol::OutcomeV1::Error { error } => {
+                        AgentSnapshotOutcomeV1::Error { error }
+                    }
+                    crate::collector::protocol::OutcomeV1::Ok { .. } => {
+                        unreachable!("error() always errors")
+                    }
+                }
+            }
+        };
+        agent_snapshots.push(AgentSnapshotV1 {
+            agent: agent.id().to_string(),
+            outcome: snapshot_outcome,
+        });
     }
+
+    serialize_response(&CollectorSnapshotResponseV1 {
+        version: SNAPSHOT_PROTOCOL_VERSION,
+        request_id,
+        agents: agent_snapshots,
+    })
 }
 
 /// Converts a wire report back into the domain result (used by the supervisor).
 pub fn result_from_wire_report(
     agent: AgentKind,
     report: &super::protocol::ReportV1,
-) -> Result<CollectResult, CollectorError> {
+) -> Result<super::CollectResult, CollectorError> {
     let mut records = Vec::with_capacity(report.records.len());
     for record in &report.records {
         records.push(record_from_v1(record)?);
@@ -242,7 +332,26 @@ pub fn result_from_wire_report(
             details: diagnostic.details.clone(),
         });
     }
-    Ok(CollectResult::from_parts(agent, records, diagnostics))
+    Ok(super::CollectResult::from_parts(
+        agent,
+        records,
+        diagnostics,
+    ))
+}
+
+/// A short, path-free description of a UTF-8 failure.
+fn sanitized_utf8_error(error: std::str::Utf8Error) -> String {
+    match error.error_len() {
+        Some(len) => format!(
+            "invalid byte sequence of {} byte(s) near offset {}",
+            len,
+            error.valid_up_to()
+        ),
+        None => format!(
+            "incomplete byte sequence near offset {}",
+            error.valid_up_to()
+        ),
+    }
 }
 
 /// Debug/test-only fault injection. Reads `CAM_TEST_WORKER_*` environment
