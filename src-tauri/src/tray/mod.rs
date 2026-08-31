@@ -12,10 +12,10 @@ use tauri::{
 
 /// Event name for a successful tray refresh; the payload is the same
 /// `UsageSummary` the window renders, so a long-open window updates without
-/// starting a second sidecar.
+/// starting a second collector child.
 const USAGE_UPDATED_EVENT: &str = "usage-updated";
 
-use crate::sidecar::collect_usage;
+use crate::collector::worker_runner;
 
 /// How many of today's top agents to fold into the tray summary. The adapter
 /// sorts agents by tokens descending, so taking the first few gives the biggest
@@ -26,7 +26,7 @@ const TRAY_ID: &str = "main-tray";
 const SUMMARY_MENU_ID: &str = "today-summary";
 const SHOW_MENU_ID: &str = "show-dashboard";
 const QUIT_MENU_ID: &str = "quit";
-/// Fallback text shown until the first sidecar read succeeds.
+/// Fallback text shown until the first collection succeeds.
 const SUMMARY_PLACEHOLDER: &str = "Today: —";
 /// Low-frequency summary refresh so the tray stays current without churn.
 const REFRESH_INTERVAL: Duration = Duration::from_secs(300);
@@ -35,7 +35,7 @@ const REFRESH_INTERVAL: Duration = Duration::from_secs(300);
 static REFRESHER_STOPPED: AtomicBool = AtomicBool::new(false);
 /// Single-flight guard: only one tray refresh runs at a time. A refresh that
 /// lands while one is already in flight is dropped, so fast clicks or the
-/// periodic timer can never pile up sidecar runs or refresher threads.
+/// periodic timer can never pile up collection runs or refresher threads.
 static REFRESH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 struct RefreshGuard;
@@ -89,7 +89,7 @@ fn refresh(app: &AppHandle) {
         return;
     }
     // Single-flight: if a refresh already is running, drop this one entirely.
-    // Prevents unbounded refresher threads / sidecar runs on rapid clicks.
+    // Prevents unbounded refresher threads / collection runs on rapid clicks.
     if REFRESH_IN_PROGRESS.swap(true, Ordering::SeqCst) {
         return;
     }
@@ -98,9 +98,9 @@ fn refresh(app: &AppHandle) {
         .name("tray-refresh".into())
         .spawn(move || {
             let _guard = RefreshGuard;
-            let summary = match collect_usage() {
+            let summary = match worker_runner::collect_usage() {
                 Ok(summary) => summary,
-                // Keep the last-known text; a transient sidecar failure should
+                // Keep the last-known text; a transient collection failure should
                 // not turn the tray into an error banner.
                 Err(_) => return,
             };

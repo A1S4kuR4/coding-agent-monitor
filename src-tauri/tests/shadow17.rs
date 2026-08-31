@@ -118,19 +118,49 @@ fn golden_input(case: &str) -> PathBuf {
 /// per-agent layout matches what both the sidecar env vars and the worker
 /// `Paths` roots accept (see `sidecar_env` / `worker_roots`).
 fn build_shadow17_fixture(name: &str) -> PathBuf {
+    // Parity anchors: the audited 2026-01-02/03 window (day 1 = 1767312000).
+    build_shadow17_fixture_anchored(name, 1_767_312_000)
+}
+
+/// Builds the 17-agent fixture with records on two days: `day_a_epoch` (UTC
+/// midnight of day 1) and day 2 (day 1 + 1). The parity test pins the audited
+/// 2026-01-02/03 anchors; the production-shape perf benchmark re-anchors to
+/// the real today-1/today so the production request window covers the data.
+fn build_shadow17_fixture_anchored(name: &str, day_a_epoch: i64) -> PathBuf {
     let root = fixture_root(name);
     let agent_dir = |agent: &str| root.join(agent);
+    let day_b_epoch = day_a_epoch + 86_400;
+    let a_str = chrono::DateTime::from_timestamp(day_a_epoch, 0)
+        .expect("day a")
+        .format("%Y-%m-%d")
+        .to_string();
+    let b_str = chrono::DateTime::from_timestamp(day_b_epoch, 0)
+        .expect("day b")
+        .format("%Y-%m-%d")
+        .to_string();
 
     // claude: golden two days + requestId-dedup probe (exact duplicate of
     // day 1) + a mixed priced/unpriced day 2 (missing-pricing semantics).
     let claude_projects = agent_dir("claude").join("projects/cam");
     fs::create_dir_all(&claude_projects).expect("mkdir claude");
-    let day1_line = r#"{"timestamp":"2026-01-02T00:00:00.000Z","sessionId":"session-a","requestId":"req-day1","costUSD":0.01,"message":{"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":10},"model":"claude-sonnet-4-20250514","id":"msg-day1"}}"#;
-    let day2_line = r#"{"timestamp":"2026-01-03T08:30:00.000Z","sessionId":"session-a","requestId":"req-day2","costUSD":0.125,"message":{"usage":{"input_tokens":300,"output_tokens":30,"cache_creation_input_tokens":5,"cache_read_input_tokens":3},"model":"claude-sonnet-4-20250514","id":"msg-day2"}}"#;
-    let unpriced_line = r#"{"timestamp":"2026-01-03T10:00:00.000Z","sessionId":"session-a","requestId":"req-day2-unpriced","message":{"usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},"model":"cam-unpriced-probe-model","id":"msg-unpriced"}}"#;
+    let day1_line = format!(
+        r#"{{"timestamp":"{a_str}T00:00:00.000Z","sessionId":"session-a","requestId":"req-day1","costUSD":0.01,"message":{{"usage":{{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":10}},"model":"claude-sonnet-4-20250514","id":"msg-day1"}}}}"#
+    );
+    let day2_line = format!(
+        r#"{{"timestamp":"{b_str}T08:30:00.000Z","sessionId":"session-a","requestId":"req-day2","costUSD":0.125,"message":{{"usage":{{"input_tokens":300,"output_tokens":30,"cache_creation_input_tokens":5,"cache_read_input_tokens":3}},"model":"claude-sonnet-4-20250514","id":"msg-day2"}}}}"#
+    );
+    let unpriced_line = format!(
+        r#"{{"timestamp":"{b_str}T10:00:00.000Z","sessionId":"session-a","requestId":"req-day2-unpriced","message":{{"usage":{{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"model":"cam-unpriced-probe-model","id":"msg-unpriced"}}}}"#
+    );
     fs::write(
         claude_projects.join("session-a.jsonl"),
-        [day1_line, day1_line, day2_line, unpriced_line].join("\n"),
+        [
+            day1_line.as_str(),
+            day1_line.as_str(),
+            day2_line.as_str(),
+            unpriced_line.as_str(),
+        ]
+        .join("\n"),
     )
     .expect("write claude fixture");
 
@@ -139,11 +169,15 @@ fn build_shadow17_fixture(name: &str) -> PathBuf {
     fs::create_dir_all(&codex_sessions).expect("mkdir codex");
     fs::write(
         codex_sessions.join("session-a.jsonl"),
-        concat!(
-            r#"{"timestamp":"2026-01-02T08:01:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-5.2","last_token_usage":{"input_tokens":1000,"cached_input_tokens":100,"output_tokens":200,"reasoning_output_tokens":20,"total_tokens":1320}}}}"#,
-            "\n",
-            r#"{"timestamp":"2026-01-03T09:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-5.2","last_token_usage":{"input_tokens":500,"cached_input_tokens":50,"output_tokens":80,"reasoning_output_tokens":10,"total_tokens":640}}}}"#,
-        ),
+        [
+            format!(
+                r#"{{"timestamp":"{a_str}T08:01:00.000Z","type":"event_msg","payload":{{"type":"token_count","info":{{"model":"gpt-5.2","last_token_usage":{{"input_tokens":1000,"cached_input_tokens":100,"output_tokens":200,"reasoning_output_tokens":20,"total_tokens":1320}}}}}}}}"#
+            ),
+            format!(
+                r#"{{"timestamp":"{b_str}T09:00:00.000Z","type":"event_msg","payload":{{"type":"token_count","info":{{"model":"gpt-5.2","last_token_usage":{{"input_tokens":500,"cached_input_tokens":50,"output_tokens":80,"reasoning_output_tokens":10,"total_tokens":640}}}}}}}}"#
+            ),
+        ]
+        .join("\n"),
     )
     .expect("write codex fixture");
 
@@ -155,8 +189,11 @@ fn build_shadow17_fixture(name: &str) -> PathBuf {
         &agent_dir("opencode").join("opencode.db"),
         "msg-1",
         "sess-1",
-        1_767_312_000_000,
-        r#"{"id":"msg-1","sessionID":"sess-1","modelID":"claude-sonnet-4-20250514","providerID":"anthropic","time":{"created":1767312000000},"tokens":{"input":100,"output":50,"cache":{"read":10,"write":20}},"cost":0.02}"#,
+        day_a_epoch * 1000,
+        &format!(
+            r#"{{"id":"msg-1","sessionID":"sess-1","modelID":"claude-sonnet-4-20250514","providerID":"anthropic","time":{{"created":{}}},"tokens":{{"input":100,"output":50,"cache":{{"read":10,"write":20}}}},"cost":0.02}}"#,
+            day_a_epoch * 1000
+        ),
     );
     fs::create_dir_all(agent_dir("kilo")).expect("mkdir kilo");
     common::create_kilo_db(&agent_dir("kilo").join("kilo.db"));
@@ -164,7 +201,10 @@ fn build_shadow17_fixture(name: &str) -> PathBuf {
         &agent_dir("kilo").join("kilo.db"),
         "msg-1",
         "sess-1",
-        r#"{"id":"msg-1","role":"assistant","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50,"reasoning":5,"cache":{"read":10,"write":20}},"cost":0.02}"#,
+        &format!(
+            r#"{{"id":"msg-1","role":"assistant","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{{"created":{}}},"tokens":{{"input":100,"output":50,"reasoning":5,"cache":{{"read":10,"write":20}}}},"cost":0.02}}"#,
+            day_a_epoch * 1000
+        ),
     );
 
     // hermes: golden values (started_at 2026-01-02T00:00:00Z); the sidecar
@@ -175,7 +215,7 @@ fn build_shadow17_fixture(name: &str) -> PathBuf {
         &agent_dir("hermes").join("state.db"),
         "session-a",
         "claude-sonnet-4-20250514",
-        1_767_312_000.0,
+        day_a_epoch as f64,
         100,
         50,
         10,
@@ -195,7 +235,7 @@ fn build_shadow17_fixture(name: &str) -> PathBuf {
         &goose_data.join("sessions.db"),
         "session-a",
         r#"{"model_name":"claude-sonnet-4-20250514"}"#,
-        "2026-01-02 01:02:03",
+        &format!("{a_str} 01:02:03"),
         180,
         100,
         50,
@@ -205,7 +245,7 @@ fn build_shadow17_fixture(name: &str) -> PathBuf {
     // dedup probe. Usage matches the audited antigravity-basic golden.
     let blob = common::generation_blob(
         "gemini-3.1-pro-low",
-        common::DAY_1_SECONDS,
+        day_a_epoch as u64,
         1000,
         6321,
         10,
@@ -219,17 +259,19 @@ fn build_shadow17_fixture(name: &str) -> PathBuf {
     copy_dir_with_replacements(
         &golden_input("amp-basic"),
         &agent_dir("amp"),
-        &[("2026-01-19", "2026-01-02")],
+        &[("2026-01-19", a_str.as_str())],
     );
     copy_dir_with_replacements(
         &golden_input("droid-basic"),
         &agent_dir("droid"),
-        &[("2026-05-01", "2026-01-02")],
+        &[("2026-05-01", a_str.as_str())],
     );
     copy_dir_with_replacements(&golden_input("codebuff-basic"), &agent_dir("codebuff"), &[]);
     copy_dir_with_replacements(&golden_input("pi-basic"), &agent_dir("pi"), &[]);
     // pi extra: an unpriced-model-ONLY day (2026-01-03) — null-cost parity.
-    let pi_day2 = r#"{"type":"message","timestamp":"2026-01-03T09:30:00.000Z","message":{"role":"assistant","model":"cam-unpriced-probe-model","usage":{"totalTokens":15}}}"#;
+    let pi_day2 = format!(
+        r#"{{"type":"message","timestamp":"{b_str}T09:30:00.000Z","message":{{"role":"assistant","model":"cam-unpriced-probe-model","usage":{{"totalTokens":15}}}}}}"#
+    );
     let pi_existing =
         fs::read_to_string(agent_dir("pi").join("sessions/project-a/agent_session-a.jsonl"))
             .expect("read pi fixture");
@@ -241,35 +283,45 @@ fn build_shadow17_fixture(name: &str) -> PathBuf {
     copy_dir_with_replacements(
         &golden_input("openclaw-basic"),
         &agent_dir("openclaw"),
-        &[("1769753935279", "1767381135279")], // 2026-01-30 → 2026-01-02 (ms)
+        &[(
+            "1769753935279",
+            &((day_a_epoch + 69_135) * 1000 + 279).to_string(),
+        )], // → day a (ms)
     );
     copy_dir_with_replacements(
         &golden_input("copilot-basic"),
         &agent_dir("copilot"),
-        &[("[1775934264,967317833]", "[1767380664,967317833]")], // 2026-04-11 → 2026-01-02 (s)
+        &[(
+            "[1775934264,967317833]",
+            &format!("[{},967317833]", day_a_epoch + 68_664),
+        )], // → day a (s)
     );
     copy_dir_with_replacements(
         &golden_input("gemini-basic"),
         &agent_dir("gemini"),
-        &[("2026-05-17", "2026-01-02")],
+        &[("2026-05-17", a_str.as_str())],
     );
     copy_dir_with_replacements(
         &golden_input("kimi-basic"),
         &agent_dir("kimi"),
         &[
-            ("1770983426.420942", "1767354626.420942"), // 2026-02-13 → 2026-01-02 (s)
-            ("1770983427.123", "1767354627.123"),
+            // → day a (s), keeping each event's sub-second fraction
+            (
+                "1770983426.420942",
+                &format!("{}.420942", day_a_epoch + 42_626),
+            ),
+            ("1770983427.123", &format!("{}.123", day_a_epoch + 42_627)),
         ],
     );
     copy_dir_with_replacements(
         &golden_input("qwen-basic"),
         &agent_dir("qwen"),
-        &[("2026-02-23", "2026-01-02")],
+        &[("2026-02-23", a_str.as_str())],
     );
     copy_dir_with_replacements(
         &golden_input("grok-basic"),
         &agent_dir("grok"),
-        &[("1750000000", "1767366400")], // 2025-06-15 → 2026-01-02 (s)
+        &[("1750000000", &(day_a_epoch + 54_400).to_string())], // → day a (s)
     );
 
     // Empty home scratch dirs so no adapter falls back to real user data.
@@ -497,13 +549,19 @@ fn worker_has_missing_pricing(
         })
 }
 
-/// Dates where the only sidecar-vs-worker day-cost difference is the
-/// documented Category-5 divergence: the v0.2 sidecar emits `totalCost: 0.0`
-/// (a faked zero) for an unpriced-only agent row, which the v0.2 adapter
-/// forwards as a KNOWN zero, while the v0.3 worker marks the record missing
-/// pricing and nulls the day cost (product contract: missing is never faked
-/// as $0.00). Returns the (date, agent) pairs whose faked zero explains the
-/// difference; anything else must FAIL.
+/// Dates where the sidecar-vs-worker day-cost difference is a documented,
+/// approved semantic divergence:
+///
+/// - **Category-5**: the v0.2 sidecar emits `totalCost: 0.0` (a faked zero)
+///   for an unpriced-only agent row, which the v0.2 adapter forwards as a
+///   KNOWN zero, while the v0.3 worker marks the record missing pricing and
+///   nulls the day cost (product contract: missing is never faked as $0.00).
+/// - **Approved Phase 4B change #2**: for a MIXED priced/unpriced record the
+///   v0.3 adapter also nulls the day cost (the vendor's totalCost is a
+///   misleading partial), while the v0.2 sidecar path shows the partial sum.
+///
+/// Both are recognized whenever at least one agent on the date carries a
+/// worker missing-pricing record; anything else must FAIL.
 fn documented_faked_zero_dates(
     sidecar_days: &UsageSummary,
     worker_days: &UsageSummary,
@@ -816,6 +874,90 @@ fn worker_agent_info(snapshot: &CollectorSnapshotResponseV1, agent: AgentKind) -
             error,
         } => format!("ERROR code={:?} msg={}", error.code, error.message),
     }
+}
+
+// --- Production-shape release perf (opt-in: CAM_PROD4B_PERF=1) --------------
+
+/// Release performance of the PRODUCTION request path: the real
+/// `production_snapshot_request()` (full registry, Environment sources, real
+/// today window, system time zone) against the 17-agent non-empty fixture
+/// re-anchored to today-1/today. Each run spawns a fresh release EXE in
+/// worker mode - exactly the launch the Tauri command performs (the runner's
+/// single-flight/cache only coalesces; a real refresh never hits the cache).
+/// The supervisor's override seam does not exist in release builds, so the
+/// release EXE path comes in via CAM_PROD4B_RELEASE_EXE.
+#[cfg(windows)]
+#[test]
+fn production_release_perf_30_runs() {
+    if std::env::var("CAM_PROD4B_PERF").as_deref() != Ok("1") {
+        eprintln!("PRODPERF SKIP: set CAM_PROD4B_PERF=1 to run the production release benchmark");
+        return;
+    }
+    let release_exe = std::path::PathBuf::from(
+        std::env::var("CAM_PROD4B_RELEASE_EXE").expect("CAM_PROD4B_RELEASE_EXE"),
+    );
+    let _shadow_lock = lock_shadow_tests();
+    let today = chrono::Local::now().date_naive();
+    let root = build_shadow17_fixture_anchored(
+        "prod4b-perf",
+        (today - chrono::Duration::days(1))
+            .and_hms_opt(0, 0, 0)
+            .expect("midnight")
+            .and_utc()
+            .timestamp(),
+    );
+    let env = shadow17_env(&root);
+    let request = coding_agent_monitor_lib::collector::worker_runner::production_snapshot_request();
+    let request_bytes = serde_json::to_vec(&request).expect("serialize production request");
+
+    let runs = 30;
+    let mut walls: Vec<f64> = Vec::new();
+    for index in 1..=runs {
+        let started = Instant::now();
+        let mut command = std::process::Command::new(&release_exe);
+        command
+            .arg(coding_agent_monitor_lib::collector::worker::INTERNAL_FLAG)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null());
+        for (key, path) in &env {
+            command.env(key, path);
+        }
+        let mut child = command.spawn().expect("spawn production worker");
+        {
+            use std::io::Write;
+            child
+                .stdin
+                .as_mut()
+                .expect("stdin")
+                .write_all(&request_bytes)
+                .expect("write request");
+        }
+        child.stdin.take();
+        let mut response = Vec::new();
+        if let Some(stdout) = child.stdout.as_mut() {
+            use std::io::Read;
+            let _ = stdout.read_to_end(&mut response);
+        }
+        let status = child.wait().expect("wait worker");
+        assert!(status.success(), "production perf run {index} failed");
+        let _: CollectorSnapshotResponseV1 =
+            serde_json::from_slice(&response).expect("parse response");
+        let wall_ms = started.elapsed().as_secs_f64() * 1000.0;
+        eprintln!("PRODPERF RUN,{index},{wall_ms:.3}");
+        walls.push(wall_ms);
+    }
+    let mut sorted = walls.clone();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median = sorted[sorted.len() / 2];
+    let p95 = sorted[((sorted.len() as f64 * 0.95) as usize).min(sorted.len() - 1)];
+    eprintln!(
+        "PRODPERF median={median:.3}ms p95={p95:.3}ms min={:.3} max={:.3}",
+        sorted[0],
+        sorted[sorted.len() - 1]
+    );
+    assert!(p95 < 1000.0, "production p95 must stay under 1s");
+    std::fs::remove_dir_all(&root).ok();
 }
 
 #[test]

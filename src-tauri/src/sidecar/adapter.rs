@@ -397,12 +397,23 @@ pub fn normalize_snapshot(
                     AppError::invalid_ccusage(&agent_snapshot.agent, error.to_string())
                 })?;
             let date_key = record.date.format("%Y-%m-%d").to_string();
-            let total_cost = record.cost.map(|cost| {
-                // Nano-USD → f64 exactly as the v0.2 sidecar path reports
-                // costs (f64 USD). One rounding at this boundary; all parity
-                // comparisons use nano-USD before this point.
-                cost.as_nano_usd() as f64 / 1_000_000_000.0
-            });
+            // Product contract (v0.3 plan §6.2, approved Phase 4B change #2):
+            // a record with ANY missing-pricing model has an incomplete cost —
+            // the vendor's totalCost only sums the priced models (unpriced
+            // counted as zero), so it is a misleading partial. The day cost
+            // becomes null exactly like a fully-unpriced record; a faked
+            // $0.00 or a partial sum must never reach the frontend.
+            let record_cost_known = record.models_missing_pricing.is_empty();
+            let total_cost = if record_cost_known {
+                record.cost.map(|cost| {
+                    // Nano-USD → f64 exactly as the v0.2 sidecar path reports
+                    // costs (f64 USD). One rounding at this boundary; all
+                    // parity comparisons use nano-USD before this point.
+                    cost.as_nano_usd() as f64 / 1_000_000_000.0
+                })
+            } else {
+                None
+            };
             let day = by_date.entry(date_key).or_default();
             let agent_totals = day.entry(record.agent.id().to_string()).or_default();
             agent_totals.tokens = agent_totals.tokens.saturating_add(record.total_tokens);

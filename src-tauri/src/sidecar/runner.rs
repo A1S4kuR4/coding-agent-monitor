@@ -12,10 +12,7 @@ use std::{
     io::{self, Read},
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Stdio},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex, OnceLock,
-    },
+    sync::{Mutex, OnceLock},
     thread,
     time::{Duration, Instant},
 };
@@ -67,9 +64,6 @@ const DEV_ANTIGRAVITY_EXE: &str = "ccusage-antigravity-x86_64-pc-windows-msvc.ex
 /// spawn and removed once the report finishes; the exit path terminates any that
 /// remain so no process survives the app.
 static ACTIVE_CHILDREN: OnceLock<Mutex<HashSet<u32>>> = OnceLock::new();
-/// Set when the app begins to exit, so a concurrent refresh never starts a new
-/// sidecar during teardown.
-static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 
 fn active_children() -> &'static Mutex<HashSet<u32>> {
     ACTIVE_CHILDREN.get_or_init(|| Mutex::new(HashSet::new()))
@@ -86,16 +80,17 @@ fn kill_tree(pid: u32) {
         .output();
 }
 
-/// True once the app has begun exiting; the worker supervisor honors this so
-/// no new worker starts during teardown.
+/// True once the app has begun exiting; no new sidecar starts during teardown.
+/// The flag itself lives in the shared `shutdown` module (the worker
+/// supervisor gates on the same flag).
 pub fn is_shutting_down() -> bool {
-    SHUTTING_DOWN.load(Ordering::SeqCst)
+    crate::shutdown::is_shutting_down()
 }
 
 /// Called on app exit: blocks new sidecars and force-kills any still running so
 /// no residual `ccusage` process is left behind.
 pub fn begin_shutdown() {
-    SHUTTING_DOWN.store(true, Ordering::SeqCst);
+    crate::shutdown::begin_shutdown();
     let pids: Vec<u32> = active_children()
         .lock()
         .expect("active children lock")
@@ -183,7 +178,7 @@ fn run_sidecar(
     base: &[&str],
     since: &str,
 ) -> Result<String, AppError> {
-    if SHUTTING_DOWN.load(Ordering::SeqCst) {
+    if crate::shutdown::is_shutting_down() {
         return Err(AppError::sidecar_failed(
             label,
             "application is shutting down".into(),
@@ -217,7 +212,7 @@ fn run_sidecar(
     // Shutdown can begin after the pre-spawn check but before registration.
     // Rechecking after insertion closes that gap: either this path kills the
     // child, or begin_shutdown sees the registered pid in its snapshot.
-    if SHUTTING_DOWN.load(Ordering::SeqCst) {
+    if crate::shutdown::is_shutting_down() {
         active_children()
             .lock()
             .expect("active children lock")

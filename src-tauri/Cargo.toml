@@ -29,6 +29,16 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 ccusage-adapter-all = { path = "vendor/ccusage/rust/crates/ccusage-adapter-all" }
 # SharedArgs lives here; imported directly so the Gate 0 PoC test can build args.
 ccusage-cli = { path = "vendor/ccusage/rust/crates/ccusage-cli" }
+# System IANA time zone for the production batch request (Phase 4B): the
+# worker's day bucketing must match the parent's `chrono::Local` `today`.
+# Same version/features the vendored engine uses, so the build graph is
+# unchanged apart from this direct edge.
+jiff = { version = "0.2.35", default-features = false, features = [
+    "std",
+    "tz-system",
+    "tzdb-zoneinfo",
+    "tzdb-bundle-platform",
+] }
 # Vendor load-context types (LoadDiag/LoadFailure kinds) are converted to CAM
 # types inside collector::ccusage; never used in public signatures.
 ccusage-core = { path = "vendor/ccusage/rust/crates/ccusage-core" }

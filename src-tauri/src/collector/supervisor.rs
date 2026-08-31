@@ -181,7 +181,7 @@ fn run_worker_raw(
     timeout: Duration,
 ) -> Result<Vec<u8>, CollectorError> {
     let protocol_error = |details: String| CollectorError::Protocol { details };
-    if crate::sidecar::is_shutting_down() || cancel.load(Ordering::SeqCst) {
+    if crate::shutdown::is_shutting_down() || cancel.load(Ordering::SeqCst) {
         return Err(CollectorError::Cancelled);
     }
 
@@ -222,7 +222,7 @@ fn run_worker_raw(
                 });
             }
         }
-        if cancel.load(Ordering::SeqCst) || crate::sidecar::is_shutting_down() {
+        if cancel.load(Ordering::SeqCst) || crate::shutdown::is_shutting_down() {
             break ChildOutcome::Cancelled;
         }
         if Instant::now() >= deadline {

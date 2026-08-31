@@ -11,15 +11,23 @@
 //! - application shutdown cancels the whole in-flight collection and blocks
 //!   new flights.
 //!
-//! This runner is NOT the production data source yet — the Tauri command keeps
-//! using the sidecar until Phase 4 shadow + switch.
+//! Since Phase 4B this is also the production data source: the Tauri command
+//! and the tray refresh call [`collect_usage`], which submits ONE batch
+//! snapshot request over the full product agent registry and folds the
+//! response into the public `UsageSummary` through `normalize_snapshot`. The
+//! production path never references the v0.2 sidecar runner.
 
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use super::protocol::CollectorRequestV1;
+use super::protocol::{CollectorRequestV1, DataSourceV1, DateWindowV1};
+use super::snapshot_protocol::{
+    AgentSpecV1, CollectorSnapshotRequestV1, SNAPSHOT_PROTOCOL_VERSION,
+};
 use super::supervisor;
 use super::{AgentKind, CollectResult, CollectorError};
+use crate::error::AppError;
+use crate::usage::UsageSummary;
 
 /// Short-lived result cache, identical to the sidecar runner's semantics:
 /// caching failures as well as successes prevents a broken collector from
@@ -123,8 +131,8 @@ fn fresh_cached() -> Option<Result<CollectResult, CollectorError>> {
     None
 }
 
-/// True when this agent is exposed through the worker path (Phase 3 internal
-/// enablement; the production Tauri command still uses the sidecar).
+/// True when this agent is exposed through the worker path (production since
+/// Phase 4B).
 pub fn supports_agent(agent: AgentKind) -> bool {
     let _ = agent;
     true
@@ -221,4 +229,88 @@ fn wait_for_snapshot_flight(
         guard = condvar.wait(guard).expect("snapshot flight condvar wait");
     }
     guard.as_ref().expect("flight resolved").result.clone()
+}
+
+/// Test-only seam: clears the snapshot result cache so integration tests do
+/// not observe each other's cached results across scenarios. Never called by
+/// production code (the cache is process-global in the real app by design).
+#[doc(hidden)]
+pub fn clear_snapshot_result_cache_for_tests() {
+    if let Ok(mut last) = SNAPSHOT_LAST.lock() {
+        *last = None;
+    }
+}
+
+// --- Production full refresh (Phase 4B) -------------------------------------
+
+/// Width of the production refresh window: today-6 ..= today, exactly the
+/// `--since` bound the v0.2 sidecar runner passed to ccusage.
+const PROD_WINDOW_DAYS: i64 = 6;
+
+/// Runs one full production refresh: a single batch snapshot worker over the
+/// entire product agent registry, folded into the public `UsageSummary` by
+/// `normalize_snapshot`.
+///
+/// Concurrency, caching and shutdown semantics are the runner's (identical to
+/// the v0.2 sidecar runner): every caller within [`RESULT_FRESH_FOR`] shares
+/// one worker and one result — success or failure — via `collect_snapshot`'s
+/// single-flight; a new worker is refused once shutdown has begun.
+///
+/// No sidecar is looked up, spawned or fallen back to on this path. There is
+/// deliberately only ONE cache in the production chain (the snapshot result
+/// cache inside [`collect_snapshot`]); the `UsageSummary` adapter runs fresh
+/// on every call (sub-millisecond) so no second cache layer exists.
+pub fn collect_usage() -> Result<UsageSummary, AppError> {
+    let response = collect_snapshot(&production_snapshot_request())?;
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let collected_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    crate::sidecar::adapter::normalize_snapshot(&response, &today, &collected_at)
+}
+
+/// The production batch request: every registered agent (deterministic
+/// registry order) through its own environment-resolved data source, over the
+/// seven-day window, bucketed in the system time zone.
+///
+/// Public for the production-path verification suite (request shape audit and
+/// single-flight tests); it is a pure builder with no side effects.
+pub fn production_snapshot_request() -> CollectorSnapshotRequestV1 {
+    let today = chrono::Local::now().date_naive();
+    let start = today - chrono::Duration::days(PROD_WINDOW_DAYS);
+    CollectorSnapshotRequestV1 {
+        version: SNAPSHOT_PROTOCOL_VERSION,
+        request_id: format!("prod-{}", chrono::Utc::now().timestamp_millis()),
+        agents: AgentKind::ALL
+            .iter()
+            .map(|agent| AgentSpecV1 {
+                agent: agent.id().to_string(),
+                source: DataSourceV1::Environment,
+            })
+            .collect(),
+        window: Some(DateWindowV1 {
+            start_inclusive: start.format("%Y-%m-%d").to_string(),
+            end_inclusive: today.format("%Y-%m-%d").to_string(),
+        }),
+        timezone: product_timezone(),
+    }
+}
+
+/// The system IANA time-zone name for daily bucketing. The v0.2 sidecar
+/// bucketed by the ccusage process's local zone; the worker request pins the
+/// same zone explicitly so the parent's `chrono::Local` `today` and the
+/// engine's day buckets always agree.
+///
+/// `TimeZone::try_system` resolves via the OS (Windows registry + CLDR
+/// mapping in jiff). The `"system"` marker only appears when no IANA name can
+/// be produced; the vendored engine then falls back to its own system zone
+/// (`ccusage-core/src/date_utils.rs` resolves the request zone through jiff
+/// and uses the system zone when the name does not resolve), which is the
+/// same zone the parent used for `today`.
+fn product_timezone() -> String {
+    match jiff::tz::TimeZone::try_system() {
+        Ok(tz) => tz
+            .iana_name()
+            .map(str::to_string)
+            .unwrap_or_else(|| "system".to_string()),
+        Err(_) => "system".to_string(),
+    }
 }
