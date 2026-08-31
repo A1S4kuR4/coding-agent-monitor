@@ -14,6 +14,9 @@ use std::time::{Duration, Instant};
 use coding_agent_monitor_lib::collector::protocol::{
     CollectorRequestV1, CollectorResponseV1, DataSourceV1, ErrorCodeV1, OutcomeV1, PROTOCOL_VERSION,
 };
+use coding_agent_monitor_lib::collector::snapshot_protocol::{
+    CollectorSnapshotRequestV1,
+};
 use coding_agent_monitor_lib::collector::{
     supervisor, worker, worker_runner, AgentKind, CollectorError, DataSource,
 };
@@ -621,3 +624,117 @@ impl Drop for EnvGuard {
 // Unused-import guards for types referenced only in some cfg paths.
 #[allow(dead_code)]
 fn _type_witnesses(_request: &CollectorRequestV1, _source: DataSource, _error: CollectorError) {}
+
+// --- Batch panic policy (Phase 4A supplement) --------------------------------
+
+#[test]
+fn batch_panic_causes_whole_batch_failure_with_no_partial_results() {
+    init_product_exe();
+    let _worker_lock = lock_worker_tests();
+    // CAM_TEST_WORKER_PANIC panics before any agent is processed: the entire
+    // snapshot fails with a Protocol error (the worker emits a single-agent
+    // error document instead of a valid snapshot), and the supervisor maps it
+    // without caching partial results.
+    let _guard = EnvGuard::set("CAM_TEST_WORKER_PANIC", "1");
+    let request = CollectorSnapshotRequestV1::new("batch-panic", &AgentKind::ALL);
+    let error = supervisor::collect_snapshot_with_options(
+        &request,
+        &AtomicBool::new(false),
+        Duration::from_secs(60),
+    )
+    .expect_err("panic must fail the batch");
+    assert!(
+        matches!(
+            error,
+            CollectorError::Protocol { .. } | CollectorError::Internal { .. }
+        ),
+        "got {error}"
+    );
+}
+
+#[test]
+fn batch_panic_does_not_leak_panic_text_into_stdout_or_stderr() {
+    init_product_exe();
+    let _worker_lock = lock_worker_tests();
+    let _guard = EnvGuard::set("CAM_TEST_WORKER_PANIC", "1");
+    // Run the worker directly to capture raw stdout/stderr.
+    let mut child = Command::new(EXE)
+        .arg(worker::INTERNAL_FLAG)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn worker");
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        let request = CollectorSnapshotRequestV1::new("batch-panic-leak", &AgentKind::ALL);
+        let json = serde_json::to_string(&request).expect("serialize");
+        let _ = stdin.write_all(json.as_bytes());
+    }
+    let output = child.wait_with_output().expect("wait");
+    let stdout_text = String::from_utf8_lossy(&output.stdout);
+    let stderr_text = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stdout_text.contains("CAM_TEST_WORKER_PANIC"),
+        "stdout must not contain panic text"
+    );
+    assert!(
+        !stderr_text.contains("CAM_TEST_WORKER_PANIC"),
+        "stderr must not contain panic text (worker hook silences it)"
+    );
+}
+
+#[test]
+fn batch_panic_recovery_next_refresh_succeeds() {
+    init_product_exe();
+    let _worker_lock = lock_worker_tests();
+    // First: panic → whole batch fails.
+    {
+        let _guard = EnvGuard::set("CAM_TEST_WORKER_PANIC", "1");
+        let request = CollectorSnapshotRequestV1::new("batch-panic-recover", &AgentKind::ALL);
+        let error = supervisor::collect_snapshot_with_options(
+            &request,
+            &AtomicBool::new(false),
+            Duration::from_secs(60),
+        )
+        .expect_err("panic batch");
+        assert!(matches!(
+            error,
+            CollectorError::Protocol { .. } | CollectorError::Internal { .. }
+        ));
+    }
+    // Then: without the panic trigger, the next full refresh succeeds.
+    {
+        std::env::remove_var("CAM_TEST_WORKER_PANIC");
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let scratch = std::env::temp_dir().join(format!("cam-batch-recover-{unique}"));
+        std::fs::create_dir_all(&scratch).expect("mkdir");
+        let request = CollectorSnapshotRequestV1::new("batch-recover", &AgentKind::ALL);
+        let request = CollectorSnapshotRequestV1 {
+            agents: AgentKind::ALL
+                .iter()
+                .map(
+                    |agent| coding_agent_monitor_lib::collector::snapshot_protocol::AgentSpecV1 {
+                        agent: agent.id().to_string(),
+                        source:
+                            coding_agent_monitor_lib::collector::protocol::DataSourceV1::Paths {
+                                roots: vec![scratch.to_string_lossy().into_owned()],
+                            },
+                    },
+                )
+                .collect(),
+            ..request
+        };
+        let response = supervisor::collect_snapshot_with_options(
+            &request,
+            &AtomicBool::new(false),
+            Duration::from_secs(60),
+        )
+        .expect("recovery batch must succeed");
+        assert_eq!(response.agents.len(), 17, "all 17 agents must report");
+        std::fs::remove_dir_all(&scratch).ok();
+    }
+}

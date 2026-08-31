@@ -210,15 +210,20 @@ fn handle_request(input: &[u8]) -> Vec<u8> {
 }
 
 /// Executes a batch snapshot request: every listed agent is collected
-/// serially in the worker process (deterministic registry order), each with
-/// its own captured outcome.
+/// serially in the worker process (deterministic registry order).
 ///
-/// Per-agent failure policy — **isolate and continue**: a panic inside one
-/// agent's loader is caught with `catch_unwind`, recorded as that agent's
-/// structured VendorAdapter error, and the remaining agents proceed. A panic
-/// that corrupts process state beyond even this recording is absorbed by the
-/// outer `catch_unwind` in `run_worker_stdio`, which emits a whole-worker
-/// fatal response — never half a stdout document.
+/// Per-agent failure policy:
+/// - **`CollectorError`** (recoverable): the agent records a structured error
+///   and the remaining agents continue — one agent's missing/corrupt data
+///   does not prevent reading other agents.
+/// - **Rust panic**: the **entire batch fails immediately**. The vendor
+///   adapters share process-global state (load_context stores, the pricing
+///   map, the load mutex) whose unwind safety cannot be guaranteed for all
+///   upstream code paths. After a panic, partial results must never be
+///   trusted or emitted. The partial agent_snapshots are discarded, a
+///   whole-worker fatal `Internal` error response is emitted instead, and the
+///   worker exits. The parent supervisor observes the error response and
+///   does not cache it, so the next refresh starts clean.
 fn handle_snapshot_request(text: &str) -> Vec<u8> {
     let transport_error =
         |details: String| error_response_bytes(&CollectorError::Protocol { details });
@@ -269,24 +274,27 @@ fn handle_snapshot_request(text: &str) -> Vec<u8> {
                 }
             }
             Err(_panic) => {
-                let response = CollectorResponseV1::error(
-                    "internal",
-                    &CollectorError::VendorAdapter {
-                        vendor: "ccusage v20.0.20".to_string(),
+                // Panic policy: fail the WHOLE batch. The vendor adapters
+                // share process-global state (load_context, pricing map,
+                // load mutex) whose unwind safety is not guaranteed. A panic
+                // means that state may be corrupted; continuing would risk
+                // returning wrong data. Discard all partial results, emit a
+                // whole-worker fatal error, and let the worker exit.
+                //
+                // We deliberately return a single-agent error document (NOT a
+                // valid CollectorSnapshotResponseV1) so the supervisor's
+                // snapshot parsing fails, mapping to `Protocol` — the parent
+                // never sees or caches partial results.
+                return serialize_response(&CollectorResponseV1::error(
+                    request_id.clone(),
+                    &CollectorError::Internal {
                         details: format!(
-                            "collector panicked while reading {} usage",
+                            "collector worker panicked while reading {} usage; \
+                             entire snapshot aborted to prevent untrustworthy results",
                             agent.label()
                         ),
                     },
-                );
-                match response.outcome {
-                    crate::collector::protocol::OutcomeV1::Error { error } => {
-                        AgentSnapshotOutcomeV1::Error { error }
-                    }
-                    crate::collector::protocol::OutcomeV1::Ok { .. } => {
-                        unreachable!("error() always errors")
-                    }
-                }
+                ));
             }
         };
         agent_snapshots.push(AgentSnapshotV1 {
