@@ -45,6 +45,9 @@ use chrono::NaiveDate;
 
 pub mod ccusage;
 pub mod protocol;
+pub mod supervisor;
+pub mod worker;
+pub mod worker_runner;
 
 mod error;
 
@@ -516,6 +519,9 @@ pub enum DiagnosticKind {
     DatabaseError,
     /// A data source existed but could not be read.
     SourceUnreadable,
+    /// The source changed while it was being read; the immutable result was
+    /// discarded and recovered via a plain read-only retry.
+    SourceChanged,
     /// The source's own token buckets violate the record invariant
     /// (`input + output + cache_creation + cache_read + reasoning +
     /// unclassified == total`). Vendor numbers are passed through untouched

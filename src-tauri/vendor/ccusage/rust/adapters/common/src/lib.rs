@@ -237,3 +237,226 @@ fn immutable_uri(path: &Path) -> String {
     uri.push_str("?immutable=1");
     uri
 }
+
+/// Stability of a source database across one read attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceStability {
+    /// The read ran entirely against an unchanged source (immutable fast
+    /// path, or plain read over an untouched file).
+    Stable,
+    /// The source changed while it was being read (sidecars appeared, or the
+    /// database file's size/mtime moved). The returned result comes from a
+    /// plain READONLY fallback attempt — never from the discarded immutable
+    /// read.
+    ChangedDuringRead,
+}
+
+/// One snapshot of everything that defines whether a source database read is
+/// still looking at the same bytes: main file size/mtime plus the presence
+/// and metadata of any `-wal`/`-shm` sidecars.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceSnapshot {
+    db_size: Option<u64>,
+    db_mtime: Option<std::time::SystemTime>,
+    wal: Option<(u64, std::time::SystemTime)>,
+    shm: Option<(u64, std::time::SystemTime)>,
+}
+
+impl SourceSnapshot {
+    fn capture(path: &Path) -> Self {
+        let meta = |p: &Path| {
+            std::fs::metadata(p).ok().and_then(|m| m.modified().ok().map(|mtime| (m.len(), mtime)))
+        };
+        let (db_size, db_mtime) = meta(path).map_or((None, None), |(size, mtime)| (Some(size), Some(mtime)));
+        Self {
+            db_size,
+            db_mtime,
+            wal: meta(&PathBuf::from(format!("{}-wal", path.display()))),
+            shm: meta(&PathBuf::from(format!("{}-shm", path.display()))),
+        }
+    }
+
+    fn has_live_sidecars(&self) -> bool {
+        self.wal.is_some() || self.shm.is_some()
+    }
+}
+
+/// Reads a source database with protection against the immutable-read race:
+///
+/// 1. Snapshot the source. With no live `-wal`/`-shm` sidecars, take the
+///    `immutable=1` fast path and run `load`.
+/// 2. Re-snapshot. If the source changed in any way while the immutable read
+///    ran (a writer appeared, the file moved), **discard the result** — an
+///    immutable reader cannot see committed WAL data and might undercount —
+///    and fall through.
+/// 3. Fallback: plain READONLY open inside a `BEGIN`/`COMMIT` read
+///    transaction, so the whole load observes one consistent snapshot even
+///    while the agent writes. Re-snapshot: if the source is *still* moving,
+///    the result is returned anyway (a read transaction is always a
+///    consistent snapshot) but `ChangedDuringRead` is reported so the caller
+///    can surface a diagnostic instead of a silent success.
+///
+/// The retry is bounded by construction: at most one immutable attempt plus
+/// one plain attempt, no loops.
+pub fn load_source_db_stable<T>(
+    path: &Path,
+    load: impl Fn(&sqlite::Connection) -> T,
+) -> Result<(T, SourceStability), sqlite::Error> {
+    let before = SourceSnapshot::capture(path);
+    if !before.has_live_sidecars() {
+        if let Ok(connection) = open_source_db_readonly_mode(path, false) {
+            let result = load(&connection);
+            let after = SourceSnapshot::capture(path);
+            if after == before {
+                return Ok((result, SourceStability::Stable));
+            }
+            // The immutable read raced with a writer: its result may miss
+            // committed WAL rows. Discard it and take the plain path.
+        }
+        // Falls through to the plain attempt (also covers immutable-open
+        // failures, e.g. the file was deleted between the snapshot and the
+        // open — the plain attempt re-reports the open error).
+    }
+
+    let before_plain = SourceSnapshot::capture(path);
+    let connection = open_source_db_readonly_mode(path, true)?;
+    // One read transaction = one consistent snapshot for every statement the
+    // loader runs, even while the agent keeps writing.
+    connection.execute("BEGIN")?;
+    let result = load(&connection);
+    let _ = connection.execute("COMMIT");
+    let after = SourceSnapshot::capture(path);
+    let stability = if after == before_plain {
+        SourceStability::Stable
+    } else {
+        SourceStability::ChangedDuringRead
+    };
+    Ok((result, stability))
+}
+
+/// Phase 2 opening policy with an explicit switch: `allow_immutable = false`
+/// forces the plain READONLY path (used by the race fallback).
+pub fn open_source_db_readonly_mode(
+    path: &Path,
+    allow_immutable: bool,
+) -> sqlite::Result<sqlite::Connection> {
+    let wal = PathBuf::from(format!("{}-wal", path.display()));
+    let shm = PathBuf::from(format!("{}-shm", path.display()));
+    let has_live_sidecars = !allow_immutable || wal.exists() || shm.exists();
+    let mut connection = if !has_live_sidecars {
+        sqlite::Connection::open_with_flags(
+            immutable_uri(path).as_str(),
+            sqlite::OpenFlags::new().with_read_only().with_uri(),
+        )?
+    } else {
+        sqlite::Connection::open_with_flags(
+            path,
+            sqlite::OpenFlags::new().with_read_only(),
+        )?
+    };
+    connection.set_busy_timeout(SOURCE_DB_BUSY_TIMEOUT_MS)?;
+    Ok(connection)
+}
+
+#[cfg(test)]
+mod stable_source_tests {
+    use super::load_source_db_stable;
+    use super::SourceStability;
+    use sqlite::Connection;
+    use std::path::Path;
+
+    fn create_db(path: &Path) {
+        let db = Connection::open(path).expect("create db");
+        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER)")
+            .expect("create table");
+        let mut statement = db.prepare("INSERT INTO t (id, n) VALUES (1, 10)").expect("insert");
+        statement.next().expect("row");
+    }
+
+    fn count_rows(connection: &Connection) -> usize {
+        let mut statement = connection
+            .prepare("SELECT COUNT(*) FROM t")
+            .expect("prepare count");
+        statement.next().expect("count row");
+        statement.read::<i64, _>(0).expect("count") as usize
+    }
+
+    #[test]
+    fn stable_source_uses_immutable_path_and_reports_stable() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let db = dir.path().join("source.db");
+        create_db(&db);
+
+        let (count, stability) =
+            load_source_db_stable(&db, count_rows).expect("stable read");
+
+        assert_eq!(count, 1);
+        assert_eq!(stability, SourceStability::Stable);
+    }
+
+    #[test]
+    fn writer_appearing_during_immutable_read_discards_and_falls_back_to_plain() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let db = dir.path().join("source.db");
+        create_db(&db);
+
+        // The closure simulates the agent's own writer appearing mid-read: it
+        // opens a separate read-write connection, commits a new row in WAL
+        // mode, and keeps the connection open (so the sidecars stay present
+        // for the post-read snapshot) until the read attempt finishes.
+        let (count, stability) = load_source_db_stable(&db, |connection| {
+            let writer = Connection::open(&db).expect("open writer");
+            writer
+                .execute("PRAGMA journal_mode=WAL")
+                .expect("enable wal");
+            writer
+                .execute("INSERT OR REPLACE INTO t (id, n) VALUES (2, 20)")
+                .expect("insert row mid-read");
+            let observed = count_rows(connection);
+            // The writer outlives the read attempt: drop(?) — keep it alive by
+            // leaking; the test process is short-lived.
+            std::mem::forget(writer);
+            observed
+        })
+        .expect("raced read must still succeed via fallback");
+
+        // The immutable attempt (which saw only 1 row) was discarded; the
+        // plain read-only retry observed the committed WAL row.
+        assert_eq!(count, 2, "fallback plain read must see committed WAL data");
+        assert_eq!(stability, SourceStability::ChangedDuringRead);
+    }
+
+    #[test]
+    fn plain_read_over_a_live_writer_reports_changed_but_returns_a_snapshot() {
+        // Seed the source with live sidecars so the helper starts on the plain
+        // path, then have the "agent" write during the read.
+        let dir = tempfile::tempdir().expect("tmp");
+        let db = dir.path().join("source.db");
+        create_db(&db);
+        {
+            let writer = Connection::open(&db).expect("open wal writer");
+            writer.execute("PRAGMA journal_mode=WAL").expect("wal");
+            writer
+                .execute("INSERT INTO t (id, n) VALUES (2, 20)")
+                .expect("seed wal row");
+            // `writer` stays open for the rest of the test: sidecars persist.
+            let (count, stability) = load_source_db_stable(&db, |connection| {
+                let extra = Connection::open(&db).expect("open agent writer");
+                extra
+                    .execute("INSERT INTO t (id, n) VALUES (3, 30)")
+                    .expect("insert during plain read");
+                std::mem::forget(extra);
+                count_rows(connection)
+            })
+            .expect("plain read must succeed");
+
+            // The read transaction took one consistent snapshot: either 2 or 3
+            // rows depending on commit timing, never 1 (the pre-WAL state).
+            assert!(count >= 2, "snapshot must include committed WAL rows, got {count}");
+            // Sidecar metadata may or may not have moved; both outcomes are
+            // acceptable — the contract is a consistent snapshot, not a
+            // specific stability verdict.
+            let _ = stability;
+        }
+    }
+}

@@ -39,28 +39,61 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
 }
 
 fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry> {
-    let Ok(connection) =
-        ccusage_adapter_common::open_source_db_readonly(db_path)
-    else {
+    // Downstream (Coding Agent Monitor) 0002 patch: the immutable fast path is
+    // re-verified after the read; a writer that appeared mid-read discards the
+    // immutable result and retries via a plain read-only transaction.
+    let loaded = ccusage_adapter_common::load_source_db_stable(db_path, |connection| {
+        load_state_db_entries_from_connection(connection, db_path, shared)
+    });
+    match loaded {
+        Ok((entries, ccusage_adapter_common::SourceStability::Stable)) => entries,
+        Ok((entries, ccusage_adapter_common::SourceStability::ChangedDuringRead)) => {
+            crate::debug_log(
+                shared,
+                "Hermes source changed during immutable read; recovered via read-only retry"
+                    .to_string(),
+            );
+            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+                agent: "hermes",
+                kind: ccusage_core::load_context::LoadDiagKind::SourceChanged,
+                file: Some(
+                    db_path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                ),
+                details: "source database changed during immutable read; result recovered via plain read-only retry".to_string(),
+            });
+            entries
+        }
+        Err(_) => {
+            crate::debug_log(
+                shared,
+                format!(
+                    "Failed to open Hermes state database: {}",
+                    db_path.display()
+                ),
+            );
+            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+                agent: "hermes",
+                kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+                file: None,
+                details: format!(
+                    "Failed to open Hermes state database: {}",
+                    db_path.display()
+                )
+                .to_string(),
+            });
+            Vec::new()
+        }
+    }
+}
 
-        crate::debug_log(
-            shared,
-            format!(
-                "Failed to open Hermes state database: {}",
-                db_path.display()
-            ),
-        );
-        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
-            agent: "hermes",
-            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
-            file: None,
-            details: format!(
-                "Failed to open Hermes state database: {}",
-                db_path.display()
-            ).to_string(),
-        });
-        return Vec::new();
-    };
+fn load_state_db_entries_from_connection(
+    connection: &sqlite::Connection,
+    db_path: &Path,
+    shared: &SharedArgs,
+) -> Vec<HermesEntry> {
     let Ok(mut statement) = connection.prepare(
         "
             SELECT

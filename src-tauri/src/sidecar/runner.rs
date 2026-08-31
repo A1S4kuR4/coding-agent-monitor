@@ -86,6 +86,12 @@ fn kill_tree(pid: u32) {
         .output();
 }
 
+/// True once the app has begun exiting; the worker supervisor honors this so
+/// no new worker starts during teardown.
+pub fn is_shutting_down() -> bool {
+    SHUTTING_DOWN.load(Ordering::SeqCst)
+}
+
 /// Called on app exit: blocks new sidecars and force-kills any still running so
 /// no residual `ccusage` process is left behind.
 pub fn begin_shutdown() {

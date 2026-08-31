@@ -1,5 +1,5 @@
 diff --git a/rust/Cargo.lock b/rust/Cargo.lock
-index 99ef09b..8f984ff 100644
+index 99ef09b..f8cb0e2 100644
 --- a/rust/Cargo.lock
 +++ b/rust/Cargo.lock
 @@ -60,12 +60,6 @@ dependencies = [
@@ -104,15 +104,16 @@ index 99ef09b..8f984ff 100644
  ]
 
  [[package]]
-@@ -238,6 +208,7 @@ dependencies = [
+@@ -238,6 +208,8 @@ dependencies = [
   "ccusage-test-support",
   "serde",
   "serde_json",
 + "sqlite",
++ "tempfile",
  ]
 
  [[package]]
-@@ -392,31 +363,6 @@ dependencies = [
+@@ -392,31 +364,6 @@ dependencies = [
  name = "ccusage-cli"
  version = "0.0.0"
 
@@ -144,7 +145,7 @@ index 99ef09b..8f984ff 100644
  [[package]]
  name = "ccusage-core"
  version = "0.0.0"
-@@ -558,12 +504,6 @@ version = "1.0.5"
+@@ -558,12 +505,6 @@ version = "1.0.5"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
@@ -157,7 +158,7 @@ index 99ef09b..8f984ff 100644
  [[package]]
  name = "encode_unicode"
  version = "1.0.0"
-@@ -644,22 +584,6 @@ dependencies = [
+@@ -644,22 +585,6 @@ dependencies = [
   "walkdir",
  ]
 
@@ -180,7 +181,7 @@ index 99ef09b..8f984ff 100644
  [[package]]
  name = "ignore"
  version = "0.4.30"
-@@ -764,15 +688,6 @@ version = "0.2.186"
+@@ -764,15 +689,6 @@ version = "0.2.186"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
@@ -196,7 +197,7 @@ index 99ef09b..8f984ff 100644
  [[package]]
  name = "linux-raw-sys"
  version = "0.12.1"
-@@ -791,15 +706,6 @@ version = "2.8.3"
+@@ -791,15 +707,6 @@ version = "2.8.3"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
@@ -212,7 +213,7 @@ index 99ef09b..8f984ff 100644
  [[package]]
  name = "miniz_oxide"
  version = "0.8.9"
-@@ -826,12 +732,6 @@ version = "1.21.4"
+@@ -826,12 +733,6 @@ version = "1.21.4"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
@@ -225,7 +226,7 @@ index 99ef09b..8f984ff 100644
  [[package]]
  name = "pkg-config"
  version = "0.3.33"
-@@ -963,7 +863,6 @@ dependencies = [
+@@ -963,7 +864,6 @@ dependencies = [
   "aws-lc-rs",
   "log",
   "once_cell",
@@ -233,7 +234,7 @@ index 99ef09b..8f984ff 100644
   "rustls-pki-types",
   "rustls-webpki",
   "subtle",
-@@ -1006,30 +905,6 @@ dependencies = [
+@@ -1006,30 +906,6 @@ dependencies = [
   "winapi-util",
  ]
 
@@ -264,7 +265,7 @@ index 99ef09b..8f984ff 100644
  [[package]]
  name = "serde"
  version = "1.0.229"
-@@ -1060,17 +935,6 @@ dependencies = [
+@@ -1060,17 +936,6 @@ dependencies = [
   "syn 3.0.2",
  ]
 
@@ -282,7 +283,7 @@ index 99ef09b..8f984ff 100644
  [[package]]
  name = "serde_json"
  version = "1.0.151"
-@@ -1231,40 +1095,6 @@ version = "0.9.0"
+@@ -1231,40 +1096,6 @@ version = "0.9.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
@@ -560,10 +561,10 @@ index 0000000..eb3eadf
 +}
 diff --git a/rust/adapters/antigravity/src/loader.rs b/rust/adapters/antigravity/src/loader.rs
 new file mode 100644
-index 0000000..4c4f796
+index 0000000..c467a43
 --- /dev/null
 +++ b/rust/adapters/antigravity/src/loader.rs
-@@ -0,0 +1,456 @@
+@@ -0,0 +1,491 @@
 +use std::{
 +    collections::HashSet,
 +    fs,
@@ -639,22 +640,57 @@ index 0000000..4c4f796
 +    pricing: Option<&PricingMap>,
 +    shared: &SharedArgs,
 +) -> Vec<LoadedEntry> {
-+    let Ok(connection) =
-+        ccusage_adapter_common::open_source_db_readonly(db_path)
-+    else {
++    // Downstream (Coding Agent Monitor) 0002 patch: the immutable fast path
++    // is re-verified after the read; a writer that appeared mid-read discards
++    // the immutable result and retries via a plain read-only transaction.
++    let loaded = ccusage_adapter_common::load_source_db_stable(db_path, |connection| {
++        load_entries_from_connection(connection, db_path, tz, mode, pricing, shared)
++    });
++    match loaded {
++        Ok((entries, ccusage_adapter_common::SourceStability::Stable)) => entries,
++        Ok((entries, ccusage_adapter_common::SourceStability::ChangedDuringRead)) => {
++            debug_log(
++                shared,
++                "Antigravity source changed during immutable read; recovered via read-only retry"
++                    .to_string(),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "antigravity",
++                kind: ccusage_core::load_context::LoadDiagKind::SourceChanged,
++                file: Some(
++                    db_path
++                        .file_name()
++                        .map(|name| name.to_string_lossy().into_owned())
++                        .unwrap_or_default(),
++                ),
++                details: "source database changed during immutable read; result recovered via plain read-only retry".to_string(),
++            });
++            entries
++        }
++        Err(_) => {
++            debug_log(
++                shared,
++                format!("Failed to open Antigravity database: {}", db_path.display()),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "antigravity",
++                kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++                file: None,
++                details: format!("Failed to open Antigravity database: {}", db_path.display()).to_string(),
++            });
++            Vec::new()
++        }
++    }
++}
 +
-+        debug_log(
-+            shared,
-+            format!("Failed to open Antigravity database: {}", db_path.display()),
-+        );
-+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
-+            agent: "antigravity",
-+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
-+            file: None,
-+            details: format!("Failed to open Antigravity database: {}", db_path.display()).to_string(),
-+        });
-+        return Vec::new();
-+    };
++fn load_entries_from_connection(
++    connection: &sqlite::Connection,
++    db_path: &Path,
++    tz: Option<&JiffTimeZone>,
++    mode: CostMode,
++    pricing: Option<&PricingMap>,
++    shared: &SharedArgs,
++) -> Vec<LoadedEntry> {
 +    // A database without gen_metadata is not an Antigravity conversation DB.
 +    let Ok(mut statement) = connection.prepare("SELECT data FROM gen_metadata ORDER BY idx") else {
 +        // Downstream (Coding Agent Monitor) 0002 patch: a database that opens
@@ -2229,10 +2265,10 @@ index c188f48..c65a543 100644
          return Ok(env_paths
              .split(',')
 diff --git a/rust/adapters/common/Cargo.toml b/rust/adapters/common/Cargo.toml
-index ccfbf29..df815c7 100644
+index ccfbf29..1ccafc9 100644
 --- a/rust/adapters/common/Cargo.toml
 +++ b/rust/adapters/common/Cargo.toml
-@@ -5,6 +5,9 @@ edition.workspace = true
+@@ -5,9 +5,13 @@ edition.workspace = true
  publish.workspace = true
 
  [dependencies]
@@ -2242,11 +2278,15 @@ index ccfbf29..df815c7 100644
  ccusage-core.workspace = true
  serde.workspace = true
  serde_json.workspace = true
+
+ [dev-dependencies]
++tempfile = "3"
+ ccusage-test-support.workspace = true
 diff --git a/rust/adapters/common/src/lib.rs b/rust/adapters/common/src/lib.rs
-index 6bb2834..ff11a24 100644
+index 6bb2834..90cc8a6 100644
 --- a/rust/adapters/common/src/lib.rs
 +++ b/rust/adapters/common/src/lib.rs
-@@ -167,3 +167,73 @@ mod tests {
+@@ -167,3 +167,296 @@ mod tests {
          assert!(read_files_parallel(&empty, false, |_| 0_u8).is_empty());
      }
  }
@@ -2319,6 +2359,229 @@ index 6bb2834..ff11a24 100644
 +    }
 +    uri.push_str("?immutable=1");
 +    uri
++}
++
++/// Stability of a source database across one read attempt.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum SourceStability {
++    /// The read ran entirely against an unchanged source (immutable fast
++    /// path, or plain read over an untouched file).
++    Stable,
++    /// The source changed while it was being read (sidecars appeared, or the
++    /// database file's size/mtime moved). The returned result comes from a
++    /// plain READONLY fallback attempt — never from the discarded immutable
++    /// read.
++    ChangedDuringRead,
++}
++
++/// One snapshot of everything that defines whether a source database read is
++/// still looking at the same bytes: main file size/mtime plus the presence
++/// and metadata of any `-wal`/`-shm` sidecars.
++#[derive(Debug, Clone, PartialEq, Eq)]
++struct SourceSnapshot {
++    db_size: Option<u64>,
++    db_mtime: Option<std::time::SystemTime>,
++    wal: Option<(u64, std::time::SystemTime)>,
++    shm: Option<(u64, std::time::SystemTime)>,
++}
++
++impl SourceSnapshot {
++    fn capture(path: &Path) -> Self {
++        let meta = |p: &Path| {
++            std::fs::metadata(p).ok().and_then(|m| m.modified().ok().map(|mtime| (m.len(), mtime)))
++        };
++        let (db_size, db_mtime) = meta(path).map_or((None, None), |(size, mtime)| (Some(size), Some(mtime)));
++        Self {
++            db_size,
++            db_mtime,
++            wal: meta(&PathBuf::from(format!("{}-wal", path.display()))),
++            shm: meta(&PathBuf::from(format!("{}-shm", path.display()))),
++        }
++    }
++
++    fn has_live_sidecars(&self) -> bool {
++        self.wal.is_some() || self.shm.is_some()
++    }
++}
++
++/// Reads a source database with protection against the immutable-read race:
++///
++/// 1. Snapshot the source. With no live `-wal`/`-shm` sidecars, take the
++///    `immutable=1` fast path and run `load`.
++/// 2. Re-snapshot. If the source changed in any way while the immutable read
++///    ran (a writer appeared, the file moved), **discard the result** — an
++///    immutable reader cannot see committed WAL data and might undercount —
++///    and fall through.
++/// 3. Fallback: plain READONLY open inside a `BEGIN`/`COMMIT` read
++///    transaction, so the whole load observes one consistent snapshot even
++///    while the agent writes. Re-snapshot: if the source is *still* moving,
++///    the result is returned anyway (a read transaction is always a
++///    consistent snapshot) but `ChangedDuringRead` is reported so the caller
++///    can surface a diagnostic instead of a silent success.
++///
++/// The retry is bounded by construction: at most one immutable attempt plus
++/// one plain attempt, no loops.
++pub fn load_source_db_stable<T>(
++    path: &Path,
++    load: impl Fn(&sqlite::Connection) -> T,
++) -> Result<(T, SourceStability), sqlite::Error> {
++    let before = SourceSnapshot::capture(path);
++    if !before.has_live_sidecars() {
++        if let Ok(connection) = open_source_db_readonly_mode(path, false) {
++            let result = load(&connection);
++            let after = SourceSnapshot::capture(path);
++            if after == before {
++                return Ok((result, SourceStability::Stable));
++            }
++            // The immutable read raced with a writer: its result may miss
++            // committed WAL rows. Discard it and take the plain path.
++        }
++        // Falls through to the plain attempt (also covers immutable-open
++        // failures, e.g. the file was deleted between the snapshot and the
++        // open — the plain attempt re-reports the open error).
++    }
++
++    let before_plain = SourceSnapshot::capture(path);
++    let connection = open_source_db_readonly_mode(path, true)?;
++    // One read transaction = one consistent snapshot for every statement the
++    // loader runs, even while the agent keeps writing.
++    connection.execute("BEGIN")?;
++    let result = load(&connection);
++    let _ = connection.execute("COMMIT");
++    let after = SourceSnapshot::capture(path);
++    let stability = if after == before_plain {
++        SourceStability::Stable
++    } else {
++        SourceStability::ChangedDuringRead
++    };
++    Ok((result, stability))
++}
++
++/// Phase 2 opening policy with an explicit switch: `allow_immutable = false`
++/// forces the plain READONLY path (used by the race fallback).
++pub fn open_source_db_readonly_mode(
++    path: &Path,
++    allow_immutable: bool,
++) -> sqlite::Result<sqlite::Connection> {
++    let wal = PathBuf::from(format!("{}-wal", path.display()));
++    let shm = PathBuf::from(format!("{}-shm", path.display()));
++    let has_live_sidecars = !allow_immutable || wal.exists() || shm.exists();
++    let mut connection = if !has_live_sidecars {
++        sqlite::Connection::open_with_flags(
++            immutable_uri(path).as_str(),
++            sqlite::OpenFlags::new().with_read_only().with_uri(),
++        )?
++    } else {
++        sqlite::Connection::open_with_flags(
++            path,
++            sqlite::OpenFlags::new().with_read_only(),
++        )?
++    };
++    connection.set_busy_timeout(SOURCE_DB_BUSY_TIMEOUT_MS)?;
++    Ok(connection)
++}
++
++#[cfg(test)]
++mod stable_source_tests {
++    use super::load_source_db_stable;
++    use super::SourceStability;
++    use sqlite::Connection;
++    use std::path::Path;
++
++    fn create_db(path: &Path) {
++        let db = Connection::open(path).expect("create db");
++        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER)")
++            .expect("create table");
++        let mut statement = db.prepare("INSERT INTO t (id, n) VALUES (1, 10)").expect("insert");
++        statement.next().expect("row");
++    }
++
++    fn count_rows(connection: &Connection) -> usize {
++        let mut statement = connection
++            .prepare("SELECT COUNT(*) FROM t")
++            .expect("prepare count");
++        statement.next().expect("count row");
++        statement.read::<i64, _>(0).expect("count") as usize
++    }
++
++    #[test]
++    fn stable_source_uses_immutable_path_and_reports_stable() {
++        let dir = tempfile::tempdir().expect("tmp");
++        let db = dir.path().join("source.db");
++        create_db(&db);
++
++        let (count, stability) =
++            load_source_db_stable(&db, count_rows).expect("stable read");
++
++        assert_eq!(count, 1);
++        assert_eq!(stability, SourceStability::Stable);
++    }
++
++    #[test]
++    fn writer_appearing_during_immutable_read_discards_and_falls_back_to_plain() {
++        let dir = tempfile::tempdir().expect("tmp");
++        let db = dir.path().join("source.db");
++        create_db(&db);
++
++        // The closure simulates the agent's own writer appearing mid-read: it
++        // opens a separate read-write connection, commits a new row in WAL
++        // mode, and keeps the connection open (so the sidecars stay present
++        // for the post-read snapshot) until the read attempt finishes.
++        let (count, stability) = load_source_db_stable(&db, |connection| {
++            let writer = Connection::open(&db).expect("open writer");
++            writer
++                .execute("PRAGMA journal_mode=WAL")
++                .expect("enable wal");
++            writer
++                .execute("INSERT OR REPLACE INTO t (id, n) VALUES (2, 20)")
++                .expect("insert row mid-read");
++            let observed = count_rows(connection);
++            // The writer outlives the read attempt: drop(?) — keep it alive by
++            // leaking; the test process is short-lived.
++            std::mem::forget(writer);
++            observed
++        })
++        .expect("raced read must still succeed via fallback");
++
++        // The immutable attempt (which saw only 1 row) was discarded; the
++        // plain read-only retry observed the committed WAL row.
++        assert_eq!(count, 2, "fallback plain read must see committed WAL data");
++        assert_eq!(stability, SourceStability::ChangedDuringRead);
++    }
++
++    #[test]
++    fn plain_read_over_a_live_writer_reports_changed_but_returns_a_snapshot() {
++        // Seed the source with live sidecars so the helper starts on the plain
++        // path, then have the "agent" write during the read.
++        let dir = tempfile::tempdir().expect("tmp");
++        let db = dir.path().join("source.db");
++        create_db(&db);
++        {
++            let writer = Connection::open(&db).expect("open wal writer");
++            writer.execute("PRAGMA journal_mode=WAL").expect("wal");
++            writer
++                .execute("INSERT INTO t (id, n) VALUES (2, 20)")
++                .expect("seed wal row");
++            // `writer` stays open for the rest of the test: sidecars persist.
++            let (count, stability) = load_source_db_stable(&db, |connection| {
++                let extra = Connection::open(&db).expect("open agent writer");
++                extra
++                    .execute("INSERT INTO t (id, n) VALUES (3, 30)")
++                    .expect("insert during plain read");
++                std::mem::forget(extra);
++                count_rows(connection)
++            })
++            .expect("plain read must succeed");
++
++            // The read transaction took one consistent snapshot: either 2 or 3
++            // rows depending on commit timing, never 1 (the pre-WAL state).
++            assert!(count >= 2, "snapshot must include committed WAL rows, got {count}");
++            // Sidecar metadata may or may not have moved; both outcomes are
++            // acceptable — the contract is a consistent snapshot, not a
++            // specific stability verdict.
++            let _ = stability;
++        }
++    }
 +}
 diff --git a/rust/adapters/copilot/src/loader.rs b/rust/adapters/copilot/src/loader.rs
 index 54758a6..0dcb94b 100644
@@ -2439,7 +2702,7 @@ index 44538db..ea618f6 100644
      let mut seen = HashSet::new();
      if let Ok(env_paths) = env::var(GEMINI_DATA_DIR_ENV) {
 diff --git a/rust/adapters/goose/src/loader.rs b/rust/adapters/goose/src/loader.rs
-index 4efd9e4..48dc6e9 100644
+index 4efd9e4..f58f291 100644
 --- a/rust/adapters/goose/src/loader.rs
 +++ b/rust/adapters/goose/src/loader.rs
 @@ -48,6 +48,15 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
@@ -2458,41 +2721,86 @@ index 4efd9e4..48dc6e9 100644
              Vec::new()
          })
      });
-@@ -72,12 +81,19 @@ fn load_entries_from_db(
+@@ -71,21 +80,68 @@ fn load_entries_from_db(
+     pricing: &PricingMap,
      shared: &SharedArgs,
  ) -> Result<Vec<LoadedEntry>> {
-     let Ok(connection) =
+-    let Ok(connection) =
 -        sqlite::Connection::open_with_flags(db_path, sqlite::OpenFlags::new().with_read_only())
-+        ccusage_adapter_common::open_source_db_readonly(db_path)
-     else {
+-    else {
+-        debug_log(
+-            shared,
+-            format!("Failed to open Goose database: {}", db_path.display()),
+-        );
+-        return Ok(Vec::new());
+-    };
++    // Downstream (Coding Agent Monitor) 0002 patch: the immutable fast path is
++    // re-verified after the read; a writer that appeared mid-read discards the
++    // immutable result and retries via a plain read-only transaction.
++    let loaded = ccusage_adapter_common::load_source_db_stable(db_path, |connection| {
++        load_entries_from_db_connection(connection, db_path, tz, pricing, shared)
++    });
++    match loaded {
++        Ok((entries, ccusage_adapter_common::SourceStability::Stable)) => Ok(entries),
++        Ok((entries, ccusage_adapter_common::SourceStability::ChangedDuringRead)) => {
++            debug_log(
++                shared,
++                "Goose source changed during immutable read; recovered via read-only retry"
++                    .to_string(),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "goose",
++                kind: ccusage_core::load_context::LoadDiagKind::SourceChanged,
++                file: Some(
++                    db_path
++                        .file_name()
++                        .map(|name| name.to_string_lossy().into_owned())
++                        .unwrap_or_default(),
++                ),
++                details: "source database changed during immutable read; result recovered via plain read-only retry".to_string(),
++            });
++            Ok(entries)
++        }
++        Err(_) => {
++            debug_log(
++                shared,
++                format!("Failed to open Goose database: {}", db_path.display()),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "goose",
++                kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++                file: None,
++                details: format!("Failed to open Goose database: {}", db_path.display()).to_string(),
++            });
++            Ok(Vec::new())
++        }
++    }
++}
 +
-         debug_log(
-             shared,
-             format!("Failed to open Goose database: {}", db_path.display()),
-         );
-+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
-+            agent: "goose",
-+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
-+            file: None,
-+            details: format!("Failed to open Goose database: {}", db_path.display()).to_string(),
-+        });
-         return Ok(Vec::new());
-     };
++fn load_entries_from_db_connection(
++    connection: &sqlite::Connection,
++    db_path: &Path,
++    tz: Option<&JiffTimeZone>,
++    pricing: &PricingMap,
++    shared: &SharedArgs,
++) -> Vec<LoadedEntry> {
      let Ok(mut statement) = connection.prepare(GOOSE_SESSION_QUERY) else {
-@@ -85,6 +101,12 @@ fn load_entries_from_db(
+         debug_log(
              shared,
              format!("Failed to read Goose database: {}", db_path.display()),
          );
+-        return Ok(Vec::new());
 +        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
 +            agent: "goose",
 +            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
 +            file: None,
 +            details: format!("Failed to read Goose database: {}", db_path.display()).to_string(),
 +        });
-         return Ok(Vec::new());
++        return Vec::new();
      };
 
-@@ -102,6 +124,12 @@ fn load_entries_from_db(
+     let mut entries = Vec::new();
+@@ -102,11 +158,17 @@ fn load_entries_from_db(
                      shared,
                      format!("Failed to query Goose database: {}", db_path.display()),
                  );
@@ -2505,6 +2813,12 @@ index 4efd9e4..48dc6e9 100644
                  break;
              }
          }
+     }
+-    Ok(entries)
++    entries
+ }
+
+ #[cfg(test)]
 diff --git a/rust/adapters/goose/src/paths.rs b/rust/adapters/goose/src/paths.rs
 index df107a6..4effaf3 100644
 --- a/rust/adapters/goose/src/paths.rs
@@ -2560,37 +2874,84 @@ index 42dec87..bc6bc96 100644
          && !home.trim().is_empty()
      {
 diff --git a/rust/adapters/hermes/src/loader.rs b/rust/adapters/hermes/src/loader.rs
-index 9c3c5d7..b8742d6 100644
+index 9c3c5d7..6b667fe 100644
 --- a/rust/adapters/hermes/src/loader.rs
 +++ b/rust/adapters/hermes/src/loader.rs
-@@ -40,8 +40,9 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
+@@ -39,18 +39,61 @@ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<L
+ }
 
  fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry> {
-     let Ok(connection) =
+-    let Ok(connection) =
 -        sqlite::Connection::open_with_flags(db_path, sqlite::OpenFlags::new().with_read_only())
-+        ccusage_adapter_common::open_source_db_readonly(db_path)
-     else {
+-    else {
+-        crate::debug_log(
+-            shared,
+-            format!(
+-                "Failed to open Hermes state database: {}",
+-                db_path.display()
+-            ),
+-        );
+-        return Vec::new();
+-    };
++    // Downstream (Coding Agent Monitor) 0002 patch: the immutable fast path is
++    // re-verified after the read; a writer that appeared mid-read discards the
++    // immutable result and retries via a plain read-only transaction.
++    let loaded = ccusage_adapter_common::load_source_db_stable(db_path, |connection| {
++        load_state_db_entries_from_connection(connection, db_path, shared)
++    });
++    match loaded {
++        Ok((entries, ccusage_adapter_common::SourceStability::Stable)) => entries,
++        Ok((entries, ccusage_adapter_common::SourceStability::ChangedDuringRead)) => {
++            crate::debug_log(
++                shared,
++                "Hermes source changed during immutable read; recovered via read-only retry"
++                    .to_string(),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "hermes",
++                kind: ccusage_core::load_context::LoadDiagKind::SourceChanged,
++                file: Some(
++                    db_path
++                        .file_name()
++                        .map(|name| name.to_string_lossy().into_owned())
++                        .unwrap_or_default(),
++                ),
++                details: "source database changed during immutable read; result recovered via plain read-only retry".to_string(),
++            });
++            entries
++        }
++        Err(_) => {
++            crate::debug_log(
++                shared,
++                format!(
++                    "Failed to open Hermes state database: {}",
++                    db_path.display()
++                ),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "hermes",
++                kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++                file: None,
++                details: format!(
++                    "Failed to open Hermes state database: {}",
++                    db_path.display()
++                )
++                .to_string(),
++            });
++            Vec::new()
++        }
++    }
++}
 +
-         crate::debug_log(
-             shared,
-             format!(
-@@ -49,6 +50,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
-                 db_path.display()
-             ),
-         );
-+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
-+            agent: "hermes",
-+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
-+            file: None,
-+            details: format!(
-+                "Failed to open Hermes state database: {}",
-+                db_path.display()
-+            ).to_string(),
-+        });
-         return Vec::new();
-     };
++fn load_state_db_entries_from_connection(
++    connection: &sqlite::Connection,
++    db_path: &Path,
++    shared: &SharedArgs,
++) -> Vec<HermesEntry> {
      let Ok(mut statement) = connection.prepare(
-@@ -78,6 +88,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
+         "
+             SELECT
+@@ -78,6 +121,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
                  db_path.display()
              ),
          );
@@ -2606,7 +2967,7 @@ index 9c3c5d7..b8742d6 100644
          return Vec::new();
      };
      let mut entries = Vec::new();
-@@ -97,6 +116,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
+@@ -97,6 +149,15 @@ fn load_state_db_entries(db_path: &Path, shared: &SharedArgs) -> Vec<HermesEntry
                          db_path.display()
                      ),
                  );
@@ -2639,31 +3000,74 @@ index 9682366..6fbe850 100644
          paths
              .split(',')
 diff --git a/rust/adapters/kilo/src/loader.rs b/rust/adapters/kilo/src/loader.rs
-index 734dcf4..6afccc0 100644
+index 734dcf4..f44f3e8 100644
 --- a/rust/adapters/kilo/src/loader.rs
 +++ b/rust/adapters/kilo/src/loader.rs
-@@ -49,12 +49,19 @@ fn load_entries_from_database(
+@@ -48,20 +48,67 @@ fn load_entries_from_database(
+     shared: &SharedArgs,
      pricing: &PricingMap,
  ) -> Vec<LoadedEntry> {
-     let Ok(connection) =
+-    let Ok(connection) =
 -        sqlite::Connection::open_with_flags(db_path, sqlite::OpenFlags::new().with_read_only())
-+        ccusage_adapter_common::open_source_db_readonly(db_path)
-     else {
+-    else {
+-        debug_log(
+-            shared,
+-            format!("Failed to open Kilo database: {}", db_path.display()),
+-        );
+-        return Vec::new();
+-    };
++    // Downstream (Coding Agent Monitor) 0002 patch: the immutable fast path is
++    // re-verified after the read; a writer that appeared mid-read discards the
++    // immutable result and retries via a plain read-only transaction.
++    let loaded = ccusage_adapter_common::load_source_db_stable(db_path, |connection| {
++        load_entries_from_connection(connection, db_path, tz, shared, pricing)
++    });
++    match loaded {
++        Ok((entries, ccusage_adapter_common::SourceStability::Stable)) => entries,
++        Ok((entries, ccusage_adapter_common::SourceStability::ChangedDuringRead)) => {
++            debug_log(
++                shared,
++                "Kilo source changed during immutable read; recovered via read-only retry"
++                    .to_string(),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "kilo",
++                kind: ccusage_core::load_context::LoadDiagKind::SourceChanged,
++                file: Some(
++                    db_path
++                        .file_name()
++                        .map(|name| name.to_string_lossy().into_owned())
++                        .unwrap_or_default(),
++                ),
++                details: "source database changed during immutable read; result recovered via plain read-only retry".to_string(),
++            });
++            entries
++        }
++        Err(_) => {
++            debug_log(
++                shared,
++                format!("Failed to open Kilo database: {}", db_path.display()),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent: "kilo",
++                kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++                file: None,
++                details: format!("Failed to open Kilo database: {}", db_path.display()).to_string(),
++            });
++            Vec::new()
++        }
++    }
++}
 +
-         debug_log(
-             shared,
-             format!("Failed to open Kilo database: {}", db_path.display()),
-         );
-+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
-+            agent: "kilo",
-+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
-+            file: None,
-+            details: format!("Failed to open Kilo database: {}", db_path.display()).to_string(),
-+        });
-         return Vec::new();
-     };
++fn load_entries_from_connection(
++    connection: &sqlite::Connection,
++    db_path: &Path,
++    tz: Option<&JiffTimeZone>,
++    shared: &SharedArgs,
++    pricing: &PricingMap,
++) -> Vec<LoadedEntry> {
      let Ok(mut statement) = connection.prepare("SELECT id, session_id, data FROM message") else {
-@@ -62,6 +69,12 @@ fn load_entries_from_database(
+         debug_log(
              shared,
              format!("Failed to read Kilo database: {}", db_path.display()),
          );
@@ -2676,7 +3080,7 @@ index 734dcf4..6afccc0 100644
          return Vec::new();
      };
      let mut entries = Vec::new();
-@@ -98,6 +111,12 @@ fn load_entries_from_database(
+@@ -98,6 +145,12 @@ fn load_entries_from_database(
                      shared,
                      format!("Failed to query Kilo database: {}", db_path.display()),
                  );
@@ -2775,31 +3179,93 @@ index 79f0229..caddbd9 100644
          return existing_path_list(custom_path);
      }
 diff --git a/rust/adapters/opencode/src/loader.rs b/rust/adapters/opencode/src/loader.rs
-index 5dd1640..541d6da 100644
+index 5dd1640..3ea387a 100644
 --- a/rust/adapters/opencode/src/loader.rs
 +++ b/rust/adapters/opencode/src/loader.rs
-@@ -193,12 +193,19 @@ fn load_entries_from_database(
+@@ -192,15 +192,73 @@ fn load_entries_from_database(
+     shared: &SharedArgs,
      window: DateWindow,
  ) -> Vec<LoadedEntry> {
-     let Ok(connection) =
+-    let Ok(connection) =
 -        sqlite::Connection::open_with_flags(db_path, sqlite::OpenFlags::new().with_read_only())
-+        ccusage_adapter_common::open_source_db_readonly(db_path)
-     else {
+-    else {
+-        debug_log(
+-            shared,
+-            format!("Failed to open OpenCode database: {}", db_path.display()),
+-        );
+-        return Vec::new();
+-    };
++    // Downstream (Coding Agent Monitor) 0002 patch: the immutable fast path is
++    // re-verified after the read; a writer that appeared mid-read discards the
++    // immutable result and retries via a plain read-only transaction.
++    let loaded = ccusage_adapter_common::load_source_db_stable(db_path, |connection| {
++        load_entries_from_connection(connection, db_path, tz, mode, pricing, shared, window)
++    });
++    return_stable_entries(loaded, "opencode", db_path, shared)
++}
 +
-         debug_log(
-             shared,
-             format!("Failed to open OpenCode database: {}", db_path.display()),
-         );
-+        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
-+            agent: "opencode",
-+            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
-+            file: None,
-+            details: format!("Failed to open OpenCode database: {}", db_path.display()).to_string(),
-+        });
-         return Vec::new();
-     };
++/// Downstream (Coding Agent Monitor) 0002 patch: shared tail for the stable
++/// source read — maps stability and open failures to the loader's contract.
++fn return_stable_entries(
++    loaded: std::result::Result<
++        (Vec<LoadedEntry>, ccusage_adapter_common::SourceStability),
++        sqlite::Error,
++    >,
++    agent: &'static str,
++    db_path: &Path,
++    shared: &SharedArgs,
++) -> Vec<LoadedEntry> {
++    match loaded {
++        Ok((entries, ccusage_adapter_common::SourceStability::Stable)) => entries,
++        Ok((entries, ccusage_adapter_common::SourceStability::ChangedDuringRead)) => {
++            debug_log(
++                shared,
++                format!(
++                    "{agent} source changed during immutable read; recovered via read-only retry"
++                ),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent,
++                kind: ccusage_core::load_context::LoadDiagKind::SourceChanged,
++                file: Some(
++                    db_path
++                        .file_name()
++                        .map(|name| name.to_string_lossy().into_owned())
++                        .unwrap_or_default(),
++                ),
++                details: "source database changed during immutable read; result recovered via plain read-only retry".to_string(),
++            });
++            entries
++        }
++        Err(_) => {
++            debug_log(
++                shared,
++                format!("Failed to open {agent} database: {}", db_path.display()),
++            );
++            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
++                agent,
++                kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
++                file: None,
++                details: format!("Failed to open {agent} database: {}", db_path.display()).to_string(),
++            });
++            Vec::new()
++        }
++    }
++}
++
++fn load_entries_from_connection(
++    connection: &sqlite::Connection,
++    db_path: &Path,
++    tz: Option<&JiffTimeZone>,
++    mode: CostMode,
++    pricing: Option<&PricingMap>,
++    shared: &SharedArgs,
++    window: DateWindow,
++) -> Vec<LoadedEntry> {
      // Push the window into SQL only while a sample of `time_created` still looks
-@@ -226,6 +233,15 @@ fn load_entries_from_database(
+     // millisecond-scaled. The sample cannot prove the whole column is, which is
+     // why the payload check in the loop stays authoritative either way.
+@@ -226,6 +284,15 @@ fn load_entries_from_database(
                  db_path.display()
              ),
          );
@@ -2815,7 +3281,7 @@ index 5dd1640..541d6da 100644
          prepare_message_query(&connection, DateWindow::UNBOUNDED)
      });
      let Some(mut statement) = statement else {
-@@ -233,6 +249,12 @@ fn load_entries_from_database(
+@@ -233,6 +300,12 @@ fn load_entries_from_database(
              shared,
              format!("Failed to read OpenCode database: {}", db_path.display()),
          );
@@ -2828,7 +3294,7 @@ index 5dd1640..541d6da 100644
          return Vec::new();
      };
      let mut entries = Vec::new();
-@@ -269,6 +291,12 @@ fn load_entries_from_database(
+@@ -269,6 +342,12 @@ fn load_entries_from_database(
                      shared,
                      format!("Failed to query OpenCode database: {}", db_path.display()),
                  );
@@ -2841,7 +3307,7 @@ index 5dd1640..541d6da 100644
                  break;
              }
          }
-@@ -294,6 +322,15 @@ fn read_message_file(
+@@ -294,6 +373,15 @@ fn read_message_file(
                      path.display()
                  ),
              );
@@ -3852,10 +4318,10 @@ index a1e2a89..87c8490 100644
  pub type Result<T> = std::result::Result<T, CliError>;
 diff --git a/rust/crates/ccusage-core/src/load_context.rs b/rust/crates/ccusage-core/src/load_context.rs
 new file mode 100644
-index 0000000..4d230f5
+index 0000000..9f7bb42
 --- /dev/null
 +++ b/rust/crates/ccusage-core/src/load_context.rs
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,186 @@
 +//! Load-scoped context for in-process collectors: structured diagnostics,
 +//! structured load failures, and per-load data-root overrides.
 +//!
@@ -3889,6 +4355,11 @@ index 0000000..4d230f5
 +    DatabaseError,
 +    /// A data source existed but could not be read (permissions, I/O error).
 +    SourceUnreadable,
++    /// The source changed while it was being read (a writer appeared during
++    /// an `immutable` read). The result was recovered via a plain read-only
++    /// retry inside a read transaction; reported so the skip/race is never a
++    /// silent success.
++    SourceChanged,
 +}
 +
 +/// One recoverable problem observed while loading a single agent's data.

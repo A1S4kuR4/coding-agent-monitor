@@ -415,12 +415,30 @@ fn run_scenarios(cfg: &AgentConfig) {
             "WAL rows must be readable: got {:?}",
             result.records.len()
         );
+        // The collector must not modify any pre-existing file and must not
+        // create anything except -wal/-shm sidecars, which SQLite itself
+        // manages for a live WAL database (a plain read-only connection on a
+        // WAL db opens the shared sidecars the writer already uses).
         let files_after = snapshot(&root.path);
-        assert_eq!(
-            files_before.len(),
-            files_after.len(),
-            "collector must not create new files in WAL mode"
-        );
+        let before_by_name: std::collections::HashMap<_, _> = files_before
+            .iter()
+            .map(|(p, s, h, _)| (p, (s, h)))
+            .collect();
+        for (path, size, hash, _) in &files_after {
+            match before_by_name.get(path) {
+                Some((before_size, before_hash)) => {
+                    assert_eq!(size, *before_size, "{path:?}: main file size changed");
+                    assert_eq!(hash, *before_hash, "{path:?}: main file content changed");
+                }
+                None => {
+                    let name = path.to_string_lossy();
+                    assert!(
+                        name.ends_with("-wal") || name.ends_with("-shm"),
+                        "{path:?}: unexpected new file in the source directory"
+                    );
+                }
+            }
+        }
     }
 
     // 10. Live writer during collection → bounded, no panic, reader succeeds

@@ -92,6 +92,9 @@ impl Collector for AgentCollector {
                             ccusage_core::load_context::LoadDiagKind::SourceUnreadable => {
                                 DiagnosticKind::SourceUnreadable
                             }
+                            ccusage_core::load_context::LoadDiagKind::SourceChanged => {
+                                DiagnosticKind::SourceChanged
+                            }
                         },
                         file: diag.file,
                         details: diag.details,

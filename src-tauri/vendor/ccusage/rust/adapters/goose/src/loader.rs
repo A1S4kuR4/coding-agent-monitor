@@ -80,22 +80,56 @@ fn load_entries_from_db(
     pricing: &PricingMap,
     shared: &SharedArgs,
 ) -> Result<Vec<LoadedEntry>> {
-    let Ok(connection) =
-        ccusage_adapter_common::open_source_db_readonly(db_path)
-    else {
+    // Downstream (Coding Agent Monitor) 0002 patch: the immutable fast path is
+    // re-verified after the read; a writer that appeared mid-read discards the
+    // immutable result and retries via a plain read-only transaction.
+    let loaded = ccusage_adapter_common::load_source_db_stable(db_path, |connection| {
+        load_entries_from_db_connection(connection, db_path, tz, pricing, shared)
+    });
+    match loaded {
+        Ok((entries, ccusage_adapter_common::SourceStability::Stable)) => Ok(entries),
+        Ok((entries, ccusage_adapter_common::SourceStability::ChangedDuringRead)) => {
+            debug_log(
+                shared,
+                "Goose source changed during immutable read; recovered via read-only retry"
+                    .to_string(),
+            );
+            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+                agent: "goose",
+                kind: ccusage_core::load_context::LoadDiagKind::SourceChanged,
+                file: Some(
+                    db_path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                ),
+                details: "source database changed during immutable read; result recovered via plain read-only retry".to_string(),
+            });
+            Ok(entries)
+        }
+        Err(_) => {
+            debug_log(
+                shared,
+                format!("Failed to open Goose database: {}", db_path.display()),
+            );
+            ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
+                agent: "goose",
+                kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
+                file: None,
+                details: format!("Failed to open Goose database: {}", db_path.display()).to_string(),
+            });
+            Ok(Vec::new())
+        }
+    }
+}
 
-        debug_log(
-            shared,
-            format!("Failed to open Goose database: {}", db_path.display()),
-        );
-        ccusage_core::load_context::record(ccusage_core::load_context::LoadDiag {
-            agent: "goose",
-            kind: ccusage_core::load_context::LoadDiagKind::DatabaseError,
-            file: None,
-            details: format!("Failed to open Goose database: {}", db_path.display()).to_string(),
-        });
-        return Ok(Vec::new());
-    };
+fn load_entries_from_db_connection(
+    connection: &sqlite::Connection,
+    db_path: &Path,
+    tz: Option<&JiffTimeZone>,
+    pricing: &PricingMap,
+    shared: &SharedArgs,
+) -> Vec<LoadedEntry> {
     let Ok(mut statement) = connection.prepare(GOOSE_SESSION_QUERY) else {
         debug_log(
             shared,
@@ -107,7 +141,7 @@ fn load_entries_from_db(
             file: None,
             details: format!("Failed to read Goose database: {}", db_path.display()).to_string(),
         });
-        return Ok(Vec::new());
+        return Vec::new();
     };
 
     let mut entries = Vec::new();
@@ -134,7 +168,7 @@ fn load_entries_from_db(
             }
         }
     }
-    Ok(entries)
+    entries
 }
 
 #[cfg(test)]

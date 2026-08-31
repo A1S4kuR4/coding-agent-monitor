@@ -406,6 +406,7 @@ fn diag_kind_str(kind: crate::collector::DiagnosticKind) -> &'static str {
         crate::collector::DiagnosticKind::CorruptRecord => "corrupt_record",
         crate::collector::DiagnosticKind::DatabaseError => "database_error",
         crate::collector::DiagnosticKind::SourceUnreadable => "source_unreadable",
+        crate::collector::DiagnosticKind::SourceChanged => "source_changed",
         crate::collector::DiagnosticKind::InvariantViolation => "invariant_violation",
     }
 }
@@ -416,6 +417,7 @@ fn diag_kind_from_str(kind: &str) -> Option<crate::collector::DiagnosticKind> {
         "corrupt_record" => Some(crate::collector::DiagnosticKind::CorruptRecord),
         "database_error" => Some(crate::collector::DiagnosticKind::DatabaseError),
         "source_unreadable" => Some(crate::collector::DiagnosticKind::SourceUnreadable),
+        "source_changed" => Some(crate::collector::DiagnosticKind::SourceChanged),
         "invariant_violation" => Some(crate::collector::DiagnosticKind::InvariantViolation),
         _ => None,
     }

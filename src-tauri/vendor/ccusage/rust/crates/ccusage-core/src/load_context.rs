@@ -31,6 +31,11 @@ pub enum LoadDiagKind {
     DatabaseError,
     /// A data source existed but could not be read (permissions, I/O error).
     SourceUnreadable,
+    /// The source changed while it was being read (a writer appeared during
+    /// an `immutable` read). The result was recovered via a plain read-only
+    /// retry inside a read transaction; reported so the skip/race is never a
+    /// silent success.
+    SourceChanged,
 }
 
 /// One recoverable problem observed while loading a single agent's data.
