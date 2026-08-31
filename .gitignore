@@ -20,6 +20,8 @@ scripts/generate-prototype*.mjs
 
 # Rust / Tauri build output
 src-tauri/target/
+# Alternate-toolchain build output (e.g. target-1.97/ verification builds)
+src-tauri/target-*/
 
 # Generated sidecars. Recreate them with `pnpm fetch:sidecar`.
 src-tauri/binaries/*.exe

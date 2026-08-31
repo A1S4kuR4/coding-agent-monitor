@@ -52,10 +52,65 @@ pub fn is_worker_invocation() -> bool {
         .is_some_and(|arg| arg == INTERNAL_FLAG)
 }
 
+/// Optional worker segment timing (release benchmark instrumentation).
+///
+/// Enabled only by setting `CAM_WORKER_SEGMENT_LOG=1` in the worker's
+/// environment — never set by the product supervisor. Each mark writes one
+/// sanitized JSON line (a label and elapsed microseconds since worker `main`)
+/// to **stderr**, which the parent drains separately; stdout and the response
+/// protocol are untouched. When the variable is absent every mark costs one
+/// relaxed atomic load.
+mod segments {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::Instant;
+
+    static ENABLED: AtomicBool = AtomicBool::new(false);
+    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
+    pub fn init() {
+        let _ = START.set(Instant::now());
+        if std::env::var("CAM_WORKER_SEGMENT_LOG").as_deref() == Ok("1") {
+            ENABLED.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// Elapsed microseconds since `main`, or `None` when disabled.
+    pub fn micros() -> Option<u128> {
+        if !ENABLED.load(Ordering::Relaxed) {
+            return None;
+        }
+        Some(
+            START
+                .get()
+                .map(|start| start.elapsed().as_micros())
+                .unwrap_or_default(),
+        )
+    }
+
+    pub fn mark(name: &str) {
+        if let Some(micros) = micros() {
+            use std::io::Write;
+            let _ = writeln!(
+                std::io::stderr(),
+                "{{\"cam_worker_segment\":\"{name}\",\"micros_from_main\":{micros}}}"
+            );
+        }
+    }
+
+    /// Marks the completion of one agent's collection inside a batch.
+    pub fn mark_agent(agent_id: &str) {
+        if micros().is_some() {
+            mark(&format!("collect_done_{agent_id}"));
+        }
+    }
+}
+
 /// Runs the worker against real stdin/stdout. Returns the process exit code:
 /// 0 when a response was written, non-zero when not even a response could be
 /// produced.
 pub fn run_worker_stdio() -> i32 {
+    segments::init();
+    segments::mark("main");
     // Worker-only panic silencer: the parent learns about panics from the exit
     // path below, never from stderr panic text leaking into diagnostics. Set
     // here only — the normal Tauri entry point never reaches this function.
@@ -86,6 +141,7 @@ pub fn run_worker_stdio() -> i32 {
             Err(_) => break,
         }
     }
+    segments::mark("stdin_read");
 
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         handle_request_bytes(&input)
@@ -106,7 +162,9 @@ pub fn run_worker_stdio() -> i32 {
         });
         return write_once(&failure);
     }
-    write_once(&response_bytes)
+    let exit_code = write_once(&response_bytes);
+    segments::mark("write_done");
+    exit_code
 }
 
 /// Writes exactly one response document to stdout and flushes. 0 = delivered.
@@ -242,6 +300,7 @@ fn handle_snapshot_request(text: &str) -> Vec<u8> {
         Ok(requests) => requests,
         Err(error) => return serialize_response(&CollectorResponseV1::error(request_id, &error)),
     };
+    segments::mark("request_parse");
 
     let mut agent_snapshots = Vec::with_capacity(requests.len());
     for domain in requests {
@@ -250,6 +309,7 @@ fn handle_snapshot_request(text: &str) -> Vec<u8> {
             let collector = AgentCollector::new(agent);
             Collector::collect(&collector, &domain)
         }));
+        segments::mark_agent(agent.id());
         let snapshot_outcome = match outcome {
             Ok(Ok(result)) => {
                 let response = CollectorResponseV1::ok("internal", &result);
@@ -307,12 +367,14 @@ fn handle_snapshot_request(text: &str) -> Vec<u8> {
         });
     }
 
-    serialize_response(&CollectorSnapshotResponseV1 {
+    let response_bytes = serialize_response(&CollectorSnapshotResponseV1 {
         version: SNAPSHOT_PROTOCOL_VERSION,
         request_id,
         fatal_error: None,
         agents: agent_snapshots,
-    })
+    });
+    segments::mark("serialize");
+    response_bytes
 }
 
 /// Converts a wire report back into the domain result (used by the supervisor).
