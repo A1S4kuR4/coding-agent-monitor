@@ -29,6 +29,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "windows": {
+      "nsis": {
+        "installerHooks": "./installer-hooks.nsh"
+      }
+    },
     "copyright": "Copyright © 2026 Coding Agent Monitor contributors",
     "resources": {
       "../LICENSE": "LICENSE",
