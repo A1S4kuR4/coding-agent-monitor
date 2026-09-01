@@ -1,7 +1,7 @@
 {
   "name": "coding-agent-monitor",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A lightweight, local-first Windows monitor for coding-agent token usage.",
   "license": "MIT",
   "packageManager": "pnpm@10.33.0",
@@ -17,7 +17,6 @@
     "test": "vitest run",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "fetch:sidecar": "node scripts/fetch-ccusage.mjs && node scripts/fetch-ccusage-antigravity.mjs",
     "vendor:verify": "node scripts/vendor-verify.mjs",
     "tauri": "tauri"
   },

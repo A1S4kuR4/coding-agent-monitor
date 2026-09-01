@@ -5,9 +5,9 @@ use crate::{collector::worker_runner, error::AppError, usage::UsageSummary};
 /// folded into the public `UsageSummary` by the shared adapter. Executes on a
 /// background runtime thread so the window never blocks on the subprocess.
 ///
-/// Phase 4B: this command no longer looks up, spawns or falls back to any
-/// ccusage sidecar; the sidecar runner stays only for shadow/rollback until
-/// Phase 5 removes it.
+/// Phase 5: the external ccusage sidecar supply chain (binaries, staging,
+/// fetch scripts, packaging, runner) has been removed; this command's only
+/// collection path is the batch worker.
 #[tauri::command]
 pub async fn get_usage_summary() -> Result<UsageSummary, AppError> {
     worker_runner::collect_usage()

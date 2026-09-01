@@ -56,7 +56,7 @@ fn shutdown_mid_refresh_cancels_reaps_and_refuses_new_workers() {
     // Flip the app-exit flag mid-flight, exactly like RunEvent::ExitRequested.
     let flag_thread = std::thread::spawn(|| {
         std::thread::sleep(Duration::from_millis(1500));
-        coding_agent_monitor_lib::sidecar::begin_shutdown();
+        coding_agent_monitor_lib::shutdown::begin_shutdown();
     });
     let error = collect_usage().expect_err("shutdown must cancel the in-flight refresh");
     flag_thread.join().expect("flag thread");

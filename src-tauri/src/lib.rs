@@ -2,7 +2,7 @@ pub mod collector;
 mod commands;
 mod db;
 mod error;
-mod shutdown;
+pub mod shutdown;
 // The sidecar/usage modules are pub so the shadow harness (dev/test only) can
 // drive both collection paths and compare their UsageSummary outputs.
 pub mod sidecar;
@@ -31,10 +31,10 @@ pub fn run() {
 
     app.run(|_app_handle, event| {
         if let RunEvent::ExitRequested { .. } = event {
-            // Stop tray refreshes and kill any in-flight sidecar processes so
-            // nothing survives the app. Kill-all is best-effort.
+            // Stop tray refreshes and cancel any in-flight collector child (worker or,
+            // historically, sidecar) so nothing survives the app.
             tray::stop_refresher();
-            sidecar::begin_shutdown();
+            shutdown::begin_shutdown();
         }
     });
 }

@@ -2,13 +2,14 @@
 //! worker path against the SAME fixtures/environment and compares the
 //! resulting `UsageSummary` values field by field.
 //!
-//! - The sidecar executable is the pinned ccusage v20.0.20
-//!   (`src-tauri/binaries/`); the worker is the vendored v20.0.20 + #1487 port.
+//! - The sidecar executable comes from `CAM_SHADOW_SIDECAR_EXE` (externally
+//!   pinned ccusage v20.0.20); the worker is the vendored v20.0.20 + #1487
+//!   port inside the product EXE. The sidecar supply chain was removed in
+//!   Phase 5, so this is an opt-in upgrade audit tool.
 //! - Both paths see identical env vars, roots, timezone and `--since` window.
 //! - Dev/test only: this binary is never packaged into the release installer.
 //!
-//! If the sidecar executable is unavailable the shadow tests report the
-//! affected agents as NOT-PASSED rather than fabricating a result.
+//! Without the env var the shadow tests skip rather than fabricate a result.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -22,10 +23,13 @@ use coding_agent_monitor_lib::collector::{supervisor, AgentKind};
 use coding_agent_monitor_lib::sidecar::adapter;
 use coding_agent_monitor_lib::usage::UsageSummary;
 
-const SIDECAR_EXE: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/binaries/ccusage-x86_64-pc-windows-msvc.exe"
-);
+/// Phase 5: sidecar binaries are no longer staged/bundled. This harness is an
+/// explicit opt-in upgrade audit tool — point `CAM_SHADOW_SIDECAR_EXE` at an
+/// externally pinned ccusage v20.0.20 build; without it the sidecar
+/// comparison tests skip (the default build/test never needs a sidecar).
+fn sidecar_exe() -> Option<PathBuf> {
+    std::env::var_os("CAM_SHADOW_SIDECAR_EXE").map(PathBuf::from)
+}
 const WORKER_EXE: &str = env!("CARGO_BIN_EXE_coding-agent-monitor");
 
 const SINCE: &str = "20260101";
@@ -132,7 +136,8 @@ fn shadow_env(root: &Path) -> Vec<(&'static str, PathBuf)> {
 
 /// Runs the v20.0.20 unified sidecar CLI and returns the unified JSON string.
 fn run_sidecar_unified(env: &[(&'static str, PathBuf)]) -> Result<String, String> {
-    let mut command = Command::new(SIDECAR_EXE);
+    let sidecar = sidecar_exe().expect("caller verifies CAM_SHADOW_SIDECAR_EXE");
+    let mut command = Command::new(sidecar);
     command
         .args([
             "daily",
@@ -383,8 +388,8 @@ fn diff_summaries(sidecar: &UsageSummary, worker: &UsageSummary) -> Vec<String> 
 #[test]
 fn shadow_claude_codex_sidecar_vs_worker() {
     let _shadow_lock = lock_shadow_tests();
-    if !Path::new(SIDECAR_EXE).exists() {
-        eprintln!("SHADOW SKIP: sidecar exe not found at {SIDECAR_EXE}");
+    if sidecar_exe().is_none() {
+        eprintln!("SHADOW SKIP: set CAM_SHADOW_SIDECAR_EXE to run the sidecar audit");
         return;
     }
     let root = build_shadow_fixture("claude-codex");
@@ -414,8 +419,8 @@ fn shadow_claude_codex_sidecar_vs_worker() {
 #[test]
 fn shadow_full_17_agent_matrix() {
     let _shadow_lock = lock_shadow_tests();
-    if !Path::new(SIDECAR_EXE).exists() {
-        eprintln!("SHADOW SKIP: sidecar exe not found at {SIDECAR_EXE}");
+    if sidecar_exe().is_none() {
+        eprintln!("SHADOW SKIP: set CAM_SHADOW_SIDECAR_EXE to run the sidecar audit");
         return;
     }
     let root = build_shadow_fixture("full-matrix");
@@ -583,8 +588,8 @@ fn snapshot_twenty_concurrent_calls_share_one_worker() {
 #[test]
 fn perf_baseline_sidecar_vs_worker_10_warm_runs() {
     let _shadow_lock = lock_shadow_tests();
-    if !Path::new(SIDECAR_EXE).exists() {
-        eprintln!("PERF SKIP: sidecar exe not found");
+    if sidecar_exe().is_none() {
+        eprintln!("PERF SKIP: set CAM_SHADOW_SIDECAR_EXE to run the sidecar audit");
         return;
     }
     supervisor::set_worker_exe_override(std::path::PathBuf::from(WORKER_EXE));

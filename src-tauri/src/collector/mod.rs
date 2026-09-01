@@ -9,9 +9,9 @@
 //!
 //! # Boundaries (Phase 1)
 //!
-//! - **Not the production path.** Production collection still runs the ccusage
-//!   sidecar executable (`src-tauri/src/sidecar`). This API is exercised by
-//!   contract tests only until Phase 2 switches the call chain.
+//! - **Production path since Phase 4B.** The public refresh runs this API
+//!   inside the isolated batch worker (`worker_runner`); since Phase 5 there
+//!   is no external ccusage sidecar at all.
 //! - **Record granularity.** One [`UsageRecord`] per *daily aggregate per
 //!   agent* — the granularity the vendored unified report provides reliably.
 //!   Session-level records are a later extension.

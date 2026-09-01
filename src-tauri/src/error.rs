@@ -30,35 +30,6 @@ impl AppError {
             message: details,
         }
     }
-
-    /// The ccusage executable is absent from both the packaged directory and the
-    /// staged `src-tauri/binaries/` tree. This is not a data condition; the
-    /// report cannot start at all, so the whole summary fails.
-    pub fn sidecar_missing() -> Self {
-        Self {
-            code: "sidecar_missing".into(),
-            message: "Unable to locate the ccusage sidecar (ccusage.exe). \
-                      Run `pnpm fetch:sidecar` to stage it, then rebuild."
-                .into(),
-        }
-    }
-
-    /// The sidecar ran but failed for one agent (spawn failure, non-zero exit,
-    /// or a read error). `details` carries diagnostics only, never usage records.
-    pub fn sidecar_failed(agent: &str, details: String) -> Self {
-        Self {
-            code: "sidecar_failed".into(),
-            message: format!("ccusage failed for {agent}: {details}"),
-        }
-    }
-
-    /// The sidecar exceeded the bound and was killed; no child is left behind.
-    pub fn sidecar_timeout(agent: &str) -> Self {
-        Self {
-            code: "sidecar_timeout".into(),
-            message: format!("ccusage did not finish for {agent} within the timeout."),
-        }
-    }
 }
 
 impl Display for AppError {

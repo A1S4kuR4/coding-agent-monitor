@@ -16,9 +16,13 @@
 //! - antigravity: two conversation DBs sharing one responseId (cross-DB
 //!   dedup probe, the #1487 signature behavior).
 //!
-//! The sidecar pair is the pinned release binaries (`src-tauri/binaries/`);
-//! the worker is the product EXE in the current test profile
-//! (`cargo test --release` builds it with the release profile).
+//! The sidecar pair is NOT staged in the repo anymore (Phase 5 removed the
+//! supply chain). Point `CAM_SHADOW_SIDECAR_EXE` and
+//! `CAM_SHADOW_ANTIGRAVITY_EXE` at externally pinned v20.0.20 /
+//! v20.0.18-antigravity builds to run the audit; without them every
+//! sidecar-comparison test skips. The worker side is the product EXE in the
+//! current test profile (`cargo test --release` builds it with the release
+//! profile).
 //!
 //! Dev/test only: this binary is never packaged into the release installer.
 //! No real user data is read: every agent root is redirected to the fixture
@@ -37,14 +41,19 @@ use coding_agent_monitor_lib::collector::AgentKind;
 use coding_agent_monitor_lib::sidecar::adapter;
 use coding_agent_monitor_lib::usage::UsageSummary;
 
-const SIDECAR_EXE: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/binaries/ccusage-x86_64-pc-windows-msvc.exe"
-);
-const ANTIGRAVITY_EXE: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/binaries/ccusage-antigravity-x86_64-pc-windows-msvc.exe"
-);
+/// The external sidecar executables are NO LONGER staged in the repo or
+/// bundled (removed in Phase 5). This harness is an explicit opt-in upgrade
+/// audit tool: point `CAM_SHADOW_SIDECAR_EXE` and `CAM_SHADOW_ANTIGRAVITY_EXE`
+/// at externally pinned v20.0.20 / v20.0.18-antigravity builds to run the
+/// parity comparison. Without them every sidecar-comparison test SKIPS — the
+/// default build/test never requires, downloads, or looks for a sidecar.
+fn sidecar_exe() -> Option<PathBuf> {
+    std::env::var_os("CAM_SHADOW_SIDECAR_EXE").map(PathBuf::from)
+}
+
+fn antigravity_exe() -> Option<PathBuf> {
+    std::env::var_os("CAM_SHADOW_ANTIGRAVITY_EXE").map(PathBuf::from)
+}
 /// The product EXE. `cargo test --release` builds it with the release
 /// profile; `CAM_SHADOW17_WORKER_EXE` can point at an explicit build.
 fn worker_exe() -> PathBuf {
@@ -404,7 +413,10 @@ fn apply_env(command: &mut std::process::Command, env: &[(&'static str, PathBuf)
 /// the same timezone the worker request pins).
 fn run_sidecar_unified(env: &[(&'static str, PathBuf)]) -> Result<String, String> {
     run_sidecar_command(
-        SIDECAR_EXE,
+        &sidecar_exe()
+            .expect("sidecar checked by caller")
+            .display()
+            .to_string(),
         &["daily", "--json", "--offline", "--by-agent"],
         env,
     )
@@ -413,7 +425,10 @@ fn run_sidecar_unified(env: &[(&'static str, PathBuf)]) -> Result<String, String
 /// Runs the pinned Antigravity sidecar (production argument shape + UTC).
 fn run_sidecar_antigravity(env: &[(&'static str, PathBuf)]) -> Result<String, String> {
     run_sidecar_command(
-        ANTIGRAVITY_EXE,
+        &antigravity_exe()
+            .expect("antigravity checked by caller")
+            .display()
+            .to_string(),
         &["antigravity", "daily", "--json", "--offline"],
         env,
     )
@@ -963,10 +978,12 @@ fn production_release_perf_30_runs() {
 #[test]
 fn shadow17_full_matrix_sidecar_vs_worker() {
     let _shadow_lock = lock_shadow_tests();
-    if !Path::new(SIDECAR_EXE).exists() {
-        eprintln!("SHADOW17 SKIP: sidecar exe not found at {SIDECAR_EXE}");
+    let Some(_) = sidecar_exe() else {
+        eprintln!(
+            "SHADOW17 SKIP: set CAM_SHADOW_SIDECAR_EXE (+ CAM_SHADOW_ANTIGRAVITY_EXE) to run the sidecar parity audit"
+        );
         return;
-    }
+    };
     let root = build_shadow17_fixture("parity");
     let env = shadow17_env(&root);
 
@@ -1402,7 +1419,9 @@ fn shadow17_release_benchmark_30_runs() {
         // --- sidecar path: unified + antigravity, sequential, then normalize
         let started = Instant::now();
         let (unified_run, mut u_child, unified_bytes) = measure_child(|| {
-            let mut command = std::process::Command::new(SIDECAR_EXE);
+            let mut command = std::process::Command::new(
+                sidecar_exe().expect("bench requires CAM_SHADOW_SIDECAR_EXE"),
+            );
             command
                 .args([
                     "daily",
@@ -1420,7 +1439,9 @@ fn shadow17_release_benchmark_30_runs() {
         });
         let u_status = u_child.wait().expect("wait unified sidecar");
         let (antigravity_run, mut a_child, antigravity_bytes) = measure_child(|| {
-            let mut command = std::process::Command::new(ANTIGRAVITY_EXE);
+            let mut command = std::process::Command::new(
+                antigravity_exe().expect("bench requires CAM_SHADOW_ANTIGRAVITY_EXE"),
+            );
             command
                 .args([
                     "antigravity",

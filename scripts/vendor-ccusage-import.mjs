@@ -189,6 +189,31 @@ function readCommittedBlobs() {
 	return blobs;
 }
 
+/// Raw committed content of one tracked file, straight from git objects —
+/// immune to checkout line-ending smudging (on Windows, `* text=auto` checks
+/// text files out as CRLF, which would corrupt a byte-compare against the
+/// LF committed blobs when copying files from the working tree).
+/// Move a directory tree, falling back to copy+delete when `rename` fails
+/// with EXDEV (source and target on different drives — the default work dir
+/// lives in the OS temp dir, which may be a different device than the repo).
+function moveDir(from, to) {
+	try {
+		fs.renameSync(from, to);
+		return;
+	} catch (error) {
+		if (error.code !== "EXDEV") throw error;
+	}
+	fs.cpSync(from, to, { recursive: true });
+	fs.rmSync(from, { recursive: true, force: true });
+}
+
+function gitBlob(repoPath) {
+	return execFileSync("git", ["-c", "core.autocrlf=false", "cat-file", "blob", `HEAD:${repoPath}`], {
+		cwd: repoRoot,
+		maxBuffer: 64 * 1024 * 1024,
+	});
+}
+
 function main() {
 	const argv = process.argv.slice(2);
 	const workDirFlag = argv.indexOf("--work-dir");
@@ -283,7 +308,9 @@ function main() {
 		// GNU patch, not `git apply`: staging may live inside this repository,
 		// and git apply resolves patch paths against the enclosing repo root
 		// rather than the cwd. `-f` makes any failed hunk fail the import.
-		fs.copyFileSync(repoPatch, path.join(staging, "patches", patchFile));
+		// Copy from the committed blob, not the working tree, so a CRLF
+		// checkout cannot leak into the staged bytes or the applied result.
+		fs.writeFileSync(path.join(staging, "patches", patchFile), gitBlob(`src-tauri/vendor/ccusage/patches/${patchFile}`));
 		execFileSync("patch", ["-p1", "-f", "--no-backup-if-mismatch", "-i", path.join("patches", patchFile)], {
 			cwd: staging,
 			maxBuffer: 64 * 1024 * 1024,
@@ -293,9 +320,10 @@ function main() {
 		if (!fs.existsSync(path.join(vendorRoot, "patches", patchFile))) {
 			throw new Error(`reference patch missing from the repository: ${patchFile}`);
 		}
-		fs.copyFileSync(
-			path.join(vendorRoot, "patches", patchFile),
+		// Committed blob, not the working tree (see the CRLF note above).
+		fs.writeFileSync(
 			path.join(staging, "patches", patchFile),
+			gitBlob(`src-tauri/vendor/ccusage/patches/${patchFile}`),
 		);
 	}
 
@@ -463,12 +491,12 @@ scope = "rust workspace subset required for unified daily collection (core, all 
 		for (const entry of swapEntries) {
 			const live = path.join(vendorRoot, entry);
 			if (fs.existsSync(live)) {
-				fs.renameSync(live, path.join(backup, entry));
+				moveDir(live, path.join(backup, entry));
 				movedToBackup.push(entry);
 			}
 		}
 		for (const entry of swapEntries) {
-			fs.renameSync(path.join(staging, entry), path.join(vendorRoot, entry));
+			moveDir(path.join(staging, entry), path.join(vendorRoot, entry));
 		}
 		fs.copyFileSync(path.join(staging, "MANIFEST.sha256"), path.join(vendorRoot, "MANIFEST.sha256"));
 	} catch (error) {
@@ -477,7 +505,7 @@ scope = "rust workspace subset required for unified daily collection (core, all 
 			const live = path.join(vendorRoot, entry);
 			fs.rmSync(live, { recursive: true, force: true });
 			if (movedToBackup.includes(entry)) {
-				fs.renameSync(path.join(backup, entry), live);
+				moveDir(path.join(backup, entry), live);
 			}
 		}
 		throw new Error(`swap failed; vendor tree restored from backup. Cause: ${error.message}`);

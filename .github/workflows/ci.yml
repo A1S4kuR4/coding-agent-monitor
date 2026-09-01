@@ -28,9 +28,6 @@ jobs:
       - name: Install JavaScript dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Stage pinned sidecars
-        run: pnpm fetch:sidecar
-
       - name: Frontend lint
         run: pnpm lint
 

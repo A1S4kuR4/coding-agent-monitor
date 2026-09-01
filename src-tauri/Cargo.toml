@@ -1,6 +1,6 @@
 [package]
 name = "coding-agent-monitor"
-version = "0.2.0"
+version = "0.3.0"
 description = "A lightweight local token monitor for Claude Code and OpenAI Codex"
 authors = ["Coding Agent Monitor contributors"]
 edition = "2021"

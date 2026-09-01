@@ -2,18 +2,20 @@
 
 一款面向 Windows 的轻量级 Coding Agent Token 使用量监控工具。
 
-基于 **Tauri 2 + React + TypeScript + Rust + SQLite + ccusage** 构建，通过动态 Agent
-契约展示官方 ccusage 统一快照，并用固定兼容桥补充 Antigravity。
+基于 **Tauri 2 + React + TypeScript + Rust + SQLite + vendored ccusage** 构建：ccusage
+v20.0.20 的采集源码与 Antigravity 的 downstream 移植直接编译进产品 EXE，并在同一 EXE
+的隔离 worker 进程中采集全部 17 个 Coding Agent 的用量，不再依赖任何外部 ccusage 可执行文件。
 
 目标很简单：
 
 > 不打开命令行，也能随时查看本机 Coding Agent 今天用了多少 Token。
 
-> **当前状态：v0.2.0 已发布**
-> 非 ASCII Windows 用户目录下的完整人工 GUI Gate 0 对 v0.1.0 与 v0.2.0 均由维护者标记为
-> **WAIVED / NOT RUN**，不是 PASS。该场景仍是已知覆盖缺口；详见
-> [v0.2 发布验证记录](docs/V0.2_RELEASE_VERIFICATION.md)。发布安装包仍未 Authenticode 签名，
-> 安装时可能出现 SmartScreen/未知发布者提示，请核对 Release 附带的 SHA-256 校验值。
+> **当前状态：v0.3.0 release candidate**（发布验收见
+> [`docs/V0.3_PHASE5_RELEASE_CANDIDATE.md`](docs/V0.3_PHASE5_RELEASE_CANDIDATE.md)）。
+> v0.2.0 已发布（[验证记录](docs/V0.2_RELEASE_VERIFICATION.md)）。
+> 非 ASCII Windows 用户目录的完整人工 GUI Gate 历史上为 **WAIVED / NOT RUN**；
+> 发布安装包未经 Authenticode 签名，安装时可能出现 SmartScreen/未知发布者提示，
+> 请核对 Release 附带的 SHA-256 校验值。
 
 ## 隐私与安全
 
@@ -37,14 +39,15 @@ Codex          5.17M Tokens
 今日合计      13.59M Tokens
 ```
 
-当前用户可见支持范围：
+当前用户可见支持范围（17 个 Agent，开放字符串 ID + Rust `displayName`，未知 Agent
+可安全显示）：Claude Code、OpenAI Codex、OpenCode、Amp、Droid、Codebuff、Hermes、
+Pi、Goose、OpenClaw、Kilo、GitHub Copilot、Gemini CLI、Kimi、Qwen Code、Grok CLI，
+以及 **Antigravity（CAM 维护的 downstream 移植，非 ccusage 官方支持）**。
 
-- 官方固定 ccusage 20.0.20 二进制提供的统一 Agent 快照；
-- 开放字符串 ID + Rust `displayName` 的动态 Agent 列表，未知 Agent 可安全显示；
-- Claude Code 与 OpenAI Codex 的既有统计；
-- 固定上游提交构建的 Antigravity focused 兼容 sidecar。
-
-底层优先复用 `ccusage` 已有的数据解析能力，避免重复实现不同 Agent 的日志解析逻辑。
+v0.3 值语义（相对 v0.2 的两项已批准修正）：来源明确的 reasoning/thinking 单独计入
+`reasoningTokens`（不再混入 unclassified）；存在未定价模型的日子成本显示为
+`null`——不再伪造 `$0.00` 或输出误导性的部分成本。底层复用 vendored ccusage
+已有的数据解析能力，不重复实现 Agent 日志解析。
 
 ---
 
@@ -139,23 +142,24 @@ Coding Agent Monitor 不是：
 # 技术方案
 
 ```text
-Local Agent Records
+Local Agent Records (17 agents, read-only)
         │
-        ├── official pinned ccusage unified snapshot
-        └── pinned Antigravity compatibility bridge
-              │
-              ▼
-          Rust Adapter
-              │
-              ▼
-           SQLite
-              │
-              ▼
-      Tauri 2 Application
-              │
-        ┌─────┴─────┐
-        ▼           ▼
-      React      Windows Tray
+        ▼
+  vendored ccusage engine (in-process, offline, read-only)
+        │
+        ▼
+  product EXE worker（同一 EXE 的隐藏 worker 模式）
+  · 单进程、超时/崩溃隔离、single-flight
+        │
+        ▼
+  Rust adapter → UsageSummary（公共契约）
+        │
+        ▼
+    Tauri 2 Application
+        │
+  ┌─────┴─────┐
+  ▼           ▼
+React      Windows Tray
 ```
 
 技术栈：
@@ -167,26 +171,18 @@ Local Agent Records
 | Language | TypeScript |
 | Native | Rust |
 | Database | SQLite |
-| Usage Parser | ccusage |
+| Usage Parser | vendored ccusage v20.0.20 |
 | Platform | Windows 10 / 11 |
 
 ---
 
-# 为什么使用 ccusage
+# 为什么复用 ccusage
 
 `ccusage` 已经能够解析多种 Coding Agent 的本地使用记录。
 
-因此 Coding Agent Monitor 第一阶段不重复实现这些 Parser，而是：
-
-```text
-ccusage
-   ↓
-JSON
-   ↓
-Coding Agent Monitor
-```
-
-应用内部再统一转换为自己的数据结构。
+v0.2 通过运行外部 ccusage 可执行文件复用这些 Parser；v0.3 把 ccusage v20.0.20 的
+Rust 采集源码 vendored 进本仓库（含可审计的补丁与定价快照），在同一产品 EXE 的
+隔离 worker 进程内直接调用，不再下载、打包或运行任何外部 ccusage 可执行文件。
 
 这样可以把开发重点放在：
 
@@ -212,12 +208,14 @@ Coding Agent Monitor
 
 # 项目状态
 
-> v0.2.0 已发布；manifest 版本为 `0.2.0`。
+> v0.3.0 release candidate；manifest 版本为 `0.3.0`。v0.2.0 已发布。
 
-内部规划中的 Phase 6–9 已实施：统一官方 ccusage 快照、动态 Agent 契约、预估成本/
-缓存占比/更新时间与 stale 降级，以及 Reading Surface 响应式精修。这里的阶段名称是内部规划记录。
-Antigravity 由固定上游提交构建的 focused sidecar 补充，
-Rust 会与官方统一报告合并并避免重复统计。
+v0.3 的主要变化：采集从外部 ccusage sidecar 切换为 vendored 源码 + 单 EXE 隔离
+worker；Agent 支持从 3 个扩展到 17 个；reasoning 分类精度提升；缺价成本语义修正为
+`null`（不伪造零）。验收记录见
+[`docs/V0.3_PHASE5_RELEASE_CANDIDATE.md`](docs/V0.3_PHASE5_RELEASE_CANDIDATE.md)。
+Antigravity 是 CAM 维护的 downstream 移植（基于未合并的上游 PR），**不是 ccusage
+官方支持**。
 
 Phase 10 已于 2026-08-28 执行完毕，记录见
 [v0.2 发布验证记录](docs/V0.2_RELEASE_VERIFICATION.md)；v0.2.0 已标记为 release candidate 并按
@@ -226,8 +224,9 @@ Phase 10 已于 2026-08-28 执行完毕，记录见
 [v0.2 开发验收计划](docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md)。
 
 非 ASCII Windows 用户目录完整 GUI Gate 0 对 v0.1.0 与 v0.2.0 均为
-**WAIVED / NOT RUN**，不是技术验证通过。发布 MSI、NSIS、主程序和两个 sidecar 的
-Authenticode 状态均为 `NotSigned`，Release Notes 已披露 SmartScreen/未知发布者风险。
+**WAIVED / NOT RUN**，不是技术验证通过。v0.2 发布的 MSI、NSIS、主程序和两个 sidecar
+的 Authenticode 状态均为 `NotSigned`，Release Notes 已披露 SmartScreen/未知发布者风险；
+v0.3 延续同一签名策略与披露。
 
 **先做好一个真正愿意长期放在 Windows 托盘里的 Coding Agent Token Monitor。**
 
@@ -241,12 +240,11 @@ Authenticode 状态均为 `NotSigned`，Release Notes 已披露 SmartScreen/未�
 
 仓库现已包含 Tauri 2 + React + TypeScript + Rust 的最小可运行骨架：
 
-- React 只消费项目自己的 `UsageSummary`，不解析 ccusage 原始 JSON。
-- Rust 负责 ccusage adapter、SQLite 初始化、系统托盘和本地错误边界。
-- SQLite 当前只初始化本地数据库文件，不创建业务表。
-- Dashboard、系统托盘与安装包均已接通**真实 ccusage sidecar**：官方 20.0.20 读取统一
-  Agent 用量，固定 PR commit 的兼容 sidecar 补充 Antigravity；不再使用 mock data fixture。发布构建、安装/启动/卸载的
-  验收记录见 [`docs/RELEASE_VERIFICATION.md`](docs/RELEASE_VERIFICATION.md)。
+- React 只消费项目自己的 `UsageSummary`，不接触原始 Agent 日志或 JSON。
+- Rust 负责 vendored ccusage 采集、SQLite 初始化、系统托盘和本地错误边界。
+- SQLite 只初始化本地数据库文件，不创建业务表；所有 Agent 源数据库一律只读。
+- Dashboard 与系统托盘的数据来自产品 EXE 自身的隔离 worker（v0.3 起不再有 sidecar）。
+  安装包只包含一个产品可执行文件。
 
 详细的后续实施顺序与验收条件见
 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)，开发约束见
@@ -258,7 +256,6 @@ Authenticode 状态均为 `NotSigned`，Release Notes 已披露 SmartScreen/未�
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm fetch:sidecar
 pnpm lint
 pnpm typecheck
 pnpm test
@@ -266,12 +263,14 @@ cargo check --manifest-path src-tauri/Cargo.toml
 pnpm tauri dev
 ```
 
-当前 ccusage 状态：**官方 20.0.20 unified + 固定 PR commit 的 Antigravity focused
-兼容桥**。Dashboard 与托盘显示的数据来自本机真实用量，不再使用 mock fixture。
+采集内核：**vendored ccusage v20.0.20 源码 + 固定 PR commit 的 Antigravity
+downstream 移植**，编译进产品 EXE，并以同一 EXE 的隔离 worker 进程执行
+（v0.3 起不再下载、打包或运行任何外部 ccusage 可执行文件）。Dashboard 与托盘
+显示的数据来自本机真实用量，不使用 mock fixture。
 
-`pnpm fetch:sidecar` 会按固定版本、提交和哈希下载或构建两个本地 sidecar；生成的
-EXE 不进入 Git。详细供应链说明见
-[`src-tauri/binaries/README.md`](src-tauri/binaries/README.md)。
+升级审计工具（可选）：`tests/shadow17.rs` 可将外部固定的 ccusage 构建通过
+`CAM_SHADOW_SIDECAR_EXE` / `CAM_SHADOW_ANTIGRAVITY_EXE` 环境变量传入，与 worker
+做逐字段 parity 对照；默认构建/测试不要求也不查找任何 sidecar。
 
 ## 参与贡献
 
@@ -281,8 +280,9 @@ EXE 不进入 Git。详细供应链说明见
 
 ## 许可证与品牌声明
 
-项目代码采用 [MIT License](LICENSE)。`ccusage` sidecar 与 LiteLLM 定价快照的
-版权归属和许可证见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+项目代码采用 [MIT License](LICENSE)。vendored ccusage 源码、Antigravity 移植与
+LiteLLM / models.dev 定价快照的版权归属和许可证见
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 
 Claude、Anthropic、OpenAI、Codex 及其他产品名称可能是其各自所有者的商标。
 本项目为独立社区项目，与相关公司不存在隶属、认可或赞助关系；这些名称仅用于描述兼容性。
