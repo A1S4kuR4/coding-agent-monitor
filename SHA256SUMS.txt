@@ -1,0 +1,6 @@
+# SHA256SUMS for the v0.3.0 release assets.
+# Filenames are relative to the directory containing the downloaded release
+# files (verify there, e.g.:  sha256sum -c SHA256SUMS.txt  after downloading
+# both installers into one folder).
+8d611f6a33e3df611da672df375b937e155b9a0e4b52505d615ade72659bcbf6  Coding Agent Monitor_0.3.0_x64_en-US.msi
+633688819bff369f413847c7aabfd4ba660b3a34292d14da2c16779baa85161b  Coding Agent Monitor_0.3.0_x64-setup.exe

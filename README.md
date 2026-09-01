@@ -10,8 +10,10 @@ v20.0.20 的采集源码与 Antigravity 的 downstream 移植直接编译进产�
 
 > 不打开命令行，也能随时查看本机 Coding Agent 今天用了多少 Token。
 
-> **当前状态：v0.3.0 release candidate**（发布验收见
-> [`docs/V0.3_PHASE5_RELEASE_CANDIDATE.md`](docs/V0.3_PHASE5_RELEASE_CANDIDATE.md)）。
+> **当前状态：v0.3.0 — READY TO RELEASE（Windows 11 x64 only, unsigned,
+> non-ASCII profile unverified）**。发布验收与三项已批准 waiver 见
+> [`docs/V0.3_RELEASE_GATE_DECISION.md`](docs/V0.3_RELEASE_GATE_DECISION.md)；
+> 过程记录见 [`docs/V0.3_PHASE5_RELEASE_CANDIDATE.md`](docs/V0.3_PHASE5_RELEASE_CANDIDATE.md)。
 > v0.2.0 已发布（[验证记录](docs/V0.2_RELEASE_VERIFICATION.md)）。
 > 非 ASCII Windows 用户目录的完整人工 GUI Gate 历史上为 **WAIVED / NOT RUN**；
 > 发布安装包未经 Authenticode 签名，安装时可能出现 SmartScreen/未知发布者提示，
@@ -208,7 +210,7 @@ Rust 采集源码 vendored 进本仓库（含可审计的补丁与定价快照�
 
 # 项目状态
 
-> v0.3.0 release candidate；manifest 版本为 `0.3.0`。v0.2.0 已发布。
+> v0.3.0 发布就绪（READY TO RELEASE，见顶部状态）；manifest 版本为 `0.3.0`。v0.2.0 已发布。
 
 v0.3 的主要变化：采集从外部 ccusage sidecar 切换为 vendored 源码 + 单 EXE 隔离
 worker；Agent 支持从 3 个扩展到 17 个；reasoning 分类精度提升；缺价成本语义修正为
