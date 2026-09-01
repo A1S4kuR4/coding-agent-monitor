@@ -172,7 +172,7 @@ React      Windows Tray
 | Native | Rust |
 | Database | SQLite |
 | Usage Parser | vendored ccusage v20.0.20 |
-| Platform | Windows 10 / 11 |
+| Platform | Windows 11 x64（Windows 10 未经验证，见下方支持声明） |
 
 ---
 
