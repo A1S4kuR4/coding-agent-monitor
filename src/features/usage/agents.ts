@@ -51,6 +51,17 @@ const KNOWN_AGENTS: Record<string, AgentMeta> = {
   },
 };
 
+/** Deterministic 1–2 character identity mark rendered next to an agent's name
+ * (list rows, filter chips, tooltip legends, day details). Colour alone cannot
+ * identify agents — especially the unknown ones, which share one neutral token
+ * — so every surface shows this same monogram derived from the display name:
+ * the first two alphanumeric characters, uppercased. Dynamic user data is only
+ * transformed, never dictionary-matched. */
+export function agentMark(displayName: string): string {
+  const chars = [...displayName].filter((c) => /\p{L}|\p{N}/u.test(c));
+  return (chars[0] ?? "").toUpperCase() + (chars[1] ?? "").toUpperCase();
+}
+
 /** Canonical fixed order for the known agents: Claude Code, Codex, Antigravity,
  * OpenCode (bottom-up in the stacked chart too). */
 export const KNOWN_AGENT_IDS = ["claude", "codex", "antigravity", "opencode"];

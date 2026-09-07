@@ -27,7 +27,7 @@ use super::snapshot_protocol::{
 use super::supervisor;
 use super::{AgentKind, CollectResult, CollectorError};
 use crate::error::AppError;
-use crate::usage::UsageSummary;
+use crate::usage::{UsageScope, UsageSummary};
 
 /// Short-lived result cache, identical to the sidecar runner's semantics:
 /// caching failures as well as successes prevents a broken collector from
@@ -140,9 +140,14 @@ pub fn supports_agent(agent: AgentKind) -> bool {
 
 // --- Batch snapshot single-flight (Phase 4A) --------------------------------
 
-static SNAPSHOT_FLIGHT: Mutex<Option<Arc<(Mutex<Option<SnapshotFlightResult>>, Condvar)>>> =
-    Mutex::new(None);
+static SNAPSHOT_FLIGHT: Mutex<Option<Arc<SnapshotFlight>>> = Mutex::new(None);
 static SNAPSHOT_LAST: Mutex<Option<CachedSnapshotResult>> = Mutex::new(None);
+
+struct SnapshotFlight {
+    request: CollectorSnapshotRequestV1,
+    result: Mutex<Option<SnapshotFlightResult>>,
+    completed: Condvar,
+}
 
 struct SnapshotFlightResult {
     result: Result<super::snapshot_protocol::CollectorSnapshotResponseV1, CollectorError>,
@@ -150,6 +155,7 @@ struct SnapshotFlightResult {
 
 struct CachedSnapshotResult {
     created: Instant,
+    request: CollectorSnapshotRequestV1,
     result: Result<super::snapshot_protocol::CollectorSnapshotResponseV1, CollectorError>,
 }
 
@@ -160,7 +166,7 @@ struct CachedSnapshotResult {
 pub fn collect_snapshot(
     request: &super::snapshot_protocol::CollectorSnapshotRequestV1,
 ) -> Result<super::snapshot_protocol::CollectorSnapshotResponseV1, CollectorError> {
-    if let Some(cached) = fresh_snapshot_cache() {
+    if let Some(cached) = fresh_snapshot_cache(request) {
         return cached;
     }
 
@@ -169,48 +175,68 @@ pub fn collect_snapshot(
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some(flight) = guard.as_ref() {
         let flight = Arc::clone(flight);
+        let same_request = same_snapshot_query(&flight.request, request);
         drop(guard);
-        return wait_for_snapshot_flight(&flight);
+        let result = wait_for_snapshot_flight(&flight);
+        // A new local date/time-zone must not join the old range. Wait for the
+        // existing flight to release the single slot, then start the requested
+        // range as a new flight.
+        return if same_request {
+            result
+        } else {
+            collect_snapshot(request)
+        };
     }
 
-    let flight = Arc::new((Mutex::new(None::<SnapshotFlightResult>), Condvar::new()));
+    let flight = Arc::new(SnapshotFlight {
+        request: request.clone(),
+        result: Mutex::new(None::<SnapshotFlightResult>),
+        completed: Condvar::new(),
+    });
     *guard = Some(Arc::clone(&flight));
     drop(guard);
 
     let result = supervisor::collect_snapshot(request);
 
     {
-        let (mutex, condvar) = &*flight;
-        let mut slot = mutex
+        let mut slot = flight
+            .result
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         *slot = Some(SnapshotFlightResult {
             result: result.clone(),
         });
-        condvar.notify_all();
     }
-    let mut guard = SNAPSHOT_FLIGHT
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    *guard = None;
-    drop(guard);
     let mut last = SNAPSHOT_LAST
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     *last = Some(CachedSnapshotResult {
         created: Instant::now(),
+        request: request.clone(),
         result: result.clone(),
     });
+    drop(last);
+    let mut guard = SNAPSHOT_FLIGHT
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    *guard = None;
+    drop(guard);
+    // Different-range waiters recurse only after the old flight slot and its
+    // cache entry are fully settled, avoiding a wake/retry race at midnight.
+    flight.completed.notify_all();
     result
 }
 
 fn fresh_snapshot_cache(
+    request: &CollectorSnapshotRequestV1,
 ) -> Option<Result<super::snapshot_protocol::CollectorSnapshotResponseV1, CollectorError>> {
     let mut last = SNAPSHOT_LAST
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some(cached) = last.as_ref() {
-        if cached.created.elapsed() < RESULT_FRESH_FOR {
+        if cached.created.elapsed() < RESULT_FRESH_FOR
+            && same_snapshot_query(&cached.request, request)
+        {
             return Some(cached.result.clone());
         }
     }
@@ -219,16 +245,29 @@ fn fresh_snapshot_cache(
 }
 
 fn wait_for_snapshot_flight(
-    flight: &Arc<(Mutex<Option<SnapshotFlightResult>>, Condvar)>,
+    flight: &Arc<SnapshotFlight>,
 ) -> Result<super::snapshot_protocol::CollectorSnapshotResponseV1, CollectorError> {
-    let (mutex, condvar) = &**flight;
-    let mut guard = mutex
+    let mut guard = flight
+        .result
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     while guard.is_none() {
-        guard = condvar.wait(guard).expect("snapshot flight condvar wait");
+        guard = flight
+            .completed
+            .wait(guard)
+            .expect("snapshot flight condvar wait");
     }
     guard.as_ref().expect("flight resolved").result.clone()
+}
+
+fn same_snapshot_query(
+    left: &CollectorSnapshotRequestV1,
+    right: &CollectorSnapshotRequestV1,
+) -> bool {
+    left.version == right.version
+        && left.agents == right.agents
+        && left.window == right.window
+        && left.timezone == right.timezone
 }
 
 /// Test-only seam: clears the snapshot result cache so integration tests do
@@ -261,10 +300,24 @@ const PROD_WINDOW_DAYS: i64 = 6;
 /// cache inside [`collect_snapshot`]); the `UsageSummary` adapter runs fresh
 /// on every call (sub-millisecond) so no second cache layer exists.
 pub fn collect_usage() -> Result<UsageSummary, AppError> {
-    let response = collect_snapshot(&production_snapshot_request())?;
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let today = chrono::Local::now().date_naive();
+    let scope = UsageScope {
+        start_date: (today - chrono::Duration::days(PROD_WINDOW_DAYS))
+            .format("%Y-%m-%d")
+            .to_string(),
+        end_date: today.format("%Y-%m-%d").to_string(),
+        time_zone: crate::usage::state::system_time_zone(),
+    };
+    collect_usage_for_scope(&scope)
+}
+
+/// Runs the production worker for one already-captured local date/time-zone
+/// scope. Capturing the scope before the worker starts prevents midnight from
+/// relabelling an old-range response as a new day's successful snapshot.
+pub fn collect_usage_for_scope(scope: &UsageScope) -> Result<UsageSummary, AppError> {
+    let response = collect_snapshot(&production_snapshot_request_for_scope(scope))?;
     let collected_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    crate::sidecar::adapter::normalize_snapshot(&response, &today, &collected_at)
+    crate::sidecar::adapter::normalize_snapshot(&response, &scope.end_date, &collected_at)
 }
 
 /// The production batch request: every registered agent (deterministic
@@ -275,7 +328,17 @@ pub fn collect_usage() -> Result<UsageSummary, AppError> {
 /// single-flight tests); it is a pure builder with no side effects.
 pub fn production_snapshot_request() -> CollectorSnapshotRequestV1 {
     let today = chrono::Local::now().date_naive();
-    let start = today - chrono::Duration::days(PROD_WINDOW_DAYS);
+    let scope = UsageScope {
+        start_date: (today - chrono::Duration::days(PROD_WINDOW_DAYS))
+            .format("%Y-%m-%d")
+            .to_string(),
+        end_date: today.format("%Y-%m-%d").to_string(),
+        time_zone: crate::usage::state::system_time_zone(),
+    };
+    production_snapshot_request_for_scope(&scope)
+}
+
+pub fn production_snapshot_request_for_scope(scope: &UsageScope) -> CollectorSnapshotRequestV1 {
     CollectorSnapshotRequestV1 {
         version: SNAPSHOT_PROTOCOL_VERSION,
         request_id: format!("prod-{}", chrono::Utc::now().timestamp_millis()),
@@ -287,30 +350,35 @@ pub fn production_snapshot_request() -> CollectorSnapshotRequestV1 {
             })
             .collect(),
         window: Some(DateWindowV1 {
-            start_inclusive: start.format("%Y-%m-%d").to_string(),
-            end_inclusive: today.format("%Y-%m-%d").to_string(),
+            start_inclusive: scope.start_date.clone(),
+            end_inclusive: scope.end_date.clone(),
         }),
-        timezone: product_timezone(),
+        timezone: scope.time_zone.clone(),
     }
 }
 
-/// The system IANA time-zone name for daily bucketing. The v0.2 sidecar
-/// bucketed by the ccusage process's local zone; the worker request pins the
-/// same zone explicitly so the parent's `chrono::Local` `today` and the
-/// engine's day buckets always agree.
-///
-/// `TimeZone::try_system` resolves via the OS (Windows registry + CLDR
-/// mapping in jiff). The `"system"` marker only appears when no IANA name can
-/// be produced; the vendored engine then falls back to its own system zone
-/// (`ccusage-core/src/date_utils.rs` resolves the request zone through jiff
-/// and uses the system zone when the name does not resolve), which is the
-/// same zone the parent used for `today`.
-fn product_timezone() -> String {
-    match jiff::tz::TimeZone::try_system() {
-        Ok(tz) => tz
-            .iana_name()
-            .map(str::to_string)
-            .unwrap_or_else(|| "system".to_string()),
-        Err(_) => "system".to_string(),
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_cache_identity_includes_range_and_time_zone_but_not_request_id() {
+        let scope = UsageScope {
+            start_date: "2026-08-31".into(),
+            end_date: "2026-09-06".into(),
+            time_zone: "Asia/Shanghai".into(),
+        };
+        let first = production_snapshot_request_for_scope(&scope);
+        let mut same_query = first.clone();
+        same_query.request_id = "another-id".into();
+        assert!(same_snapshot_query(&first, &same_query));
+
+        let mut next_day = same_query.clone();
+        next_day.window.as_mut().unwrap().end_inclusive = "2026-09-07".into();
+        assert!(!same_snapshot_query(&first, &next_day));
+
+        let mut next_zone = same_query;
+        next_zone.timezone = "UTC".into();
+        assert!(!same_snapshot_query(&first, &next_zone));
     }
 }

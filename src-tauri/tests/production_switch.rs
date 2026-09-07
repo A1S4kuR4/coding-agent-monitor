@@ -1,5 +1,5 @@
-//! Phase 4B production-path verification: the public `get_usage_summary`
-//! chain (`worker_runner::collect_usage`) after the sidecar → batch-worker
+//! Phase 4B production-path verification: the worker-backed collection chain
+//! (`worker_runner::collect_usage`) after the sidecar → batch-worker
 //! switch.
 //!
 //! Coverage (see docs/V0.3_PHASE4B_PRODUCTION_SWITCH.md §3 for the policy

@@ -1,5 +1,5 @@
 import type { DailyUsage } from "../../types/usage";
-import { agentMeta, sortAgents } from "./agents";
+import { agentMeta, compareByMeta, sortAgents } from "./agents";
 
 /**
  * Bar-chart view-model. It is a pure transform from `DailyUsage[]` to the exact
@@ -11,11 +11,27 @@ import { agentMeta, sortAgents } from "./agents";
  * agent's own share, so `segmentHeight = agentValue / maxDailyTotal`. A day with
  * total 0 renders no data segments (just the faint track + baseline).
  *
+ * When more than `ALL_CHART_TOP_N + 1` agents carry tokens across the window,
+ * only the top `ALL_CHART_TOP_N` (by window total, canonical order as the
+ * deterministic tie-break) render as individual segments; every remaining agent
+ * is folded into ONE clearly-labelled "others" presentation segment. Membership
+ * is computed once for the whole visible range, so the same agents stay
+ * individual on every day, and per-day segment token sums always equal the day
+ * total. The "others" group is display-only: it is never written back into the
+ * public data and never poses as a real agent or model — tooltips and the
+ * selected-day detail always show the full composition.
+ *
  * Single-agent mode — one monochrome bar per day, `value / maxSelected`.
  */
 
+/** How many agents stay individually stacked in All mode before the rest are
+ * grouped into the labelled "others" segment. */
+export const ALL_CHART_TOP_N = 3;
+
 export interface ChartSegment {
   agentId: string;
+  /** View-model group key only. For the "others" segment this is the sentinel
+   * "others"; it is never rendered as an agent or model name. */
   displayName: string;
   tokens: number;
   /** Percent of the bar-track height (0–100). */
@@ -24,6 +40,8 @@ export interface ChartSegment {
   colorVar: string;
   /** True only for the topmost non-zero segment in this bar. */
   isTop: boolean;
+  /** True for the display-only aggregated "others" segment. */
+  isOthers?: boolean;
 }
 
 export interface ChartDay {
@@ -33,15 +51,65 @@ export interface ChartDay {
   segments: ChartSegment[];
 }
 
-/** Build the stacked (All) chart. */
-export function buildAllChart(days: DailyUsage[]): ChartDay[] {
+/** Which agents render as individual segments in All mode. Members are chosen
+ * deterministically from the whole visible range so bars never reshuffle their
+ * membership from day to day. */
+export interface AllChartGrouping {
+  /** Agent ids rendered as individual segments. */
+  memberIds: string[];
+  /** True when remaining agents are folded into the "others" segment. */
+  hasOthers: boolean;
+  /** Number of agents folded into the "others" group (0 when none). */
+  othersCount: number;
+}
+
+/** Compute the stable All-mode grouping from window totals: non-zero agents
+ * ranked by total tokens descending, with the canonical presentation order
+ * (`compareByMeta`) as the tie-break. When at most TOP_N+1 agents have tokens
+ * everyone stays individual — four distinct agent colours never get grouped. */
+export function allChartGrouping(days: DailyUsage[]): AllChartGrouping {
+  const totals = new Map<string, number>();
+  for (const day of days) {
+    for (const agent of day.agents) {
+      if (agent.tokens <= 0) continue;
+      totals.set(agent.id, (totals.get(agent.id) ?? 0) + agent.tokens);
+    }
+  }
+  const ids = [...totals.keys()].sort((a, b) => {
+    const ta = totals.get(a) ?? 0;
+    const tb = totals.get(b) ?? 0;
+    if (ta !== tb) return tb - ta;
+    return compareByMeta(
+      { id: a, displayName: agentMeta(a).displayName },
+      { id: b, displayName: agentMeta(b).displayName },
+    );
+  });
+  if (ids.length <= ALL_CHART_TOP_N + 1) {
+    return { memberIds: ids, hasOthers: false, othersCount: 0 };
+  }
+  return {
+    memberIds: ids.slice(0, ALL_CHART_TOP_N),
+    hasOthers: true,
+    othersCount: ids.length - ALL_CHART_TOP_N,
+  };
+}
+
+export interface AllChartResult {
+  days: ChartDay[];
+  grouping: AllChartGrouping;
+}
+
+/** Build the stacked (All) chart with its stable top-agents/others grouping. */
+export function buildAllChart(days: DailyUsage[]): AllChartResult {
+  const grouping = allChartGrouping(days);
+  const memberIds = new Set(grouping.memberIds);
   const maxDailyTotal = Math.max(0, ...days.map((d) => d.totalTokens));
-  return days.map((day) => {
+  const chartDays = days.map((day) => {
     const segments: ChartSegment[] = [];
     if (maxDailyTotal > 0) {
-      const order = sortAgents(day.agents);
-      for (const agent of order) {
-        if (agent.tokens <= 0) continue;
+      // Individual members first, in the canonical bottom-up order.
+      for (const agent of sortAgents(day.agents)) {
+        if (agent.tokens <= 0 || !memberIds.has(agent.id)) continue;
         segments.push({
           agentId: agent.id,
           displayName: agent.displayName,
@@ -51,10 +119,29 @@ export function buildAllChart(days: DailyUsage[]): ChartDay[] {
           isTop: false,
         });
       }
+      // Then the display-only "others" aggregate, always stacked on top.
+      if (grouping.hasOthers) {
+        const othersTokens = day.agents.reduce(
+          (sum, a) => (a.tokens > 0 && !memberIds.has(a.id) ? sum + a.tokens : sum),
+          0,
+        );
+        if (othersTokens > 0) {
+          segments.push({
+            agentId: "others",
+            displayName: "",
+            tokens: othersTokens,
+            height: (othersTokens / maxDailyTotal) * 100,
+            colorVar: "--agent-others",
+            isTop: false,
+            isOthers: true,
+          });
+        }
+      }
       if (segments.length > 0) segments[segments.length - 1].isTop = true;
     }
     return { date: day.date, totalTokens: day.totalTokens, segments };
   });
+  return { days: chartDays, grouping };
 }
 
 /** Build the single-agent chart for `agentId`. Agent values are per-day tokens

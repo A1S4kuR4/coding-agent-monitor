@@ -1,29 +1,23 @@
 import type { DailyUsage } from "../../types/usage";
+import type { Language } from "./i18n";
+import { dictFor } from "./i18n";
 import { sortAgents } from "./agents";
-import { formatDelta } from "./formatDelta";
+import { formatDelta, type DeltaBasis } from "./formatDelta";
 import { formatTokens } from "./formatTokens";
 
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+const localeTag = (lang: Language) => (lang === "zh-CN" ? "zh-CN" : "en");
 
-/** Deterministic full-date label (e.g. "August 24, 2026") so tooltips read the
- * complete date, not the short MM/DD axis tick. */
-export function fullDate(isoDate: string): string {
+/** Deterministic full-date label (e.g. "August 24, 2026" / "2026年8月24日")
+ * so tooltips read the complete date, not the short MM/DD axis tick. Falls
+ * back to the raw ISO date for malformed input — never a fabricated date. */
+export function fullDate(lang: Language, isoDate: string): string {
   const [y, m, d] = isoDate.split("-").map(Number);
   if (!y || !m || !d) return isoDate;
-  return `${MONTHS[m - 1]} ${d}, ${y}`;
+  return new Intl.DateTimeFormat(localeTag(lang), {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(y, m - 1, d));
 }
 
 /** Accessible (aria-label) description of a day in All mode: full date, the
@@ -31,15 +25,21 @@ export function fullDate(isoDate: string): string {
 export function allDayAriaLabel(
   day: DailyUsage,
   prevTotal: number | undefined,
+  lang: Language,
+  basis: DeltaBasis,
 ): string {
-  const delta = formatDelta(day.totalTokens, prevTotal);
-  const parts = [
-    `${fullDate(day.date)}, ${formatTokens(day.totalTokens)} tokens total.`,
-  ];
+  const d = dictFor(lang);
+  const delta = formatDelta(day.totalTokens, prevTotal, lang, basis);
+  const total = formatTokens(day.totalTokens);
+  const parts = [`${fullDate(lang, day.date)}, ${d.ariaTotal(total)}`];
   for (const agent of sortAgents(day.agents)) {
     const share = day.totalTokens > 0 ? (agent.tokens / day.totalTokens) * 100 : 0;
     parts.push(
-      `${agent.displayName}: ${formatTokens(agent.tokens)} tokens (${share.toFixed(1)}%).`,
+      d.ariaAgentShare(
+        agent.displayName,
+        formatTokens(agent.tokens),
+        share.toFixed(1),
+      ),
     );
   }
   if (delta.label) parts.push(delta.label);
@@ -52,14 +52,17 @@ export function agentDayAriaLabel(
   day: DailyUsage,
   agentId: string,
   prevAgentValue: number | undefined,
+  lang: Language,
+  basis: DeltaBasis,
 ): string {
+  const d = dictFor(lang);
   const agent = day.agents.find((a) => a.id === agentId);
   const value = agent?.tokens ?? 0;
   const share = day.totalTokens > 0 ? (value / day.totalTokens) * 100 : 0;
   const name = agent?.displayName ?? agentId;
-  const delta = formatDelta(value, prevAgentValue);
+  const delta = formatDelta(value, prevAgentValue, lang, basis);
   const parts = [
-    `${fullDate(day.date)}, ${name} ${formatTokens(value)} tokens (${share.toFixed(1)}% of day).`,
+    `${fullDate(lang, day.date)}, ${d.ariaAgentOfDay(name, formatTokens(value), share.toFixed(1))}`,
   ];
   if (delta.label) parts.push(delta.label);
   return parts.join(" ");

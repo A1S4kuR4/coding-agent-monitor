@@ -4,6 +4,13 @@ This checklist separates publishing the source repository from distributing a
 Windows installer. The source can be published before every installer gate is
 closed, provided the repository is clearly marked pre-release.
 
+**Current release:** [v0.3.0](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.3.0),
+published 2026-09-01; checked read-only on 2026-09-06. The preparation and v0.1/v0.2
+sections below retain dated evidence (including old sidecar packaging and audit
+counts). They are not current setup instructions or fresh security scans. Use
+[CONTRIBUTING.md](../CONTRIBUTING.md) for development and the
+[v0.3 gate decision](V0.3_RELEASE_GATE_DECISION.md) for current support/waivers.
+
 ## Completed repository preparation
 
 - [x] Project license added and package manifests declare MIT.
@@ -27,7 +34,7 @@ closed, provided the repository is clearly marked pre-release.
   `08a21c0177cd1ecc902584b94262d411eaf6ccaa`; [CI run 32942584400](https://github.com/A1S4kuR4/coding-agent-monitor/actions/runs/32942584400)
   passed frontend lint/typecheck/test/build (10 files / 63 tests), Rust
   fmt/strict lint, and Rust tests (37 passed / 1 ignored). No tag or GitHub
-  Release exists yet.
+  Release existed at that check; subsequent publication is recorded below.
 
 ## Before making the GitHub repository public
 
@@ -93,8 +100,8 @@ closed, provided the repository is clearly marked pre-release.
   Pre-release carries tag `untagged-0d7335725533fc748ffe` at `08a21c0…`.
 - [x] Draft GitHub Pre-release notes that disclose Gate 0 as **WAIVED / NOT RUN**
   and, with the unsigned choice confirmed, the SmartScreen warning risk. Draft
-  notes are written into the `v0.1.0` Pre-release and are pending maintainer
-  publication.
+  notes were written before publication; the Pre-release was subsequently
+  published as recorded in the preceding item.
 
 ## v0.2.0 release record (2026-08-29)
 
@@ -119,3 +126,23 @@ closed, provided the repository is clearly marked pre-release.
   GitHub Release (published 2026-08-29). The release notes disclose the Gate 0
   waiver and the SmartScreen / unknown-publisher risk, and point to
   `V0.2_RELEASE_VERIFICATION.md`.
+
+## v0.3.0 release record (published 2026-09-01; checked 2026-09-06)
+
+- [x] Replace the external sidecar supply chain with vendored ccusage and the
+  same-product-EXE worker. See [Phase 5](V0.3_PHASE5_RELEASE_CANDIDATE.md) for
+  cleanup, installer inspection, and actual verification outcomes.
+- [x] Freeze release gates and record the maintainer's three waivers: unsigned
+  assets, Windows 10 lifecycle unverified (official support narrowed to Windows
+  11 x64), and non-ASCII-profile GUI unverified. See
+  [the final decision](V0.3_RELEASE_GATE_DECISION.md); waivers are not test passes.
+- [x] Publish the non-draft, non-prerelease `v0.3.0` GitHub Release at
+  `2026-09-01T03:58:08Z`, with MSI, NSIS, and `SHA256SUMS.txt` assets.
+- [x] Correct checksum filenames to match GitHub download names (dots in place
+  of spaces), commit `edecd25`. Both published installer digests match the
+  repository's checksum entries; the published checksum-file digest matches
+  the local file hash. Exact names, sizes, and hashes are in
+  [the publication result](V0.3_RELEASE_GATE_DECISION.md#6-实际发布结果2026-09-06-只读复核).
+
+The 2026-09-06 check inspected Release metadata and the local checksum file. It
+did not rebuild, reinstall, or re-run the historical acceptance/security suite.

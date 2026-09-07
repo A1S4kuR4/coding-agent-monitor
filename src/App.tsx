@@ -10,27 +10,50 @@ import {
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import "./App.css";
-import { fetchUsageSummary } from "./lib/usage-api";
-import type { TokenBreakdown, UsageSummary } from "./types/usage";
+import { fetchUsageState, refreshUsageState } from "./lib/usage-api";
+import {
+  getPreferences,
+  hideMainWindow,
+  updatePreferences,
+} from "./lib/preferences-api";
+import type {
+  AppPreferences,
+  LanguagePreference,
+  PreferencesPatch,
+} from "./types/preferences";
+import type {
+  DailyUsage,
+  RefreshTrigger,
+  TokenBreakdown,
+  UsageCollectionState,
+} from "./types/usage";
 import { formatTokens } from "./features/usage/formatTokens";
 import { activeAgentRows } from "./features/usage/usageRows";
-import { viewReducer } from "./features/usage/viewState";
-import { formatUsd } from "./features/usage/formatUsd";
+import {
+  initialViewState,
+  needsRefresh,
+  viewReducer,
+  type ViewStateErrorReason,
+} from "./features/usage/viewState";
 import { formatPercent } from "./features/usage/formatPercent";
+import { costDisplay } from "./features/usage/costDisplay";
+import { coverageText } from "./features/usage/coverage";
 import { cacheInputShare } from "./features/usage/cacheInputShare";
 import { relativeTime } from "./features/usage/relativeTime";
-import { agentMeta, compareByMeta, sortAgents } from "./features/usage/agents";
-import { formatDelta } from "./features/usage/formatDelta";
-import { buildAllChart, buildAgentChart, dayValue } from "./features/usage/chartView";
+import { agentMark, agentMeta, compareByMeta, sortAgents } from "./features/usage/agents";
+import { formatDelta, type DeltaBasis } from "./features/usage/formatDelta";
+import {
+  buildAllChart,
+  buildAgentChart,
+  dayValue,
+  type AllChartGrouping,
+} from "./features/usage/chartView";
+import {
+  effectiveAgentFilter,
+  visibleFilterAgents,
+} from "./features/usage/trendFilter";
 import { allDayAriaLabel, agentDayAriaLabel, fullDate } from "./features/usage/tooltipLabel";
-
-function errorMessage(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error) {
-    return String(error.message);
-  }
-  return "Unable to load usage data.";
-}
+import { dictFor, systemLanguage, type Dict, type Language } from "./features/usage/i18n";
 
 function shortDate(date: string): string {
   return date.slice(5).replace("-", "/");
@@ -38,39 +61,54 @@ function shortDate(date: string): string {
 
 const deltaClass = (kind: string) => `delta ${kind}`;
 
+function errorCopy(d: Dict, reason: ViewStateErrorReason): string {
+  switch (reason) {
+    case "timedOut":
+      return d.errorTimedOut;
+    case "cancelled":
+      return d.errorCancelled;
+    case "failed":
+      return d.errorFailed;
+    case "transport":
+      return d.errorTransport;
+  }
+}
+
 /** Today's token composition by type, each with its count and share of the day.
  * Input, Output and Cache read always render; optional known types and the
  * explicit unclassified fallback render only when they carry tokens. */
 function BreakdownList({
   total,
   breakdown,
+  d,
 }: {
   total: number;
   breakdown: TokenBreakdown;
+  d: Dict;
 }) {
   const parts: { key: string; label: string; value: number }[] = [
-    { key: "input", label: "Input", value: breakdown.inputTokens },
-    { key: "output", label: "Output", value: breakdown.outputTokens },
-    { key: "cacheRead", label: "Cache read", value: breakdown.cacheReadTokens },
+    { key: "input", label: d.breakdown.input, value: breakdown.inputTokens },
+    { key: "output", label: d.breakdown.output, value: breakdown.outputTokens },
+    { key: "cacheRead", label: d.breakdown.cacheRead, value: breakdown.cacheReadTokens },
   ];
   if (breakdown.cacheCreationTokens > 0) {
     parts.push({
       key: "cacheCreation",
-      label: "Cache creation",
+      label: d.breakdown.cacheCreation,
       value: breakdown.cacheCreationTokens,
     });
   }
   if (breakdown.reasoningTokens > 0) {
     parts.push({
       key: "reasoning",
-      label: "Reasoning",
+      label: d.breakdown.reasoning,
       value: breakdown.reasoningTokens,
     });
   }
   if (breakdown.unclassifiedTokens > 0) {
     parts.push({
       key: "unclassified",
-      label: "Unclassified",
+      label: d.breakdown.unclassified,
       value: breakdown.unclassifiedTokens,
     });
   }
@@ -105,17 +143,141 @@ function BreakdownList({
   );
 }
 
+/** The stable identity disc shared by list rows, filter chips, tooltip legends
+ * and the day-detail panel: an agent-coloured ring with the deterministic
+ * agentMark monogram in ordinary ink. Colour alone never has to identify an
+ * agent — unknown agents share one neutral token, so the glyph carries identity
+ * and the ring only echoes it. The glyph is decorative; the name is the
+ * accessible label. */
+function AgentMark({ colorVar, glyph }: { colorVar: string; glyph: string }) {
+  return (
+    <span
+      className="agent-mark"
+      aria-hidden="true"
+      style={{ "--mark-color": `var(${colorVar})` } as CSSProperties}
+    >
+      {glyph}
+    </span>
+  );
+}
+
+/** Full composition of one trend day, shared verbatim by the hover/focus
+ * tooltip and the click-pinned detail panel. In All mode it always lists every
+ * contributing agent — the chart's "others" group is display-only and never
+ * hides members here; its aggregate row is clearly labelled. */
+function DayDetailContent({
+  day,
+  prevDay,
+  filter,
+  filterName,
+  grouping,
+  d,
+  lang,
+  basis,
+}: {
+  day: DailyUsage;
+  prevDay: DailyUsage | undefined;
+  filter: string | null;
+  filterName: string | null;
+  grouping: AllChartGrouping;
+  d: Dict;
+  lang: Language;
+  basis: DeltaBasis;
+}) {
+  if (filter !== null) {
+    const sel = day.agents.find((a) => a.id === filter);
+    const selValue = sel?.tokens ?? 0;
+    const selPrev = prevDay
+      ? (prevDay.agents.find((a) => a.id === filter)?.tokens ?? 0)
+      : undefined;
+    const selDelta = formatDelta(selValue, selPrev, lang, basis);
+    const share = day.totalTokens > 0 ? (selValue / day.totalTokens) * 100 : 0;
+    return (
+      <>
+        <p className="tooltip-date">{fullDate(lang, day.date)}</p>
+        <p className="tooltip-total">
+          {filterName}: {formatTokens(selValue)}
+        </p>
+        <p className="tooltip-share">{d.tooltipOfDay(share.toFixed(1))}</p>
+        {selDelta?.label && (
+          <p className={`tooltip-delta ${deltaClass(selDelta.kind)}`}>{selDelta.label}</p>
+        )}
+      </>
+    );
+  }
+
+  const delta = formatDelta(day.totalTokens, prevDay?.totalTokens, lang, basis);
+  const members = new Set(grouping.memberIds);
+  const others = day.agents.filter((a) => a.tokens > 0 && !members.has(a.id));
+  const othersTokens = others.reduce((sum, a) => sum + a.tokens, 0);
+  const othersPct =
+    day.totalTokens > 0 ? (othersTokens / day.totalTokens) * 100 : 0;
+  return (
+    <>
+      <p className="tooltip-date">{fullDate(lang, day.date)}</p>
+      <p className="tooltip-total">
+        {d.tooltipTokensTotal(formatTokens(day.totalTokens))}
+      </p>
+      <ul className="tooltip-agents">
+        {grouping.hasOthers && othersTokens > 0 && (
+          <li>
+            <AgentMark colorVar="--agent-others" glyph="+" />
+            <span className="tooltip-agent-name">{d.otherAgents(others.length)}</span>
+            <span className="tooltip-agent-value">
+              {formatTokens(othersTokens)} · {othersPct.toFixed(1)}%
+            </span>
+          </li>
+        )}
+        {sortAgents(day.agents).map((a) => {
+          const pct = day.totalTokens > 0 ? (a.tokens / day.totalTokens) * 100 : 0;
+          return (
+            <li key={a.id}>
+              <AgentMark colorVar={agentMeta(a.id).colorVar} glyph={agentMark(a.displayName)} />
+              <span className="tooltip-agent-name">{a.displayName}</span>
+              <span className="tooltip-agent-value">
+                {formatTokens(a.tokens)} · {pct.toFixed(1)}%
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {delta.label && (
+        <p className={`tooltip-delta ${deltaClass(delta.kind)}`}>{delta.label}</p>
+      )}
+    </>
+  );
+}
+
 function App() {
+  // The language resolves once per mount from the system (v0.4 plan §4.5);
+  // an explicit persisted choice (T05) overrides it when the preference
+  // arrives. Every visible string, date and aria label uses the same
+  // resolved language.
+  const [lang, setLang] = useState<Language>(() => systemLanguage());
+  const d = dictFor(lang);
   // The view machine lives in a pure reducer so its transitions are unit-tested
   // and no effect ever calls setState synchronously.
-  const [view, dispatch] = useReducer(viewReducer, { status: "loading" });
+  const [view, dispatch] = useReducer(viewReducer, initialViewState);
+  // Persisted preferences (T05). `null` means not loaded (or unavailable);
+  // the settings section only renders when they are known.
+  const [prefs, setPrefs] = useState<AppPreferences | null>(null);
+  const [settingsError, setSettingsError] = useState(false);
+  // The first-close tray explanation, opened by a Rust event when the user
+  // closes the window before acknowledging it once.
+  const [closeNoticeOpen, setCloseNoticeOpen] = useState(false);
   // Bumps every minute to refresh the relative-time label (see the interval
   // effect); the value itself is never read.
   const [, setTick] = useState(0);
   // Which agent ids currently have their per-model breakdown expanded.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   // The seven-day trend filter: `null` means All agents, otherwise an agent id.
+  // The raw selection is resolved against the visible range every render (see
+  // activeFilter), so a vanished agent deterministically falls back to All.
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
+  // The click-pinned trend day, tracked by ISO date so refreshes and window
+  // shifts can never misalign the detail: a date that leaves the visible range
+  // simply stops matching and the panel disappears deterministically.
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   // Toolkit for the per-day bar: which day (index) is active, and its computed
   // fixed-position placement. `null` hides the tooltip.
   const [activeDay, setActiveDay] = useState<number | null>(null);
@@ -124,32 +286,35 @@ function App() {
   );
   const dayEls = useRef<Array<HTMLElement | null>>([]);
   const tooltipEl = useRef<HTMLDivElement | null>(null);
+  const moreMenuRef = useRef<HTMLDetailsElement | null>(null);
+  const moreMenuSummaryRef = useRef<HTMLElement | null>(null);
   // Holds the async-returned unlisten functions so cleanup can release them even
   // when registration resolved after an unmount.
-  const focusFetchInFlight = useRef(false);
+  const clientRefreshInFlight = useRef(false);
+  const mounted = useRef(true);
   const focusUnlisten = useRef<(() => void) | undefined>(undefined);
   const trayUnlisten = useRef<(() => void) | undefined>(undefined);
+  const noticeUnlisten = useRef<(() => void) | undefined>(undefined);
 
-  // Initial load. State changes only inside the promise callbacks, never in the
-  // effect body itself.
-  useEffect(() => {
-    let active = true;
-    void fetchUsageSummary().then(
-      (summary) => {
-        if (active) dispatch({ type: "load-succeeded", summary });
-      },
-      (error: unknown) => {
-        if (active)
-          dispatch({
-            type: "load-failed",
-            keepExisting: false,
-            message: errorMessage(error),
-          });
-      },
-    );
-    return () => {
-      active = false;
-    };
+  const runRefresh = useCallback((trigger: RefreshTrigger) => {
+    if (clientRefreshInFlight.current) return;
+    clientRefreshInFlight.current = true;
+    void refreshUsageState(trigger)
+      .then(
+        (state) => {
+          if (mounted.current) dispatch({ type: "state-received", state });
+        },
+        () => {
+          if (mounted.current) dispatch({ type: "transport-failed" });
+        },
+      )
+      .finally(() => {
+        clientRefreshInFlight.current = false;
+      });
+  }, []);
+
+  useEffect(() => () => {
+    mounted.current = false;
   }, []);
 
   // Refetch when the window regains focus (it is never remounted when hidden to
@@ -160,26 +325,8 @@ function App() {
     let active = true;
     void getCurrentWindow()
       .onFocusChanged(({ payload: focused }) => {
-        if (!active || !focused || focusFetchInFlight.current) return;
-        focusFetchInFlight.current = true;
-        dispatch({ type: "refresh-started" });
-        void fetchUsageSummary()
-          .then(
-            (summary) => {
-              if (active) dispatch({ type: "load-succeeded", summary });
-            },
-            (error: unknown) => {
-              if (active)
-                dispatch({
-                  type: "load-failed",
-                  keepExisting: true,
-                  message: errorMessage(error),
-                });
-            },
-          )
-          .finally(() => {
-            focusFetchInFlight.current = false;
-          });
+        if (!active || !focused) return;
+        runRefresh("focus");
       })
       .then(
         (fn) => {
@@ -198,18 +345,80 @@ function App() {
       focusUnlisten.current?.();
       focusUnlisten.current = undefined;
     };
-  }, []);
+  }, [runRefresh]);
 
-  // The tray's periodic refresh emits the same snapshot to any open window.
-  // Apply it directly — never start a competing fetch (there is no sidecar).
+  // Subscribe before reading current state. The revisioned reducer makes an
+  // event/read race harmless, while the read recovers events missed before the
+  // window existed. A stale/no-snapshot read triggers one safe refresh.
   useEffect(() => {
     let active = true;
-    void listen<UsageSummary>("usage-updated", (event) => {
-      if (active) dispatch({ type: "event-received", summary: event.payload });
-    }).then(
+    // Starting registration before the read closes the usual missed-event
+    // window; the read does not wait for the async unlisten handle to resolve.
+    void listen<UsageCollectionState>(
+      "usage-state-updated",
+      (event) => {
+        if (active) {
+          dispatch({ type: "state-received", state: event.payload });
+        }
+      },
+    ).then(
       (fn) => {
         if (active) {
           trayUnlisten.current = fn;
+        } else {
+          fn();
+        }
+      },
+      () => {
+        // The state read below still gives a recoverable first view. A native
+        // listener failure is not surfaced as a raw error string.
+      },
+    );
+
+    void fetchUsageState().then(
+      (state) => {
+        if (!active) return;
+        dispatch({ type: "state-received", state });
+        if (needsRefresh(state)) runRefresh("startup");
+      },
+      () => {
+        if (active) dispatch({ type: "transport-failed" });
+      },
+    );
+    return () => {
+      active = false;
+      trayUnlisten.current?.();
+      trayUnlisten.current = undefined;
+    };
+  }, [runRefresh]);
+
+  // Refresh only the relative-time wording on a timer; this never starts a
+  // worker, so the label can tick without extra collection.
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((value) => value + 1), 60_000);
+    return () => window.clearInterval(id);
+  }, [setTick]);
+
+  // Load the persisted preferences once and listen for the Rust first-close
+  // event. An explicit language choice overrides the system resolution; a
+  // preference failure degrades quietly to system language with no settings
+  // section — usage data never depends on preferences.
+  useEffect(() => {
+    let active = true;
+    void getPreferences().then(
+      (loaded) => {
+        if (!active) return;
+        setPrefs(loaded);
+        if (loaded.language !== "system") setLang(loaded.language);
+      },
+      () => undefined,
+    );
+    void listen("close-notice-requested", () => {
+      if (active) setCloseNoticeOpen(true);
+    }).then(
+      (fn) => {
+        if (active) {
+          noticeUnlisten.current = fn;
         } else {
           fn();
         }
@@ -218,17 +427,10 @@ function App() {
     );
     return () => {
       active = false;
-      trayUnlisten.current?.();
-      trayUnlisten.current = undefined;
+      noticeUnlisten.current?.();
+      noticeUnlisten.current = undefined;
     };
   }, []);
-
-  // Refresh only the relative-time wording on a timer; this never hits the
-  // sidecar, so the label can tick without extra collection.
-  useEffect(() => {
-    const id = window.setInterval(() => setTick((value) => value + 1), 60_000);
-    return () => window.clearInterval(id);
-  }, [setTick]);
 
   // Keep the fixed-position tooltip inside the viewport. Runs after commit so
   // the tooltip is measured before being placed. Synchronous setState here is
@@ -281,21 +483,10 @@ function App() {
       window.removeEventListener("resize", positionTooltip);
       window.removeEventListener("scroll", positionTooltip, true);
     };
-  }, [positionTooltip, agentFilter]);
+  }, [positionTooltip, agentFilter, selectedDay]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const retry = () => {
-    dispatch({ type: "load-started" });
-    void fetchUsageSummary().then(
-      (summary) => dispatch({ type: "load-succeeded", summary }),
-      (error: unknown) =>
-        dispatch({
-          type: "load-failed",
-          keepExisting: false,
-          message: errorMessage(error),
-        }),
-    );
-  };
+  const retry = () => runRefresh("manual");
 
   const toggleAgent = (id: string) => {
     setExpanded((prev) => {
@@ -309,24 +500,77 @@ function App() {
     });
   };
 
-  const manualRefresh = () => {
-    dispatch({ type: "refresh-started" });
-    void fetchUsageSummary().then(
-      (summary) => dispatch({ type: "load-succeeded", summary }),
-      (error: unknown) =>
-        dispatch({
-          type: "load-failed",
-          keepExisting: true,
-          message: errorMessage(error),
-        }),
+  const manualRefresh = () => runRefresh("manual");
+
+  // Optimistic preference update with an honest revert: the Rust command
+  // applies its OS effects before persisting, so a rejection means nothing
+  // was recorded and the control returns to the persisted value.
+  const changePrefs = async (patch: PreferencesPatch) => {
+    if (!prefs) return;
+    const previous = prefs;
+    setSettingsError(false);
+    setPrefs({ ...prefs, ...patch });
+    try {
+      const saved = await updatePreferences(patch);
+      if (mounted.current) setPrefs(saved);
+    } catch {
+      if (mounted.current) {
+        setPrefs(previous);
+        setSettingsError(true);
+      }
+    }
+  };
+
+  // Runtime language switching is allowed (v0.4 plan §4.5); the Rust side
+  // re-resolves the tray language from the same preference, so the tray and
+  // the window stay in one language.
+  const changeLanguage = (preference: LanguagePreference) => {
+    setLang(preference === "system" ? systemLanguage() : preference);
+    void changePrefs({ language: preference });
+  };
+
+  const acknowledgeCloseNotice = () => {
+    setCloseNoticeOpen(false);
+    void updatePreferences({ closeNoticeAcknowledged: true }).then(
+      (saved) => {
+        if (mounted.current) setPrefs(saved);
+      },
+      () => undefined,
     );
   };
+
+  const hideCloseNoticeOnce = () => {
+    setCloseNoticeOpen(false);
+    void hideMainWindow().catch(() => undefined);
+  };
+
+  // The first-close explanation must be reachable from every view state
+  // (loading, error, dashboard) — the user can close the window during any.
+  const closeNotice = closeNoticeOpen ? (
+    <div className="close-notice" role="alert">
+      <p className="close-notice-title">{d.closeNoticeTitle}</p>
+      <p>{d.closeNoticeBody}</p>
+      <div className="close-notice-actions">
+        <button type="button" onClick={acknowledgeCloseNotice}>
+          {d.closeNoticeAcknowledge}
+        </button>
+        <button
+          type="button"
+          className="notice-secondary"
+          onClick={hideCloseNoticeOnce}
+        >
+          {d.closeNoticeHideOnce}
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   if (view.status === "loading") {
     return (
       <main className="shell status-panel" aria-live="polite">
+        {closeNotice}
         <p className="eyebrow">Coding Agent Monitor</p>
-        <h1>Loading usage…</h1>
+        <h1>{d.loadingTitle}</h1>
       </main>
     );
   }
@@ -334,21 +578,38 @@ function App() {
   if (view.status === "error") {
     return (
       <main className="shell status-panel" role="alert">
+        {closeNotice}
         <p className="eyebrow">Coding Agent Monitor</p>
-        <h1>Usage unavailable</h1>
-        <p className="status-copy">{view.message}</p>
+        <h1>{d.errorTitle}</h1>
+        <p className="status-copy">{errorCopy(d, view.reason)}</p>
+        <p className="status-copy">{d.errorHint}</p>
         <button type="button" onClick={retry}>
-          Try again
+          {d.tryAgain}
         </button>
       </main>
     );
   }
 
-  const { summary } = view;
+  const { collection } = view;
+  const snapshot = collection.snapshot;
+  if (!snapshot) return null;
+  const { summary } = snapshot;
+  const isCurrentScope =
+    snapshot.scope.endDate === collection.freshness.currentDate &&
+    snapshot.scope.timeZone === collection.freshness.currentTimeZone;
+  const refreshFailed = collection.lastAttempt?.outcome === "failed";
+  const stale = collection.freshness.status !== "fresh";
   const todayAgents = activeAgentRows(summary.today.agents);
-  const costText = formatUsd(summary.today.estimatedCostUsd);
+  // Cost slot: a priced zero stays $0.00, a missing price shows why the
+  // estimate is unavailable, and no usage is N/A — three distinct states.
+  const cost = costDisplay(
+    summary.today.estimatedCostUsd,
+    summary.today.costUnknownReason,
+    summary.today.totalTokens > 0,
+    lang,
+  );
   const shareText = formatPercent(summary.today.cacheReadShare);
-  const updatedText = relativeTime(summary.collectedAt, new Date());
+  const updatedText = relativeTime(summary.collectedAt, new Date(), lang);
 
   // Recognized agents across the window (id -> display name, first-seen wins),
   // then ordered by the canonical fixed metadata so the chips read consistently.
@@ -370,15 +631,38 @@ function App() {
   }
   recognized.sort(compareByMeta);
 
-  // The seven-day chart honours the agent filter. `chartDays` is the pure
-  // view-model (stacked vs single-agent); `trendSeries` feeds the per-day axis
-  // labels and the "Total" aggregate.
+  // The seven-day chart honours the agent filter. The raw selection resolves
+  // against the visible range first: if the selected agent has disappeared the
+  // filter falls back to All deterministically (and its chip renders as such).
+  // `chartDays` is the pure view-model (stacked vs single-agent); `trendSeries`
+  // feeds the per-day axis labels and the "Total" aggregate.
+  const activeFilter = effectiveAgentFilter(agentFilter, summary.last7Days);
+  const allChart = buildAllChart(summary.last7Days);
   const chartDays =
-    agentFilter === null
-      ? buildAllChart(summary.last7Days)
-      : buildAgentChart(summary.last7Days, agentFilter);
-  const trendSeries = summary.last7Days.map((d) => dayValue(d, agentFilter));
+    activeFilter === null
+      ? allChart.days
+      : buildAgentChart(summary.last7Days, activeFilter);
+  const trendSeries = summary.last7Days.map((day) => dayValue(day, activeFilter));
   const trendTotal = trendSeries.reduce((sum, value) => sum + value, 0);
+
+  // Trend filter chips: canonically ordered agents, capped inline with the
+  // overflow behind a keyboard-operable "More agents" disclosure. The effective
+  // (not raw) selection drives the swap so a vanished agent never pins a chip.
+  const chipLayout = visibleFilterAgents(recognized, activeFilter);
+  const activeFilterName =
+    activeFilter !== null
+      ? (recognized.find((a) => a.id === activeFilter)?.displayName ??
+        agentMeta(activeFilter).displayName)
+      : null;
+
+  // Direction of a day-over-day comparison is stated with its time basis: the
+  // last day of the current scope is today's running total vs yesterday's FULL
+  // day; every other pair is a full day vs its previous full day. There is no
+  // hourly data, so no same-period comparison is claimed.
+  const deltaBasisFor = (index: number): DeltaBasis =>
+    isCurrentScope && index === summary.last7Days.length - 1
+      ? "yesterday-full-day"
+      : "previous-day";
 
   // Header day-over-day delta (today vs the previous day in the window).
   const prevIndex = summary.last7Days.length - 2;
@@ -387,6 +671,8 @@ function App() {
       ? formatDelta(
           summary.today.totalTokens,
           summary.last7Days[prevIndex].totalTokens,
+          lang,
+          isCurrentScope ? "yesterday-full-day" : "previous-day",
         )
       : null;
 
@@ -394,16 +680,29 @@ function App() {
 
   return (
     <main className="shell">
+      {/* Product, last-success time and Refresh live together in the sticky
+          header so the data's age is always visible — never scrolled away with
+          the footer. Freshness failures additionally surface in the banners
+          directly below. */}
       <header className="app-header">
         <div>
           <p className="eyebrow">Coding Agent Monitor</p>
-          <h1>Today</h1>
+          <h1>{isCurrentScope ? d.today : d.usageFor(snapshot.scope.endDate)}</h1>
+          <p className="header-updated">
+            <time dateTime={summary.collectedAt}>
+              {new Date(summary.collectedAt).toLocaleString(
+                lang === "zh-CN" ? "zh-CN" : "en-US",
+              )}
+            </time>
+            {" · "}
+            {d.footerUpdated(updatedText)}
+          </p>
         </div>
         <button
-          className={view.refreshing ? "refresh-btn refreshing" : "refresh-btn"}
+          className={collection.refreshing ? "refresh-btn refreshing" : "refresh-btn"}
           type="button"
           onClick={manualRefresh}
-          disabled={view.refreshing}
+          disabled={collection.refreshing}
         >
           <svg
             className="refresh-icon"
@@ -421,23 +720,39 @@ function App() {
               strokeLinejoin="round"
             />
           </svg>
-          {view.refreshing ? "Refreshing…" : "Refresh"}
+          {collection.refreshing ? d.refreshing : d.refresh}
         </button>
       </header>
 
-      {view.stale && (
+      {closeNotice}
+
+      {(refreshFailed || stale) && (
         <div className="stale-banner" role="status">
-          <span>Couldn&apos;t refresh — showing last known data.</span>
+          <span>
+            {refreshFailed && stale
+              ? d.staleFailedOld(snapshot.scope.endDate)
+              : refreshFailed
+                ? d.staleFailedRecent
+                : d.staleOld(snapshot.scope.endDate)}
+          </span>
           <button type="button" onClick={manualRefresh}>
-            Retry
+            {d.retry}
           </button>
+        </div>
+      )}
+
+      {/* Success with skipped records: accepted totals stay, but coverage is
+          flagged as a risk. Sanitized kinds + agent names only (no paths). */}
+      {coverageText(summary.coverage, lang) !== "" && (
+        <div className="stale-banner coverage-banner" role="status">
+          <span>{coverageText(summary.coverage, lang)}</span>
         </div>
       )}
 
       <div className="dash-grid">
         <section className="dash-left" aria-labelledby="today-heading">
           <h2 id="today-heading" className="sr-only">
-            Today&apos;s token usage
+            {isCurrentScope ? d.todaySrHeading : d.todaySrHeadingFor(snapshot.scope.endDate)}
           </h2>
           <p className="total">{formatTokens(summary.today.totalTokens)}</p>
           {headerDelta?.label && (
@@ -445,21 +760,25 @@ function App() {
               {headerDelta.label}
             </p>
           )}
-          <p className="unit">Tokens</p>
+          <p className="unit">{d.tokensUnit}</p>
 
-          {(costText !== null || shareText !== null) && (
-            <p className="meta">
-              {costText !== null && <span className="meta-cost">Est. cost {costText}</span>}
-              {costText !== null && shareText !== null && (
+          <p className="meta">
+            <span
+              className={
+                cost.kind === "value" ? "meta-cost" : "meta-cost meta-cost-unknown"
+              }
+            >
+              {cost.text}
+            </span>
+            {shareText !== null && (
+              <>
                 <span className="meta-sep" aria-hidden="true">
                   {" "}·{" "}
                 </span>
-              )}
-              {shareText !== null && (
-                <span className="meta-cache">~{shareText} cached input</span>
-              )}
-            </p>
-          )}
+                <span className="meta-cache">{d.cachedInput(shareText)}</span>
+              </>
+            )}
+          </p>
 
           {todayAgents.length > 0 ? (
             <div className="agent-list">
@@ -496,40 +815,52 @@ function App() {
                         ),
                       )
                     : null;
+                // Agents with models: the WHOLE row (name + caret + tokens) is
+                // one accessible toggle — a full-width click/keyboard target
+                // with aria-expanded and a clear focus ring. The caret is
+                // decorative; direction comes from aria-expanded, not colour.
+                const rowContent = (
+                  <>
+                    <span className="agent-lead">
+                      <AgentMark
+                        colorVar={meta.colorVar}
+                        glyph={agentMark(agent.displayName)}
+                      />
+                      <span className="agent-toggle-group">
+                        {/* Agents without models keep an empty, faded spacer
+                            so names align; it is not an expander. */}
+                        {hasModels ? (
+                          <span className="chevron" aria-hidden="true">
+                            {isOpen ? "▾" : "▸"}
+                          </span>
+                        ) : (
+                          <span className="chevron chevron-placeholder" aria-hidden="true" />
+                        )}
+                        <span className="agent-name">{agent.displayName}</span>
+                      </span>
+                    </span>
+                    <span className="agent-tokens">
+                      {formatTokens(agent.tokens)}
+                    </span>
+                  </>
+                );
                 return (
                   <div className="agent-block" key={agent.id}>
-                    <div className="agent-row">
-                      <span className="agent-lead">
-                        <span
-                          className="agent-dot"
-                          aria-hidden="true"
-                          style={{ background: `var(${meta.colorVar})` }}
-                        />
-                        <span className="agent-toggle-group">
-                          {hasModels ? (
-                            <button
-                              type="button"
-                              className="agent-toggle"
-                              onClick={() => toggleAgent(agent.id)}
-                              aria-expanded={isOpen}
-                              aria-controls={`agent-models-${agent.id}`}
-                              aria-label={`Toggle ${agent.displayName} models`}
-                            >
-                              <span className="chevron" aria-hidden="true">
-                                {isOpen ? "▾" : "▸"}
-                              </span>
-                            </button>
-                          ) : (
-                            <span
-                              className="chevron chevron-placeholder"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span className="agent-name">{agent.displayName}</span>
-                        </span>
-                      </span>
-                      <span className="agent-tokens">{formatTokens(agent.tokens)}</span>
-                    </div>
+                    {hasModels ? (
+                      <button
+                        type="button"
+                        className="agent-row agent-toggle"
+                        onClick={() => toggleAgent(agent.id)}
+                        aria-expanded={isOpen}
+                        aria-controls={`agent-models-${agent.id}`}
+                      >
+                        {rowContent}
+                      </button>
+                    ) : (
+                      <div className="agent-row">
+                        {rowContent}
+                      </div>
+                    )}
                     {isOpen && hasModels && (
                       <div
                         className="agent-models"
@@ -541,21 +872,20 @@ function App() {
                           <div className="model-agent-notes">
                             {agent.reasoningTokens > 0 && (
                               <p className="model-agent-summary">
-                                Agent total includes{" "}
-                                {formatTokens(agent.reasoningTokens)} reasoning
+                                {d.includesReasoning(formatTokens(agent.reasoningTokens))}
                               </p>
                             )}
                             {agent.unclassifiedTokens > 0 && (
                               <p className="model-agent-summary">
-                                Agent total includes{" "}
-                                {formatTokens(agent.unclassifiedTokens)} unclassified
-                                tokens
+                                {d.includesUnclassified(formatTokens(agent.unclassifiedTokens))}
                               </p>
                             )}
                             {agentCacheShare !== null && (
                               <p className="model-agent-summary">
-                                ~{formatPercent(agentCacheShare)} cached input across{" "}
-                                {agent.models.length} models
+                                {d.cacheAcrossModels(
+                                  String(formatPercent(agentCacheShare)),
+                                  agent.models.length,
+                                )}
                               </p>
                             )}
                           </div>
@@ -567,6 +897,17 @@ function App() {
                               model.cacheReadTokens,
                               model.cacheCreationTokens,
                             );
+                            const composition = [
+                              `${formatTokens(model.inputTokens)} ${d.modelComp.in}`,
+                              `${formatTokens(model.outputTokens)} ${d.modelComp.out}`,
+                              `${formatTokens(model.cacheReadTokens)} ${d.modelComp.cacheRead}`,
+                              ...(model.cacheCreationTokens > 0
+                                ? [`${formatTokens(model.cacheCreationTokens)} ${d.modelComp.creation}`]
+                                : []),
+                              ...(modelShare !== null
+                                ? [d.cachedInput(String(formatPercent(modelShare)))]
+                                : []),
+                            ].join(" · ");
                             return (
                               <div className="model-row" key={model.modelName}>
                                 <dt>
@@ -574,15 +915,7 @@ function App() {
                                     {model.modelDisplayName}
                                   </span>
                                   <span className="model-composition">
-                                    {formatTokens(model.inputTokens)} in ·{" "}
-                                    {formatTokens(model.outputTokens)} out ·{" "}
-                                    {formatTokens(model.cacheReadTokens)} cache read
-                                    {model.cacheCreationTokens > 0
-                                      ? ` · ${formatTokens(model.cacheCreationTokens)} creation`
-                                      : ""}
-                                    {modelShare !== null
-                                      ? ` · ~${formatPercent(modelShare)} cached input`
-                                      : ""}
+                                    {composition}
                                   </span>
                                 </dt>
                                 <dd>{formatTokens(model.totalTokens)}</dd>
@@ -597,39 +930,41 @@ function App() {
               })}
             </div>
           ) : (
-            <p className="empty-state">No agent usage was found for today.</p>
+            <div className="empty-state">
+              <p>
+                {isCurrentScope ? d.emptyToday : d.emptyFor(snapshot.scope.endDate)}
+              </p>
+              <details className="empty-help">
+                <summary>{d.whyNoUsage}</summary>
+                <p>{d.emptyHelp}</p>
+              </details>
+            </div>
           )}
 
-          <section className="breakdown-section" aria-labelledby="breakdown-heading">
-            <div className="section-heading">
-              <h2 id="breakdown-heading">Token Breakdown</h2>
-              <span>Share of today</span>
-            </div>
-            <BreakdownList
-              total={summary.today.totalTokens}
-              breakdown={summary.today.tokenBreakdown}
-            />
-          </section>
         </section>
 
         <section className="dash-right" aria-labelledby="trend-heading">
           <div className="section-heading">
-            <h2 id="trend-heading">Last 7 Days</h2>
-            <span>Total {formatTokens(trendTotal)}</span>
+            <h2 id="trend-heading">{d.last7Days}</h2>
+            <span>{d.total(formatTokens(trendTotal))}</span>
           </div>
 
-          <div className="trend-filter" role="group" aria-label="Filter by agent">
+          {/* Trend filter chips: capped inline; the overflow stays keyboard-
+              reachable behind a native details disclosure. The chip state and
+              the swap rule follow the EFFECTIVE filter, so a selection whose
+              agent vanished renders as All instead of a stuck pressed chip. */}
+          <div className="trend-filter" role="group" aria-label={d.filterByAgent}>
             <button
               type="button"
-              className={agentFilter === null ? "filter-chip active" : "filter-chip"}
-              aria-pressed={agentFilter === null}
+              className={activeFilter === null ? "filter-chip active" : "filter-chip"}
+              aria-pressed={activeFilter === null}
               onClick={() => setAgentFilter(null)}
             >
-              All
+              {d.all}
             </button>
-            {recognized.map((agent) => {
+            {chipLayout.visible.map((agent) => {
               const meta = agentMeta(agent.id);
-              const active = agentFilter === agent.id;
+              const active = activeFilter === agent.id;
               return (
                 <button
                   type="button"
@@ -646,48 +981,116 @@ function App() {
                     } as CSSProperties
                   }
                 >
-                  <span className="chip-dot" aria-hidden="true" />
+                  <AgentMark colorVar={meta.colorVar} glyph={agentMark(agent.displayName)} />
                   {agent.displayName}
                 </button>
               );
             })}
+            {chipLayout.hidden.length > 0 && (
+              <details
+                className="filter-more"
+                ref={moreMenuRef}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && moreMenuRef.current?.open) {
+                    moreMenuRef.current.open = false;
+                    moreMenuSummaryRef.current?.focus();
+                  }
+                }}
+              >
+                <summary
+                  className="filter-chip filter-more-summary"
+                  ref={moreMenuSummaryRef}
+                >
+                  <AgentMark colorVar="--agent-others" glyph="+" />
+                  {d.moreAgents(chipLayout.hidden.length)}
+                </summary>
+                <div
+                  className="filter-more-menu"
+                  role="group"
+                  aria-label={d.moreAgents(chipLayout.hidden.length)}
+                >
+                  {chipLayout.hidden.map((agent) => {
+                    const meta = agentMeta(agent.id);
+                    const active = activeFilter === agent.id;
+                    return (
+                      <button
+                        type="button"
+                        key={agent.id}
+                        className={
+                          active ? "filter-chip agent-chip active" : "filter-chip agent-chip"
+                        }
+                        aria-pressed={active}
+                        onClick={() => {
+                          setAgentFilter(active ? null : agent.id);
+                          if (moreMenuRef.current) moreMenuRef.current.open = false;
+                        }}
+                        style={
+                          {
+                            "--chip-color": `var(${meta.colorVar})`,
+                            "--chip-soft": `var(${meta.softVar})`,
+                          } as CSSProperties
+                        }
+                      >
+                        <AgentMark colorVar={meta.colorVar} glyph={agentMark(agent.displayName)} />
+                        {agent.displayName}
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
+            )}
           </div>
+          {/* Scope note: the filter never touches today's summary above. */}
+          <p className="filter-note">{d.filterTrendOnly}</p>
 
           <div className="trend">
             {chartDays.map((chartDay, index) => {
               const day = summary.last7Days[index];
+              const isSelected = selectedDay === day.date;
               const valueLabel = formatTokens(trendSeries[index]);
-              const aria = agentFilter === null
+              const aria = activeFilter === null
                 ? allDayAriaLabel(
                     day,
                     index > 0
                       ? summary.last7Days[index - 1].totalTokens
                       : undefined,
+                    lang,
+                    deltaBasisFor(index),
                   )
                 : agentDayAriaLabel(
                     day,
-                    agentFilter,
+                    activeFilter,
                     index > 0
                       ? (summary.last7Days[index - 1].agents.find(
-                          (a) => a.id === agentFilter,
+                          (a) => a.id === activeFilter,
                         )?.tokens ?? 0)
                       : undefined,
+                    lang,
+                    deltaBasisFor(index),
                   );
               return (
                 <button
                   type="button"
-                  className="trend-day"
+                  className={isSelected ? "trend-day selected" : "trend-day"}
                   key={day.date}
                   ref={(el) => {
                     dayEls.current[index] = el;
                   }}
                   aria-label={aria}
+                  aria-pressed={isSelected}
                   onMouseEnter={() => setActiveDay(index)}
                   onMouseLeave={hideTooltip}
                   onFocus={() => setActiveDay(index)}
                   onBlur={hideTooltip}
+                  // Click pins the day into the stable in-flow detail panel;
+                  // clicking the selected day again unpins it. Escape clears
+                  // both the hover tooltip and the pinned selection.
+                  onClick={() => setSelectedDay(isSelected ? null : day.date)}
                   onKeyDown={(event) => {
-                    if (event.key === "Escape") hideTooltip();
+                    if (event.key === "Escape") {
+                      hideTooltip();
+                      setSelectedDay(null);
+                    }
                   }}
                 >
                   <span className="trend-value">{valueLabel}</span>
@@ -710,90 +1113,171 @@ function App() {
             })}
           </div>
 
-          {activeDay !== null && (
-            (() => {
-              const day = summary.last7Days[activeDay];
-              const isAll = agentFilter === null;
-              const prevTotal = activeDay > 0 ? summary.last7Days[activeDay - 1].totalTokens : undefined;
-              const allDelta = formatDelta(day.totalTokens, prevTotal);
-              const sel = agentFilter ? day.agents.find((a) => a.id === agentFilter) : null;
-              const selValue = sel?.tokens ?? 0;
-              const selPrev = agentFilter && activeDay > 0
-                ? (summary.last7Days[activeDay - 1].agents.find(
-                    (a) => a.id === agentFilter,
-                  )?.tokens ?? 0)
+          {/* Scale semantics: the All chart and a single-agent chart each rescale
+              to their own window max, so the same bar height never implies the
+              same amount across filters; the per-bar values stay absolute. */}
+          <p className="scale-hint">
+            {activeFilter === null
+              ? d.scaleAll
+              : d.scaleAgent(activeFilterName ?? "")}
+          </p>
+
+          {/* Hover/focus tooltip — the fixed, clamped overlay. It is suppressed
+              on the pinned day, whose details already live in the panel below. */}
+          {activeDay !== null &&
+            summary.last7Days[activeDay]?.date !== selectedDay && (
+              <div
+                className="chart-tooltip"
+                role="tooltip"
+                ref={tooltipEl}
+                style={tooltipPos ?? undefined}
+              >
+                <DayDetailContent
+                  day={summary.last7Days[activeDay]!}
+                  prevDay={
+                    activeDay > 0 ? summary.last7Days[activeDay - 1] : undefined
+                  }
+                  filter={activeFilter}
+                  filterName={activeFilterName}
+                  grouping={allChart.grouping}
+                  d={d}
+                  lang={lang}
+                  basis={deltaBasisFor(activeDay)}
+                />
+              </div>
+            )}
+
+          {/* Click-pinned stable detail: rendered from the selected ISO date, so
+              refreshes and window shifts can never misalign it — a date that
+              leaves the visible range simply closes the panel. */}
+          {(() => {
+            const selected =
+              selectedDay !== null
+                ? summary.last7Days.find((day) => day.date === selectedDay)
                 : undefined;
-              const selDelta = agentFilter ? formatDelta(selValue, selPrev) : null;
-              const selShare = day.totalTokens > 0 ? (selValue / day.totalTokens) * 100 : 0;
-              const selName = agentFilter
-                ? (sel?.displayName ?? agentMeta(agentFilter).displayName)
-                : "";
-              return (
-                <div
-                  className="chart-tooltip"
-                  role="tooltip"
-                  ref={tooltipEl}
-                  style={tooltipPos ?? undefined}
-                >
-                  {isAll ? (
-                    <>
-                      <p className="tooltip-date">{fullDate(day.date)}</p>
-                      <p className="tooltip-total">
-                        {formatTokens(day.totalTokens)} tokens total
-                      </p>
-                      <ul className="tooltip-agents">
-                        {sortAgents(day.agents).map((a) => {
-                          const pct =
-                            day.totalTokens > 0
-                              ? (a.tokens / day.totalTokens) * 100
-                              : 0;
-                          return (
-                            <li key={a.id}>
-                              <span
-                                className="tooltip-dot"
-                                aria-hidden="true"
-                                style={{
-                                  background: `var(${agentMeta(a.id).colorVar})`,
-                                }}
-                              />
-                              <span className="tooltip-agent-name">{a.displayName}</span>
-                              <span className="tooltip-agent-value">
-                                {formatTokens(a.tokens)} · {pct.toFixed(1)}%
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      {allDelta.label && (
-                        <p className={`tooltip-delta ${deltaClass(allDelta.kind)}`}>
-                          {allDelta.label}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="tooltip-date">{fullDate(day.date)}</p>
-                      <p className="tooltip-total">
-                        {selName}: {formatTokens(selValue)}
-                      </p>
-                      <p className="tooltip-share">{selShare.toFixed(1)}% of day</p>
-                      {selDelta?.label && (
-                        <p className={`tooltip-delta ${deltaClass(selDelta.kind)}`}>
-                          {selDelta.label}
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })()
-          )}
+            if (!selected) return null;
+            const selectedIndex = summary.last7Days.indexOf(selected);
+            return (
+              <div
+                className="day-detail"
+                role="region"
+                aria-label={d.dayDetailRegion}
+              >
+                <DayDetailContent
+                  day={selected}
+                  prevDay={
+                    selectedIndex > 0
+                      ? summary.last7Days[selectedIndex - 1]
+                      : undefined
+                  }
+                  filter={activeFilter}
+                  filterName={activeFilterName}
+                  grouping={allChart.grouping}
+                  d={d}
+                  lang={lang}
+                  basis={deltaBasisFor(selectedIndex)}
+                />
+              </div>
+            );
+          })()}
         </section>
       </div>
 
-      <footer className="app-footer">
-        <p className="updated">Updated {updatedText}</p>
-      </footer>
+      {/* On-demand detail tier: today's token composition and the statistics
+          explainer expand here, below the core summary and the trend. */}
+      <section className="dash-details">
+        <details className="breakdown-section">
+          <summary className="section-heading breakdown-summary">
+            <h2 id="breakdown-heading">{d.tokenBreakdown}</h2>
+            <span>
+              {isCurrentScope
+                ? d.shareOfToday
+                : d.shareOf(snapshot.scope.endDate)}
+            </span>
+          </summary>
+          <BreakdownList
+            total={summary.today.totalTokens}
+            breakdown={summary.today.tokenBreakdown}
+            d={d}
+          />
+        </details>
+
+        {/* Statistics explainer: what is counted, how token types are
+            defined, the cached-input denominator, and the cost estimate's
+            meaning. Static, local-only copy — no data dependency. */}
+        <details className="about-stats">
+          <summary>{d.aboutTitle}</summary>
+          <div className="about-body">
+            <p>
+              <strong>{d.aboutScope}</strong> {d.aboutScopeBody}
+            </p>
+            <p>
+              <strong>{d.aboutTypes}</strong> {d.aboutTypesBody}
+            </p>
+            <p>
+              <strong>{d.aboutCache}</strong>
+              {d.aboutCacheBody}
+            </p>
+            <p>
+              <strong>{d.aboutCost}</strong>
+              {d.aboutCostBody}
+            </p>
+          </div>
+        </details>
+
+        {/* Minimal preferences (T05): launch behaviour and language only —
+            a collapsed section inside the existing window, no settings
+            centre. Hidden entirely when preferences are unavailable. */}
+        {prefs && (
+          <details className="settings-section">
+            <summary>{d.settingsTitle}</summary>
+            <div className="settings-body">
+              <label className="setting-row">
+                <span className="setting-name">{d.languageLabel}</span>
+                <select
+                  value={prefs.language}
+                  onChange={(event) =>
+                    changeLanguage(event.target.value as LanguagePreference)
+                  }
+                >
+                  <option value="system">{d.languageSystem}</option>
+                  <option value="zh-CN">中文（简体）</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+              <label className="setting-row setting-check">
+                <input
+                  type="checkbox"
+                  checked={prefs.startWithWindows}
+                  onChange={(event) =>
+                    void changePrefs({
+                      startWithWindows: event.target.checked,
+                    })
+                  }
+                />
+                <span>{d.startWithWindows}</span>
+              </label>
+              <label className="setting-row setting-check">
+                <input
+                  type="checkbox"
+                  checked={prefs.startHiddenToTray}
+                  onChange={(event) =>
+                    void changePrefs({
+                      startHiddenToTray: event.target.checked,
+                    })
+                  }
+                />
+                <span>{d.startHiddenToTray}</span>
+              </label>
+              {settingsError && (
+                <p className="settings-error" role="status">
+                  {d.settingsSaveFailed}
+                </p>
+              )}
+            </div>
+          </details>
+        )}
+      </section>
     </main>
   );
 }

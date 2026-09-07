@@ -1,7 +1,7 @@
 [package]
 name = "coding-agent-monitor"
 version = "0.3.0"
-description = "A lightweight local token monitor for Claude Code and OpenAI Codex"
+description = "A lightweight, local-first Windows monitor for coding-agent token usage."
 authors = ["Coding Agent Monitor contributors"]
 edition = "2021"
 license = "MIT"
@@ -24,10 +24,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
-# Gate 0 PoC: in-process use of the vendored ccusage workspace (see
-# vendor/ccusage/PATCHES.md). The production sidecar collection path is unchanged.
+# Production collection uses the vendored ccusage workspace inside the product
+# EXE's isolated worker (see vendor/ccusage/PATCHES.md); no external sidecar.
 ccusage-adapter-all = { path = "vendor/ccusage/rust/crates/ccusage-adapter-all" }
-# SharedArgs lives here; imported directly so the Gate 0 PoC test can build args.
+# SharedArgs lives here; collector::ccusage builds offline vendor call arguments.
 ccusage-cli = { path = "vendor/ccusage/rust/crates/ccusage-cli" }
 # System IANA time zone for the production batch request (Phase 4B): the
 # worker's day bucketing must match the parent's `chrono::Local` `today`.
@@ -49,3 +49,17 @@ sqlite = { version = "0.37.0", default-features = false, features = ["bundled", 
 tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Tray language resolution (T03): reads the Windows UI language via
+# GetUserDefaultUILanguage. Same crate/version already in the build graph via
+# Tauri; T05 adds only feature edges on the same crate (Win32_Foundation,
+# Win32_System_Registry for the per-user Run key, Win32_System_Threading for
+# the single-instance mutex/event).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Security",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+] }

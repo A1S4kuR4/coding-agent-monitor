@@ -1,6 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { UsageSummary } from "../types/usage";
+import type {
+  RefreshTrigger,
+  UsageCollectionState,
+} from "../types/usage";
 
-export function fetchUsageSummary(): Promise<UsageSummary> {
-  return invoke<UsageSummary>("get_usage_summary");
+export function fetchUsageState(): Promise<UsageCollectionState> {
+  return invoke<UsageCollectionState>("get_usage_state");
+}
+
+export function refreshUsageState(
+  trigger: RefreshTrigger,
+): Promise<UsageCollectionState> {
+  return invoke<UsageCollectionState>("refresh_usage_state", { trigger });
 }

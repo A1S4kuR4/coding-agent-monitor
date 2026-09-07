@@ -10,8 +10,10 @@ v20.0.20 的采集源码与 Antigravity 的 downstream 移植直接编译进产�
 
 > 不打开命令行，也能随时查看本机 Coding Agent 今天用了多少 Token。
 
-> **当前状态：v0.3.0 — READY TO RELEASE（Windows 11 x64 only, unsigned,
-> non-ASCII profile unverified）**。发布验收与三项已批准 waiver 见
+> **当前状态：v0.3.0 已于 2026-09-01 正式发布**，可从
+> [GitHub Release](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.3.0)
+> 下载 MSI / NSIS 安装包。仅官方支持 Windows 11 x64；安装包未签名，
+> 非 ASCII 用户目录完整 GUI 场景未验证。发布验收与三项已批准 waiver 见
 > [`docs/V0.3_RELEASE_GATE_DECISION.md`](docs/V0.3_RELEASE_GATE_DECISION.md)；
 > 过程记录见 [`docs/V0.3_PHASE5_RELEASE_CANDIDATE.md`](docs/V0.3_PHASE5_RELEASE_CANDIDATE.md)。
 > v0.2.0 已发布（[验证记录](docs/V0.2_RELEASE_VERIFICATION.md)）。
@@ -22,7 +24,7 @@ v20.0.20 的采集源码与 Antigravity 的 downstream 移植直接编译进产�
 ## 隐私与安全
 
 - 所有统计都在本机完成，程序不要求登录或云端账号。
-- `ccusage` 以 `--offline` 方式运行；React 前端只接收聚合结果，不读取原始日志。
+- vendored ccusage 以 `offline: true` 调用，使用内嵌定价快照；React 前端只接收聚合结果，不读取原始日志。
 - 项目不包含遥测。真实 Token 导出、成本明细、日志和本机截图均被 Git 忽略。
 - 请勿在 Issue 中上传真实 Agent 日志、用量导出、数据库或包含隐私信息的截图。
 
@@ -32,7 +34,8 @@ v20.0.20 的采集源码与 Antigravity 的 downstream 移植直接编译进产�
 
 ### 1. 自动统计 Coding Agent Token
 
-启动后自动检测本机已有的 Coding Agent 数据，例如：
+启动后自动检测本机已有的 Coding Agent 数据。下文数字与文本布局均为说明用示例，
+不代表真实用量或当前界面的逐字还原：
 
 ```text
 Claude Code    8.42M Tokens
@@ -75,11 +78,13 @@ Codex
 6.2M   8.1M   5.4M   9.7M   12.1M   10.3M   13.6M
 ```
 
-第一版只关注：
+当前界面包含：
 
-- 今日 Token
-- Claude Code / Codex 使用占比
-- 最近 7 天使用趋势
+- 今日 Token 总量、较昨日变化与按用量排序的动态 Agent 列表。
+- 可展开的模型 Token 明细，以及来源明确的 reasoning 和未分类余量说明。
+- 最近 7 天趋势：全部 Agent 堆叠展示，或按单个 Agent 筛选；日期提示展示对应明细。
+- 可用时显示预估 USD 成本、缓存输入占比与数据更新时间。
+- 手动刷新、加载/空/错误状态；刷新失败时保留最近成功数据并提供重试。
 
 不设计复杂 BI Dashboard。
 
@@ -91,7 +96,16 @@ Codex
 
 无需一直打开主窗口。
 
-点击托盘图标即可快速查看：
+托盘提示与菜单摘要展示今日总量和最多两个用量最高的 Agent；左键点击打开主界面，
+右键菜单提供刷新、打开与退出操作。关闭主窗口会隐藏到托盘（首次关闭时窗口内会
+说明这一点，可选择不再提示），使用 Exit 才会退出程序；再次启动会直接唤起已运行
+的主窗口，而不会开启第二个实例。
+启动、打开主界面及每 5 分钟周期触发统一采集；托盘与窗口共享最后成功快照、最近尝试和
+刷新中状态。失败会保留并明确标注旧数字，超过 10 分钟或跨本地日期/时区时标为旧数据，
+跨日快照继续显示其原日期而不再称为“今日”。
+主界面底部折叠的“偏好设置”区域提供最小本地偏好：界面语言（跟随系统/中文/English）、
+随 Windows 启动（默认关闭）与启动时隐藏到托盘，并自动恢复正常窗口位置尺寸
+（跨显示器/DPI 变化时安全回退）。示意摘要：
 
 ```text
 Coding Agent Monitor
@@ -102,6 +116,7 @@ Coding Agent Monitor
 Claude Code    8.42M
 Codex          5.17M
 
+立即刷新
 打开主界面
 退出
 ```
@@ -147,14 +162,12 @@ Coding Agent Monitor 不是：
 Local Agent Records (17 agents, read-only)
         │
         ▼
-  vendored ccusage engine (in-process, offline, read-only)
-        │
-        ▼
   product EXE worker（同一 EXE 的隐藏 worker 模式）
-  · 单进程、超时/崩溃隔离、single-flight
+  · vendored ccusage engine（worker 内直接调用、离线、只读）
+  · 每次快照一个 worker；父进程监督超时/崩溃、合并并发刷新
         │
         ▼
-  Rust adapter → UsageSummary（公共契约）
+  CAM typed snapshot → Rust normalize_snapshot → UsageSummary
         │
         ▼
     Tauri 2 Application
@@ -196,11 +209,11 @@ Rust 采集源码 vendored 进本仓库（含可审计的补丁与定价快照�
 
 ---
 
-# MVP
+# MVP（历史范围）
 
 第一版只实现三个核心功能，当前均已完成：
 
-- [x] 自动检测并统计动态 Coding Agent Token
+- [x] 自动检测并统计 Claude Code / Codex Token（后续版本扩展为动态 Agent）
 - [x] 今日用量 + 最近 7 天趋势可视化
 - [x] Windows 系统托盘快速查看
 
@@ -210,12 +223,15 @@ Rust 采集源码 vendored 进本仓库（含可审计的补丁与定价快照�
 
 # 项目状态
 
-> v0.3.0 发布就绪（READY TO RELEASE，见顶部状态）；manifest 版本为 `0.3.0`。v0.2.0 已发布。
+> v0.3.0 已发布；三份 manifest 版本均为 `0.3.0`。发布资产与校验记录见
+> [发布清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md)。
 
 v0.3 的主要变化：采集从外部 ccusage sidecar 切换为 vendored 源码 + 单 EXE 隔离
-worker；Agent 支持从 3 个扩展到 17 个；reasoning 分类精度提升；缺价成本语义修正为
+worker，并对 17 个 Agent 完成非空 fixture 对照；reasoning 分类精度提升；缺价成本语义修正为
 `null`（不伪造零）。验收记录见
 [`docs/V0.3_PHASE5_RELEASE_CANDIDATE.md`](docs/V0.3_PHASE5_RELEASE_CANDIDATE.md)。
+v0.2 已使用开放 Agent 契约与统一采集；其真实数据验收中出现的 3 个 Agent 是当时
+机器上的活跃来源数，不是产品支持上限。
 Antigravity 是 CAM 维护的 downstream 移植（基于未合并的上游 PR），**不是 ccusage
 官方支持**。
 
@@ -240,24 +256,31 @@ v0.3 延续同一签名策略与披露。
 
 # 当前实现
 
-仓库现已包含 Tauri 2 + React + TypeScript + Rust 的最小可运行骨架：
+当前生产实现：
 
 - React 只消费项目自己的 `UsageSummary`，不接触原始 Agent 日志或 JSON。
-- Rust 负责 vendored ccusage 采集、SQLite 初始化、系统托盘和本地错误边界。
-- SQLite 只初始化本地数据库文件，不创建业务表；所有 Agent 源数据库一律只读。
+- Rust `collector/ccusage.rs` 负责调用 vendor 并转换为项目自己的类型；
+  `sidecar/adapter.rs::normalize_snapshot` 负责公共契约归一化。`sidecar` 目录名是历史遗留。
+- Rust 负责 worker 监督、SQLite 初始化、系统托盘和本地错误边界。
+- SQLite 使用统一的 `sqlite 0.37.0` bundled/linkage 实现，只初始化
+  `%APPDATA%\com.codingagentmonitor\usage-cache.sqlite3`，不创建业务表或持久化用量；
+  所有 Agent 源数据库一律只读。并发采集共享结果，成功/失败结果在内存缓存 2 秒。
 - Dashboard 与系统托盘的数据来自产品 EXE 自身的隔离 worker（v0.3 起不再有 sidecar）。
   安装包只包含一个产品可执行文件。
 
-详细的后续实施顺序与验收条件见
+版本状态、阶段历史与验收文档索引见
 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)，开发约束见
 [`AGENTS.md`](AGENTS.md)。
 
 ## 本地开发
 
-需要 Node.js、pnpm、Rust stable，以及 Tauri 2 的 Windows 前置依赖。
+需要 Windows 11 x64、Node.js 20+、pnpm 10.33.0、Rust stable，以及 Tauri 2 的
+Windows 前置依赖（MSVC 工具链与 WebView2）。完整检查与升级说明见
+[`CONTRIBUTING.md`](CONTRIBUTING.md)。
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm vendor:verify
 pnpm lint
 pnpm typecheck
 pnpm test
@@ -270,9 +293,14 @@ downstream 移植**，编译进产品 EXE，并以同一 EXE 的隔离 worker �
 （v0.3 起不再下载、打包或运行任何外部 ccusage 可执行文件）。Dashboard 与托盘
 显示的数据来自本机真实用量，不使用 mock fixture。
 
-升级审计工具（可选）：`tests/shadow17.rs` 可将外部固定的 ccusage 构建通过
+`pnpm dev` 仅启动前端开发服务器；真实采集需使用 `pnpm tauri dev`。
+`pnpm tauri build` 构建安装包。首次安装 npm/Cargo 依赖可能联网，但正常构建不会
+下载 ccusage 源码、可执行文件或价格。
+
+升级审计工具（可选）：`src-tauri/tests/shadow17.rs` 可将外部固定的 ccusage 构建通过
 `CAM_SHADOW_SIDECAR_EXE` / `CAM_SHADOW_ANTIGRAVITY_EXE` 环境变量传入，与 worker
-做逐字段 parity 对照；默认构建/测试不要求也不查找任何 sidecar。
+做逐字段 parity 对照；默认构建/测试不要求也不查找任何 sidecar，未提供变量时
+对应 sidecar 对照会跳过，不应把默认测试通过当成重新完成 parity 验证。
 
 ## 参与贡献
 

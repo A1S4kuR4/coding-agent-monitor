@@ -3,17 +3,20 @@
 ## Read First
 
 Before changing code, read `README.md`, this file, and
-`docs/IMPLEMENTATION_PLAN.md`. Complete only the currently assigned plan item.
-When the assigned item is a v0.2 phase, also read
-`docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md` completely.
+`docs/IMPLEMENTATION_PLAN.md`. Complete only the assigned task. For a versioned
+phase, also read that version's development and acceptance plan completely.
+Phase records describe their dated baselines; use the current-status index in
+`docs/IMPLEMENTATION_PLAN.md` to find subsequent decisions.
 
 ## Project Goal
 
-Build a lightweight Windows 10/11 Coding Agent Token Monitor. It runs locally,
-stays quiet in the Windows system tray, and reports Claude Code and OpenAI Codex
-token usage.
+Maintain a lightweight, local Windows Coding Agent Token Monitor that stays
+quiet in the system tray. v0.3 supports 17 agents through vendored ccusage
+v20.0.20 plus the pinned Antigravity downstream port. The released support
+statement is Windows 11 x64 only; Windows 10 and the full non-ASCII-profile GUI
+scenario remain unverified. See `docs/V0.3_RELEASE_GATE_DECISION.md` for waivers.
 
-## MVP Release Scope
+## Historical MVP Release Scope
 
 The v0.1.0 release permits exactly:
 
@@ -33,19 +36,21 @@ The v0.1.0 release permits exactly:
 - Rust owns native process, tray, filesystem, and SQLite responsibilities.
 - React owns presentation and simple UI state.
 - Keep TypeScript and Rust usage contracts aligned.
-- Keep ccusage-specific fields inside `src-tauri/src/sidecar`.
+- Keep vendored API/output conversion inside `src-tauri/src/collector/ccusage.rs`.
+- Keep public-summary normalization inside `src-tauri/src/sidecar/adapter.rs`
+  (the module name is historical; production uses `normalize_snapshot`).
 - Avoid premature optimization and speculative architecture.
 - Fix root causes rather than adding workarounds where practical.
 - Never present fixture or mock data as real usage.
 
 ## Scope Guard
 
-Until the v0.1.0 release gate in `docs/IMPLEMENTATION_PLAN.md` is closed, do not
-mix post-MVP work into the release task. After that gate, implement post-MVP work
-only when the user explicitly assigns a phase from
-`docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md`.
+v0.1, v0.2, and v0.3 implementation/release work is historical; do not restart
+completed phases. Maintenance and documentation fixes may follow an explicit
+user assignment. New product work requires an explicit assignment and an
+applicable versioned plan; do not infer it from an old unchecked item.
 
-Unless such a phase is explicitly assigned, do not proactively implement login,
+Unless explicitly assigned, do not proactively implement login,
 cloud sync, API proxies, MCP, AI analysis, agent benchmarks, project analytics,
 session exploration, burn rate, notifications, plugins, non-Windows platforms,
 more agents, complex settings, enterprise dashboards, or a generic provider
@@ -54,17 +59,22 @@ framework.
 ## Architecture Boundaries
 
 ```text
-Claude Code / Codex logs
-        -> ccusage native sidecar
-        -> Rust sidecar adapter
+Local agent records (read-only)
+        -> vendored ccusage inside the product EXE's isolated worker
+        -> CAM-owned typed snapshot
+        -> Rust normalize_snapshot adapter
         -> UsageSummary
-        -> Tauri command
-        -> React dashboard
+        -> Tauri command / tray event
+        -> React dashboard / Windows tray
 ```
 
 - `src/types/usage.ts` and `src-tauri/src/usage/mod.rs` are the public contract.
-- `src-tauri/src/sidecar` is the only place that knows ccusage JSON shapes.
-- Rust must invoke and supervise the sidecar; React only invokes project commands.
+- `collector/ccusage.rs` is the boundary to vendored APIs; vendor types must not
+  leak into the worker protocol or public usage contract.
+- `sidecar/adapter.rs::normalize_reports` retains v0.2 JSON decoding only for
+  opt-in shadow audits. Do not reintroduce external sidecar lookup or fallback.
+- Rust supervises `current_exe()` workers; React only invokes project commands
+  and listens for normalized usage events.
 - SQLite is a local cache only. Do not add business tables without measured need.
 - Keep one window and one feature area; do not add routing or a sidebar.
 
@@ -77,6 +87,8 @@ Claude Code / Codex logs
   - `pnpm lint`
   - `pnpm typecheck`
   - `pnpm test`
+  - `pnpm test:e2e` (for UI changes)
+  - `pnpm vendor:verify` (for collector, vendor, or build changes)
   - `pnpm build`
   - `cargo check --manifest-path src-tauri/Cargo.toml`
   - `cargo test --manifest-path src-tauri/Cargo.toml`

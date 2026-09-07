@@ -39,13 +39,17 @@
   --accent-fill-hover: #993d24;
   --on-accent: #fff;
 
-  /* Agent identity — one colour per agent, carried through row dots, chips,
-     chart segments and tooltip legends. Values are theme-neutral. */
+  /* Agent identity — one colour per agent, carried through row marks, chips,
+     chart segments and tooltip legends. Values are theme-neutral. Unknown
+     agents share the neutral token (their monogram mark, not the colour, is
+     what tells them apart), and the display-only "others" chart group gets its
+     own quiet neutral. */
   --agent-claude: #e8836b;
   --agent-codex: #8b93e6;
   --agent-antigravity: #5fb8a5;
   --agent-opencode: #d9b36a;
   --agent-unknown: #9a9a8c;
+  --agent-others: #8f8571;
   /* 20% tint used for a selected agent chip's soft background. */
   --agent-claude-soft: rgb(232 131 107 / 20%);
   --agent-codex-soft: rgb(139 147 230 / 20%);
@@ -53,10 +57,10 @@
   --agent-opencode-soft: rgb(217 179 106 / 20%);
   --agent-unknown-soft: rgb(154 154 140 / 20%);
 
-  /* Day-over-day delta semantics. */
-  --delta-up: #f2555a;
-  --delta-down: #55b264;
-  --delta-flat: #9a9a8c;
+  /* Day-over-day deltas are expressed NEUTRALLY (arrow + sign, ordinary ink):
+     direction is never colour-coded as good/bad, and no budget rule exists
+     that would justify that judgement. The former red/green tokens failed
+     WCAG AA text contrast on the light paper anyway (3.13/2.46/2.64:1). */
 
   /* Chart + tooltip surfaces (light theme overrides below). */
   --surface-tooltip: #fffdf8;
@@ -113,6 +117,8 @@
     --accent-fill: #c14e28;
     --accent-fill-hover: #a64120;
     --on-accent: #fff;
+
+    --agent-others: #7a7264;
 
     --surface-tooltip: #26261e;
     --chart-track: rgb(255 255 255 / 5%);
@@ -187,6 +193,16 @@ body {
   justify-content: space-between;
 }
 
+/* Last-success time lives in the sticky header beside product + Refresh so the
+   data's age never scrolls out of view. */
+.header-updated {
+  margin: 4px 0 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Sticky action header: title + Refresh stay in view while the dashboard
    scrolls. Solid paper background hides whatever scrolls beneath it. */
 .app-header {
@@ -254,7 +270,8 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-/* Header day-over-day delta — Mono, carries arrow + sign + text redundantly. */
+/* Header day-over-day delta — Mono, carries arrow + sign + text redundantly;
+   neutral ink (direction is in the arrow + sign, never in colour). */
 .total-delta {
   margin: 0 0 2px;
   font-family: var(--font-mono);
@@ -263,14 +280,10 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
-.delta.up {
-  color: var(--delta-up);
-}
-.delta.down {
-  color: var(--delta-down);
-}
+.delta.up,
+.delta.down,
 .delta.flat {
-  color: var(--delta-flat);
+  color: var(--ink-2);
 }
 
 .unit {
@@ -307,11 +320,26 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-.agent-dot {
+/* Identity mark: an agent-coloured ring with the deterministic agentMark
+   monogram in ordinary ink, shared by rows, chips, tooltip legends and the day
+   detail so every surface reads the same agent the same way. The ring is the
+   colour echo; the glyph (and the name) carry identity. */
+.agent-mark {
   flex: none;
-  width: 8px;
-  height: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid var(--mark-color, var(--agent-unknown));
   border-radius: 50%;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
 }
 
 .agent-toggle-group {
@@ -321,9 +349,9 @@ h1 {
   min-width: 0;
 }
 
-/* Caret button and its non-interactive placeholder share one fixed width so the
-   name after them starts at the same column in both cases. */
-.agent-toggle,
+/* The caret glyph and its non-interactive placeholder share one fixed width so
+   the name after them starts at the same column in both cases. */
+.chevron,
 .chevron-placeholder {
   flex: none;
   display: inline-flex;
@@ -331,32 +359,38 @@ h1 {
   justify-content: center;
   width: 1.1rem;
   height: 1.2rem;
-}
-
-.chevron {
-  flex: none;
   color: var(--ink-3);
   font-size: 0.7em;
   line-height: 1;
-  transition: transform 120ms ease;
 }
 
 .chevron-placeholder {
-  color: var(--ink-3);
   opacity: 0.55;
 }
 
-.agent-toggle {
+/* Agents with models: the whole row is the expand/collapse control — name and
+   caret together form one accessible toggle spanning the full row width, so
+   the click and keyboard target is generous (well beyond the 24px minimum).
+   Reset the global accent-button fill; the row keeps its reading surface. */
+button.agent-toggle {
+  width: 100%;
   padding: 0;
   border: none;
+  border-radius: 0;
   background: none;
   color: inherit;
-  font-size: 1rem;
+  font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.agent-toggle:hover {
+button.agent-toggle:hover {
   background: none;
+}
+/* Hover cue for the whole-row control: the caret darkens with the same hover
+   colour the neutral refresh button uses — colour never carries state alone
+   (aria-expanded does). */
+button.agent-toggle:hover .chevron {
+  color: var(--ink);
 }
 
 .agent-name {
@@ -498,6 +532,20 @@ h1 {
 .trend-day:focus {
   background: none;
 }
+/* The click-pinned day stays visibly selected (after the hover rule so it wins
+   the equal-specificity cascade); the value label darkens too. */
+.trend-day.selected {
+  background: var(--paper-track);
+  border-radius: 6px;
+}
+.trend-day.selected .trend-value {
+  color: var(--ink);
+  font-weight: 600;
+}
+/* The date tick keeps AA contrast on the selected row's tinted background. */
+.trend-day.selected .trend-date {
+  color: var(--ink-2);
+}
 /* A very light brightness lift on the bar segments on hover and keyboard focus
    — a muted "lit" cue. Reduced motion shortens the transition to a single frame,
    leaving the brightness change itself intact. */
@@ -570,13 +618,15 @@ h1 {
   pointer-events: none;
 }
 
-.chart-tooltip .tooltip-date {
+/* Tooltip/panel content styles are shared: the hover overlay (.chart-tooltip)
+   and the click-pinned stable panel (.day-detail) render the same component. */
+.tooltip-date {
   margin: 0 0 2px;
   font-family: var(--font-mono);
   font-weight: 600;
 }
 
-.chart-tooltip .tooltip-total {
+.tooltip-total {
   margin: 0 0 4px;
   color: var(--ink-2);
   font-family: var(--font-mono);
@@ -596,13 +646,6 @@ h1 {
   min-width: 0;
 }
 
-.tooltip-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
 .tooltip-agent-name {
   flex: 1 1 auto;
   min-width: 0;
@@ -615,7 +658,17 @@ h1 {
   white-space: nowrap;
 }
 
-.chart-tooltip .tooltip-share {
+/* Click-pinned stable day detail: an in-flow panel under the chart — same
+   content as the tooltip, but it stays until dismissed. */
+.day-detail {
+  margin-top: var(--space-4);
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.tooltip-share {
   margin: 0 0 2px;
   color: var(--ink-2);
   font-family: var(--font-mono);
@@ -727,18 +780,152 @@ button:hover {
   opacity: 0.6;
 }
 
-.app-footer {
-  margin-top: 44px;
-  padding-top: 14px;
-  border-top: 1px solid var(--hairline);
+/* Cost states other than a priced value (unavailable / N/A) keep the same
+   quiet metadata styling; the copy itself carries the distinction. */
+.meta-cost-unknown {
+  opacity: 0.85;
 }
 
-.updated {
-  margin: 0;
-  color: var(--ink-3);
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
+/* Expandable statistics explainer (scope, token types, cache denominator,
+   cost meaning). Collapsed by default so the first screen stays focused. */
+.about-stats {
+  margin-top: 28px;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+}
+.about-stats summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.about-stats summary:hover,
+.about-stats summary:focus-visible {
+  color: var(--ink);
+}
+.about-body {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+}
+.about-body p {
+  margin: 0 0 10px;
+}
+.about-body p:last-child {
+  margin-bottom: 0;
+}
+
+/* Empty-state local-check guidance. */
+.empty-help {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  text-align: left;
+}
+.empty-help summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.empty-help p {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+}
+
+/* On-demand detail tier below the core summary and the trend: token
+   breakdown + statistics explainer. In two-column mode it spans both columns. */
+.dash-details {
+  margin-top: var(--space-6);
+}
+
+/* First-close tray notice (T05): explains tray residency once, inside the
+   window — never a system notification. Reachable from every view state. */
+.close-notice {
+  margin: 0 0 28px;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--surface-tooltip);
+  font-size: 0.9rem;
+}
+.close-notice p {
+  margin: 0 0 6px;
+  color: var(--ink-2);
+}
+.close-notice .close-notice-title {
+  color: var(--ink);
+  font-weight: 600;
+}
+.close-notice-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.close-notice-actions button {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  color: var(--on-accent);
+  background: var(--accent-fill);
+}
+.close-notice-actions button:hover {
+  background: var(--accent-fill-hover);
+}
+.close-notice-actions button.notice-secondary {
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--hairline);
+}
+.close-notice-actions button.notice-secondary:hover {
+  background: var(--paper-track);
+}
+
+/* Minimal preferences (T05): a collapsed section in the on-demand detail
+   tier, same visual language as the statistics explainer. */
+.settings-section {
+  margin-top: 16px;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+}
+.settings-section summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.settings-section summary:hover,
+.settings-section summary:focus-visible {
+  color: var(--ink);
+}
+.settings-body {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+.setting-row.setting-check {
+  justify-content: flex-start;
+}
+.setting-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent-fill);
+}
+.setting-row select {
+  font: inherit;
+  color: var(--ink);
+  padding: 3px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--surface-tooltip);
+}
+.settings-error {
+  margin: 6px 0 0;
+  color: var(--stale-ink);
 }
 
 .stale-banner {
@@ -777,11 +964,40 @@ button:hover {
 }
 
 /* Token Breakdown — today's composition by type, each with its count and share.
-   Counts in Mono; the percentage right-aligns on a fixed column. */
+   Collapsed by default (it is the on-demand detail tier); counts in Mono; the
+   percentage right-aligns on a fixed column. */
 .breakdown-section {
   margin-top: var(--space-5);
   padding-top: var(--space-4);
   border-top: 1px solid var(--hairline);
+}
+
+.breakdown-summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  cursor: pointer;
+  list-style: none;
+}
+.breakdown-summary::-webkit-details-marker {
+  display: none;
+}
+.breakdown-summary h2 {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 1rem;
+}
+.breakdown-summary::after {
+  content: "▸";
+  color: var(--ink-3);
+  font-size: 0.7em;
+}
+.breakdown-section[open] .breakdown-summary::after {
+  content: "▾";
+}
+.breakdown-summary:hover h2,
+.breakdown-summary:hover::after {
+  color: var(--ink);
 }
 
 .breakdown-list {
@@ -864,12 +1080,57 @@ button:hover {
   cursor: pointer;
 }
 
-.chip-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--chip-color);
+/* "More agents" disclosure — the summary reads as another chip; the menu is a
+   quiet dropdown panel with its own natural scroll when very long. */
+.filter-more {
+  position: relative;
+}
+.filter-more-summary {
+  list-style: none;
+}
+.filter-more-summary::-webkit-details-marker {
+  display: none;
+}
+.filter-more-summary .agent-mark {
+  --mark-color: var(--agent-others);
+}
+.filter-more[open] > summary.filter-chip {
+  border-color: var(--indigo);
+  background: var(--paper-track);
+}
+.filter-more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+  max-height: 240px;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--surface-tooltip);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+}
+.filter-more-menu .filter-chip {
+  justify-content: flex-start;
+}
+
+.filter-note {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-3);
+  font-size: 0.72rem;
+}
+
+/* Scale semantics hint under the chart — mono, quiet, factual. */
+.scale-hint {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .filter-chip:hover {
@@ -904,26 +1165,41 @@ button:hover {
     gap: 48px;
   }
 
+  /* The on-demand detail tier spans both columns below them. */
+  .dash-details {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+
   .trend {
     height: 328px;
     gap: 10px;
   }
 }
 
-/* Compact height: trim fixed vertical redundancy so a short window fits without
-   excessive scrolling; nothing is clipped or hidden with overflow. */
+/* Compact height: trim fixed vertical redundancy so the default 680x700 window
+   shows the whole core summary plus the main trend without scrolling; nothing
+   is clipped or hidden with overflow, and details expand naturally below. */
 @media (max-height: 760px) and (min-width: 521px) {
   .app-header {
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-3);
     padding-top: var(--space-4);
   }
 
+  .total {
+    font-size: clamp(2.2rem, 9vw, 3.4rem);
+  }
+
   .unit {
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+
+  .meta {
+    margin-bottom: var(--space-2);
   }
 
   .agent-row {
-    min-height: 44px;
+    min-height: 40px;
   }
 
   .model-row {
@@ -931,15 +1207,19 @@ button:hover {
   }
 
   .agent-list {
-    margin-bottom: var(--space-5);
+    margin-bottom: var(--space-4);
+  }
+
+  .trend-filter {
+    margin-top: var(--space-2);
   }
 
   .trend {
-    height: 176px;
-    margin-top: var(--space-4);
+    height: 132px;
+    margin-top: var(--space-3);
   }
 
-  .app-footer {
-    margin-top: var(--space-5);
+  .trend-day {
+    grid-template-rows: 20px 1fr 20px;
   }
 }

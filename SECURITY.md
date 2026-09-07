@@ -18,10 +18,17 @@ details and ask the maintainer to establish a private contact channel.
 
 ## Security model
 
-- Usage collection runs locally and passes `--offline` to ccusage.
+- Usage collection runs locally in an isolated worker launched from the product
+  EXE. Vendored ccusage is called with `offline: true`; pricing snapshots are
+  embedded at build time and are not refreshed from the network at runtime.
 - The frontend receives normalized aggregate data, not raw agent logs.
 - No telemetry or cloud account is required.
-- Sidecars are pinned and staged by scripts that verify source/package hashes.
+- Vendored sources, downstream patches, and pricing are pinned by commit/tree
+  and manifests. `pnpm vendor:verify` audits their integrity; normal builds do
+  not stage or download external ccusage executables.
+- The worker runs as the current user and is a fault-isolation mechanism, not
+  a privilege boundary. Agent databases are opened read-only; only the app's
+  own cache database is initialized for writing.
 
 Do not attach real agent logs, usage exports, database files, or screenshots
 containing private data to issues.

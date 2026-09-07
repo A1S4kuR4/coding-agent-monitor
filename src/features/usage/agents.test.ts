@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentMeta, compareByMeta, sortAgents, KNOWN_AGENT_IDS } from "./agents";
+import { agentMark, agentMeta, compareByMeta, sortAgents, KNOWN_AGENT_IDS } from "./agents";
 import type { AgentUsage } from "../../types/usage";
 
 const dagent = (id: string, displayName: string, tokens = 1): AgentUsage => ({
@@ -95,5 +95,26 @@ describe("compareByMeta / sortAgents", () => {
       { id: "claude", displayName: "Claude Code" },
     ];
     expect(items.sort(compareByMeta).map((i) => i.id)).toEqual(["claude", "mystery"]);
+  });
+});
+
+describe("agentMark", () => {
+  it("derives stable marks for the four known agents", () => {
+    expect(agentMark("Claude Code")).toBe("CL");
+    expect(agentMark("Codex")).toBe("CO");
+    expect(agentMark("Antigravity")).toBe("AN");
+    expect(agentMark("OpenCode")).toBe("OP");
+  });
+
+  it("is deterministic for unknown agent display names", () => {
+    expect(agentMark("future-agent-xyz")).toBe("FU");
+    expect(agentMark("future-agent-xyz")).toBe(agentMark("future-agent-xyz"));
+  });
+
+  it("keeps CJK and numeric names, uppercases latin, and never throws on odd input", () => {
+    expect(agentMark("助手 Agent")).toBe("助手");
+    expect(agentMark("3D Tools")).toBe("3D");
+    expect(agentMark("  ")).toBe("");
+    expect(agentMark("")).toBe("");
   });
 });

@@ -10,5 +10,9 @@ export default defineConfig({
   plugins: [react()],
   test: {
     include: ["src/**/*.{test,spec}.?(c|m)[jt]s?(x)"],
+    // The WCAG contrast regression test reads the theme tokens out of App.css
+    // via a `?raw` import; with CSS handling off, vitest stubs CSS imports as
+    // empty strings and the test would see nothing.
+    css: true,
   },
 });

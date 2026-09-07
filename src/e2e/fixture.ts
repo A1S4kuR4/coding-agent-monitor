@@ -3,13 +3,14 @@ import type {
   DailyUsage,
   ModelUsage,
   TokenBreakdown,
+  UsageCollectionState,
   UsageSummary,
 } from "../types/usage";
 
 /**
  * Fixed, deterministic presentation fixture used ONLY by the browser test
  * harness and screenshot scripts. It is never served through the production
- * data path: `fetchUsageSummary` still invokes the Rust command unless the
+ * data path: `fetchUsageState` still invokes the Rust command unless the
  * harness has installed the Tauri IPC mock.
  *
  * Values are chosen so the existing formatting rules produce the documented
@@ -70,6 +71,7 @@ function day(
     totalTokens,
     tokenBreakdown: breakdownFor(totalTokens),
     estimatedCostUsd: totalTokens > 0 ? +totalTokens * 4e-6 : null,
+    costUnknownReason: null,
     cacheReadShare: totalTokens > 0 ? 0.6 : null,
     agents,
   };
@@ -93,8 +95,9 @@ const agent = (
   };
 };
 
-export const e2eFixture: UsageSummary = {
+export const e2eSummary: UsageSummary = {
   collectedAt: "2026-08-25T07:00:00.000Z",
+  coverage: { status: "complete", diagnostics: [] },
   today: day("2026-08-25", [
     agent("claude", "Claude Code", 33_973_315, [
       model("deepseek-v4-flash", 30_000_000),
@@ -138,4 +141,38 @@ export const e2eFixture: UsageSummary = {
       agent("antigravity", "Antigravity", 8_470_305, [model("gemini-3.7-flash", 8_000_000)], 470_305),
     ]),
   ],
+};
+
+export const e2eFixture: UsageCollectionState = {
+  revision: 2,
+  refreshing: false,
+  snapshot: {
+    scope: {
+      startDate: "2026-08-19",
+      endDate: "2026-08-25",
+      timeZone: "UTC",
+    },
+    summary: e2eSummary,
+  },
+  lastAttempt: {
+    id: 1,
+    trigger: "startup",
+    scope: {
+      startDate: "2026-08-19",
+      endDate: "2026-08-25",
+      timeZone: "UTC",
+    },
+    startedAt: "2026-08-25T06:59:59Z",
+    finishedAt: "2026-08-25T07:00:00Z",
+    outcome: "succeeded",
+    failure: null,
+  },
+  freshness: {
+    status: "fresh",
+    reason: "current",
+    checkedAt: "2026-08-25T07:00:00Z",
+    currentDate: "2026-08-25",
+    currentTimeZone: "UTC",
+    staleAfterSeconds: 600,
+  },
 };
