@@ -441,7 +441,7 @@ fn supervisor_timeout_kills_worker() {
     init_product_exe();
     let _worker_lock = lock_worker_tests();
     let request = CollectorRequestV1::new("sup-timeout", AgentKind::Codex);
-    let _guard = EnvGuard::set("CAM_TEST_WORKER_SLEEP_MS", "60_000");
+    let _guard = EnvGuard::set("CAM_TEST_WORKER_SLEEP_MS", "60000");
     let cancel = AtomicBool::new(false);
     let started = Instant::now();
     let error = supervisor::collect_with_options(&request, &cancel, Duration::from_millis(500))
@@ -462,7 +462,7 @@ fn supervisor_cancel_kills_worker() {
     init_product_exe();
     let _worker_lock = lock_worker_tests();
     let request = CollectorRequestV1::new("sup-cancel", AgentKind::Codex);
-    let _guard = EnvGuard::set("CAM_TEST_WORKER_SLEEP_MS", "60_000");
+    let _guard = EnvGuard::set("CAM_TEST_WORKER_SLEEP_MS", "60000");
     let cancel = std::sync::Arc::new(AtomicBool::new(false));
     // Cancel from a helper thread shortly after the flight starts.
     let cancel_thread = {
