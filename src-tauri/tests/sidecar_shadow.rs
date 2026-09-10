@@ -542,18 +542,20 @@ fn snapshot_twenty_concurrent_calls_share_one_worker() {
     );
     std::env::set_var("CAM_TEST_WORKER_SLEEP_MS", "2000");
 
+    let root = build_shadow_fixture("single-flight");
+    let request = snapshot_request_for_fixture(&root);
+
     // Staggered start: the first thread claims the flight; the remaining 19
     // start after short delays so they join the still-active flight (the
     // 2000 ms worker sleep keeps it alive long enough for all callers).
     let handles: Vec<_> = (0..20)
         .map(|i| {
+            let request = request.clone();
             std::thread::spawn(move || {
                 if i > 0 {
                     std::thread::sleep(std::time::Duration::from_millis(50 * i as u64));
                 }
-                coding_agent_monitor_lib::collector::worker_runner::collect_snapshot(
-                    &CollectorSnapshotRequestV1::new("sf-snapshot", &AgentKind::ALL),
-                )
+                coding_agent_monitor_lib::collector::worker_runner::collect_snapshot(&request)
             })
         })
         .collect();
@@ -562,7 +564,7 @@ fn snapshot_twenty_concurrent_calls_share_one_worker() {
         results.push(handle.join().expect("caller thread"));
     }
     // All 20 callers share the same outcome (success or failure — both are
-    // valid since the worker reads the real environment).
+    // valid for the isolated fixture, including deliberately empty roots).
     let first = &results[0];
     for result in &results[1..] {
         match (first, result) {
