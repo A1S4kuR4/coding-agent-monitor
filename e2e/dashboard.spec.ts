@@ -1120,3 +1120,59 @@ test.describe("minimal preferences (T05)", () => {
     ).toBeChecked();
   });
 });
+
+
+test("T07 30-day chart scrolls inside minimum window, keeps today's total and keyboard details", async ({ page }) => {
+  const base = e2eFixture.snapshot!;
+  const days = Array.from({ length: 30 }, (_, i) => ({
+    ...base.summary.last7Days[i % 7],
+    date: new Date(Date.UTC(2026, 7, 24 - 29 + i)).toISOString().slice(0, 10),
+  }));
+  await page.addInitScript(history => {
+    (window as unknown as { __E2E_HISTORY__: unknown }).__E2E_HISTORY__ = history;
+  }, { scope: { startDate: days[0].date, endDate: days[29].date, timeZone: "UTC" },
+    collectedAt: base.summary.collectedAt, days, coverage: base.summary.coverage, estimatedCostUsd: null });
+  await boot(page, 420, 560);
+  const total = await page.locator(".total").innerText();
+  const started = await page.evaluate(() => performance.now());
+  await page.getByRole("button", { name: "30 days", exact: true }).click();
+  await expect(page.locator(".trend-day")).toHaveCount(30);
+  const elapsed = await page.evaluate(start => performance.now() - start, started);
+  console.log(`T07 browser switch through Playwright: ${elapsed.toFixed(1)}ms (includes automation latency)`);
+  await expect(page.locator(".total")).toHaveText(total);
+  const geometry = await page.evaluate(() => {
+    const chart = document.querySelector(".history-chart-scroll")!;
+    return { windowFits: document.documentElement.scrollWidth <= innerWidth,
+      chartScrolls: chart.scrollWidth > chart.clientWidth };
+  });
+  expect(geometry).toEqual({ windowFits: true, chartScrolls: true });
+  await page.locator(".trend-day").last().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".day-detail")).toBeVisible();
+  await expect(page.locator(".day-detail .breakdown-list").first()).toBeVisible();
+  await page.getByRole("button", { name: "Back to today" }).click();
+  await expect(page.locator(".day-detail")).toHaveCount(0);
+  await page.getByRole("button", { name: "7 days", exact: true }).click();
+  await expect(page.locator(".trend-day")).toHaveCount(7);
+});
+
+
+test("T07 pending history gives immediate feedback, 7-day return rejects the delayed 30-day result", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.assign(window, { __E2E_HISTORY__: { days: Array(30).fill(null) }, __E2E_HISTORY_DELAY__: 1500 });
+  });
+  await boot(page, 680, 700);
+  const feedbackMs = await page.evaluate(async () => {
+    const button = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "30 days")!;
+    const started = performance.now(); button.click();
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    if (!document.querySelector(".history-status")?.textContent?.includes("Loading")) throw new Error("no loading feedback");
+    return performance.now() - started;
+  });
+  console.log(`T07 click-to-frame feedback: ${feedbackMs.toFixed(1)}ms`);
+  await page.getByRole("button", { name: "7 days", exact: true }).click();
+  await expect(page.locator(".trend-day")).toHaveCount(7);
+  await page.waitForTimeout(1600); // Deliberately deliver the superseded IPC response.
+  await expect(page.locator(".trend-day")).toHaveCount(7);
+  await expect(page.getByRole("heading", { name: "Last 7 days" })).toBeVisible();
+});

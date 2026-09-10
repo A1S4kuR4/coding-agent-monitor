@@ -157,3 +157,12 @@ export interface UsageCollectionState {
   lastAttempt: RefreshAttempt | null;
   freshness: FreshnessInfo;
 }
+
+/** On-demand local history; never replaces today's collection state. */
+export interface HistoryUsage {
+  scope: UsageScope;
+  collectedAt: string;
+  days: DailyUsage[];
+  estimatedCostUsd: number | null;
+  coverage: CoverageInfo;
+}

@@ -91,6 +91,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::usage::get_usage_state,
+            commands::usage::get_usage_history,
             commands::usage::refresh_usage_state,
             commands::preferences::get_preferences,
             commands::preferences::update_preferences,

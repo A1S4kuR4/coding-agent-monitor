@@ -1223,3 +1223,21 @@ button:hover {
     grid-template-rows: 20px 1fr 20px;
   }
 }
+
+/* Each historical day retains readable absolute values and a keyboard target.
+   The chart alone scrolls horizontally; the window and details reflow normally. */
+.history-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-block: 8px; }
+.history-controls button { color: var(--ink-2); background: transparent; border: 1px solid var(--hairline); padding: 4px 8px; cursor: pointer; }
+.history-controls button[aria-pressed="true"] { color: var(--ink); border-color: currentColor; }
+.history-chart-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 6px; }
+.trend.trend-30 { grid-template-columns: repeat(30, minmax(48px, 1fr)); min-width: 1672px; }
+.history-status { color: var(--ink-2); font-size: 12px; overflow-wrap: anywhere; }
+.history-models { margin-block: 12px; overflow-wrap: anywhere; }
+.history-models summary { cursor: pointer; }
+
+.section-heading:has(.history-controls) { flex-wrap: wrap; gap: 8px; }
+.section-heading .history-controls { margin-block: 0; }
+
+@media (max-height: 760px) and (min-width: 521px) {
+  .history-chart-scroll .trend { margin-top: var(--space-1); }
+}

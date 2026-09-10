@@ -13,3 +13,7 @@ export function refreshUsageState(
 ): Promise<UsageCollectionState> {
   return invoke<UsageCollectionState>("refresh_usage_state", { trigger });
 }
+
+export function fetchUsageHistory(days: 7 | 30): Promise<import("../types/usage").HistoryUsage> {
+  return invoke("get_usage_history", { days });
+}

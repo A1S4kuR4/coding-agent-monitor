@@ -165,3 +165,14 @@ pub struct UsageSummary {
     /// UI must label coverage as possibly incomplete.
     pub coverage: CoverageInfo,
 }
+
+/// On-demand history, separate from the tray and persisted seven-day summary.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryUsage {
+    pub scope: UsageScope,
+    pub collected_at: String,
+    pub days: Vec<DailyUsage>,
+    pub estimated_cost_usd: Option<f64>,
+    pub coverage: CoverageInfo,
+}

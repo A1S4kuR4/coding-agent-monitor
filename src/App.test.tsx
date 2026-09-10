@@ -43,6 +43,7 @@ const tauri = vi.hoisted(() => ({
   trayUnlisten: undefined as (() => void) | undefined,
   noticeUnlisten: undefined as (() => void) | undefined,
   fetch: vi.fn(),
+  history: vi.fn(),
   getPreferences: vi.fn(),
   updatePreferences: vi.fn(),
   hideMainWindow: vi.fn(),
@@ -80,6 +81,7 @@ vi.mock("@tauri-apps/api/window", () => ({
 
 vi.mock("./lib/usage-api", () => ({
   fetchUsageState: () => tauri.fetch(),
+  fetchUsageHistory: () => tauri.history(),
   refreshUsageState: () => tauri.fetch(),
 }));
 
@@ -295,6 +297,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   tauri.fetch.mockReset();
+  tauri.history.mockReset();
   tauri.getPreferences.mockReset();
   tauri.updatePreferences.mockReset();
   tauri.hideMainWindow.mockReset();
@@ -1176,5 +1179,60 @@ describe("App — tray residency and minimal preferences (T05)", () => {
       tauri.closeNotice?.({ payload: undefined });
     });
     expect(screen.getByText("Still running in the tray")).toBeTruthy();
+  });
+});
+
+
+describe("T07 on-demand history", () => {
+  function historyFixture(): import("./types/usage").HistoryUsage {
+    const days = Array.from({ length: 30 }, (_, index) => {
+      const date = new Date(Date.UTC(2026, 7, 24 - 29 + index)).toISOString().slice(0, 10);
+      return day(date, 0);
+    });
+    return { scope: { startDate: days[0].date, endDate: days[29].date, timeZone: "UTC" },
+      collectedAt: "2026-08-24T12:00:00Z", days, estimatedCostUsd: null,
+      coverage: { status: "complete", diagnostics: [] } };
+  }
+  it("does no historical work on mount or tray refresh; refuses late results after 30/7/30", async () => {
+    tauri.fetch.mockResolvedValue(collectionState(null));
+    // Use an explicit empty but successful public summary.
+    const h = historyFixture();
+    tauri.fetch.mockResolvedValue(collectionState({ collectedAt: h.collectedAt,
+      today: h.days[29], last7Days: h.days.slice(-7), coverage: h.coverage }));
+    const pending: ((h: import("./types/usage").HistoryUsage) => void)[] = [];
+    tauri.history.mockImplementation(() => new Promise(resolve => pending.push(resolve)));
+    const { container } = render(<App />);
+    await screen.findByRole("button", { name: "30 days" });
+    expect(tauri.history).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "30 days" }));
+    expect(screen.getByText("Loading 30-day history…")).toBeTruthy();
+    expect(container.querySelectorAll(".trend-day")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "7 days" }));
+    fireEvent.click(screen.getByRole("button", { name: "30 days" }));
+    await act(async () => pending[0](h));
+    expect(container.querySelectorAll(".trend-day")).toHaveLength(0);
+    await act(async () => pending[1](h));
+    expect(container.querySelectorAll(".trend-day")).toHaveLength(30);
+    await act(async () => tauri.focus?.({ payload: true }));
+    expect(tauri.history).toHaveBeenCalledTimes(2);
+    expect(container.querySelectorAll(".trend-day")).toHaveLength(30);
+    fireEvent.click(container.querySelector(".trend-day")!);
+    expect(screen.getByRole("region", { name: "Selected day details" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back to today" }));
+    expect(container.querySelector(".day-detail")).toBeNull();
+  });
+  it("shows history failure without zero results and recovers on retry", async () => {
+    const h = historyFixture();
+    tauri.fetch.mockResolvedValue(collectionState({ collectedAt: h.collectedAt,
+      today: h.days[29], last7Days: h.days.slice(-7), coverage: h.coverage }));
+    tauri.history.mockRejectedValueOnce(new Error("private source text"));
+    tauri.history.mockResolvedValueOnce(h);
+    const { container } = render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "30 days" }));
+    await screen.findByText("History could not be loaded.");
+    expect(container.textContent).not.toContain("private source text");
+    expect(container.querySelectorAll(".trend-day")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(container.querySelectorAll(".trend-day")).toHaveLength(30));
   });
 });

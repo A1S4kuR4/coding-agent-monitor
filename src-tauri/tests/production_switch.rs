@@ -769,3 +769,40 @@ fn supervisor_timeout_kills_only_the_supervised_worker() {
     let _ = decoy.wait();
     std::fs::remove_dir_all(&root).ok();
 }
+
+#[test]
+fn history_cache_keeps_collection_time_and_does_not_replace_tray_scope() {
+    let _lock = lock_tests();
+    worker_override();
+    let root = unique_dir("history-cache-time");
+    let mut env = scrub_to_uninstalled(&root);
+    let marker = root.join("history-marker.txt");
+    env.set_text("CAM_TEST_WORKER_SPAWN_MARKER", &marker.to_string_lossy());
+    let request = production_snapshot_request();
+    let end = request.window.unwrap().end_inclusive;
+    let date = chrono::NaiveDate::parse_from_str(&end, "%Y-%m-%d").unwrap();
+    let scope = coding_agent_monitor_lib::usage::UsageScope {
+        start_date: (date - chrono::Duration::days(29)).to_string(),
+        end_date: end,
+        time_zone: request.timezone,
+    };
+    let first =
+        coding_agent_monitor_lib::collector::worker_runner::collect_history_for_scope(&scope)
+            .unwrap();
+    std::thread::sleep(Duration::from_millis(1100));
+    let cached =
+        coding_agent_monitor_lib::collector::worker_runner::collect_history_for_scope(&scope)
+            .unwrap();
+    assert_eq!(
+        first, cached,
+        "cache read must keep original collection time"
+    );
+    assert_eq!(cached.days.len(), 30);
+    assert_eq!(collect_usage().unwrap().last7_days.len(), 7);
+    assert_eq!(
+        std::fs::read_to_string(marker).unwrap().lines().count(),
+        2,
+        "one history worker and one seven-day tray worker; cached history does no work"
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}

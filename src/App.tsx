@@ -10,7 +10,7 @@ import {
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import "./App.css";
-import { fetchUsageState, refreshUsageState } from "./lib/usage-api";
+import { fetchUsageHistory, fetchUsageState, refreshUsageState } from "./lib/usage-api";
 import {
   getPreferences,
   hideMainWindow,
@@ -23,6 +23,7 @@ import type {
 } from "./types/preferences";
 import type {
   DailyUsage,
+  HistoryUsage,
   RefreshTrigger,
   TokenBreakdown,
   UsageCollectionState,
@@ -131,7 +132,7 @@ function BreakdownList({
           >
             <dt>{part.label}</dt>
             <dd>
-              <span className="breakdown-count">
+              <span className="breakdown-count" title={part.value.toLocaleString()}>
                 {formatTokens(part.value)}
               </span>
               <span className="breakdown-pct">{pct}%</span>
@@ -265,9 +266,8 @@ function App() {
   // The first-close tray explanation, opened by a Rust event when the user
   // closes the window before acknowledging it once.
   const [closeNoticeOpen, setCloseNoticeOpen] = useState(false);
-  // Bumps every minute to refresh the relative-time label (see the interval
-  // effect); the value itself is never read.
-  const [, setTick] = useState(0);
+  // Clock sampling happens in effects/events, never during rendering.
+  const [now, setTick] = useState(() => Date.now());
   // Which agent ids currently have their per-model breakdown expanded.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   // The seven-day trend filter: `null` means All agents, otherwise an agent id.
@@ -278,6 +278,29 @@ function App() {
   // shifts can never misalign the detail: a date that leaves the visible range
   // simply stops matching and the panel disappears deterministically.
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [historyRange, setHistoryRange] = useState<7 | 30>(7);
+  const [history, setHistory] = useState<HistoryUsage | null>(null);
+  const [historyStatus, setHistoryStatus] = useState<"idle" | "loading" | "failed">("idle");
+  const historyRequest = useRef(0);
+  const chooseRange = (days: 7 | 30) => {
+    const identity = ++historyRequest.current;
+    setHistoryRange(days);
+    setHistory(null);
+    setActiveDay(null);
+    setSelectedDay(null);
+    setHistoryStatus(days === 7 ? "idle" : "loading");
+    if (days === 7) return;
+    void fetchUsageHistory(days).then((result) => {
+      if (!mounted.current || identity !== historyRequest.current) return;
+      if (result.days.length !== days) { setHistoryStatus("failed"); return; }
+      setTick(Date.now());
+      setHistory(result);
+      setHistoryStatus("idle");
+    }, () => {
+      if (mounted.current && identity === historyRequest.current) setHistoryStatus("failed");
+    });
+  };
+
   // Toolkit for the per-day bar: which day (index) is active, and its computed
   // fixed-position placement. `null` hides the tooltip.
   const [activeDay, setActiveDay] = useState<number | null>(null);
@@ -395,7 +418,7 @@ function App() {
   // Refresh only the relative-time wording on a timer; this never starts a
   // worker, so the label can tick without extra collection.
   useEffect(() => {
-    const id = window.setInterval(() => setTick((value) => value + 1), 60_000);
+    const id = window.setInterval(() => setTick(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, [setTick]);
 
@@ -500,7 +523,10 @@ function App() {
     });
   };
 
-  const manualRefresh = () => runRefresh("manual");
+  const manualRefresh = () => {
+    runRefresh("manual");
+    if (historyRange === 30) chooseRange(30);
+  };
 
   // Optimistic preference update with an honest revert: the Rust command
   // applies its OS effects before persisting, so a rejection means nothing
@@ -594,6 +620,13 @@ function App() {
   const snapshot = collection.snapshot;
   if (!snapshot) return null;
   const { summary } = snapshot;
+  const historyDays = historyRange === 7 ? summary.last7Days : (history?.days ?? []);
+  const historyScope = historyRange === 7 ? snapshot.scope : history?.scope;
+  const historyAge = history ? now - Date.parse(history.collectedAt) : 0;
+  const historyExpired = !Number.isFinite(historyAge) || historyAge < 0 || historyAge > 600_000;
+  const historyIsCurrent = historyScope?.endDate === collection.freshness.currentDate &&
+    historyScope?.timeZone === collection.freshness.currentTimeZone;
+
   const isCurrentScope =
     snapshot.scope.endDate === collection.freshness.currentDate &&
     snapshot.scope.timeZone === collection.freshness.currentTimeZone;
@@ -621,7 +654,7 @@ function App() {
       recognized.push({ id: agent.id, displayName: agent.displayName });
     }
   }
-  for (const day of summary.last7Days) {
+  for (const day of historyDays) {
     for (const agent of day.agents) {
       if (!seen.has(agent.id)) {
         seen.add(agent.id);
@@ -636,14 +669,14 @@ function App() {
   // filter falls back to All deterministically (and its chip renders as such).
   // `chartDays` is the pure view-model (stacked vs single-agent); `trendSeries`
   // feeds the per-day axis labels and the "Total" aggregate.
-  const activeFilter = effectiveAgentFilter(agentFilter, summary.last7Days);
-  const allChart = buildAllChart(summary.last7Days);
+  const activeFilter = effectiveAgentFilter(agentFilter, historyDays);
+  const allChart = buildAllChart(historyDays);
   const chartDays =
     activeFilter === null
       ? allChart.days
-      : buildAgentChart(summary.last7Days, activeFilter);
-  const trendSeries = summary.last7Days.map((day) => dayValue(day, activeFilter));
-  const trendTotal = trendSeries.reduce((sum, value) => sum + value, 0);
+      : buildAgentChart(historyDays, activeFilter);
+  const trendSeries = historyDays.map((day) => dayValue(day, activeFilter));
+  const trendTotal = trendSeries.reduce((sum, value) => sum + BigInt(value), 0n);
 
   // Trend filter chips: canonically ordered agents, capped inline with the
   // overflow behind a keyboard-operable "More agents" disclosure. The effective
@@ -660,7 +693,7 @@ function App() {
   // day; every other pair is a full day vs its previous full day. There is no
   // hourly data, so no same-period comparison is claimed.
   const deltaBasisFor = (index: number): DeltaBasis =>
-    isCurrentScope && index === summary.last7Days.length - 1
+    historyIsCurrent && index === historyDays.length - 1
       ? "yesterday-full-day"
       : "previous-day";
 
@@ -945,10 +978,22 @@ function App() {
 
         <section className="dash-right" aria-labelledby="trend-heading">
           <div className="section-heading">
-            <h2 id="trend-heading">{d.last7Days}</h2>
-            <span>{d.total(formatTokens(trendTotal))}</span>
+            <h2 id="trend-heading">{historyRange === 7 ? d.last7Days : d.last30Days}</h2>
+            <span>{historyRange === 30 && !history ? "—" : d.total(trendTotal <= BigInt(Number.MAX_SAFE_INTEGER) ? formatTokens(Number(trendTotal)) : trendTotal.toLocaleString(lang))}</span>
+          <div className="history-controls" role="group" aria-label={d.historyRange}>
+            <button type="button" aria-pressed={historyRange === 7} onClick={() => chooseRange(7)}>{d.days7}</button>
+            <button type="button" aria-pressed={historyRange === 30} onClick={() => chooseRange(30)}>{d.days30}</button>
+            {selectedDay && <button type="button" onClick={() => { setSelectedDay(null); setActiveDay(null); }}>{d.backToday}</button>}
           </div>
-
+          </div>
+          {historyRange === 30 && <div className="history-status" role="status">
+            {historyStatus === "loading" ? d.historyLoading : historyStatus === "failed" ? <>{d.historyFailed} <button onClick={() => chooseRange(30)}>{d.retry}</button></> : history && <>
+              <p>{history.scope.startDate} – {history.scope.endDate} · {history.scope.timeZone} · {d.historyIncludesToday}</p>
+              <p>{relativeTime(history.collectedAt, new Date(), lang)} · {costDisplay(history.estimatedCostUsd, null, history.days.some(day => day.totalTokens > 0), lang).text}</p>
+              {(!historyIsCurrent || historyExpired) && <p>{d.historyOld}</p>}
+              <p>{coverageText(history.coverage, lang)}</p>
+            </>}
+          </div>}
           {/* Trend filter chips: capped inline; the overflow stays keyboard-
               reachable behind a native details disclosure. The chip state and
               the swap rule follow the EFFECTIVE filter, so a selection whose
@@ -1043,16 +1088,17 @@ function App() {
           {/* Scope note: the filter never touches today's summary above. */}
           <p className="filter-note">{d.filterTrendOnly}</p>
 
-          <div className="trend">
+          <div className="history-chart-scroll">
+          <div className={historyRange === 30 ? "trend trend-30" : "trend"}>
             {chartDays.map((chartDay, index) => {
-              const day = summary.last7Days[index];
+              const day = historyDays[index];
               const isSelected = selectedDay === day.date;
               const valueLabel = formatTokens(trendSeries[index]);
               const aria = activeFilter === null
                 ? allDayAriaLabel(
                     day,
                     index > 0
-                      ? summary.last7Days[index - 1].totalTokens
+                      ? historyDays[index - 1].totalTokens
                       : undefined,
                     lang,
                     deltaBasisFor(index),
@@ -1061,7 +1107,7 @@ function App() {
                     day,
                     activeFilter,
                     index > 0
-                      ? (summary.last7Days[index - 1].agents.find(
+                      ? (historyDays[index - 1].agents.find(
                           (a) => a.id === activeFilter,
                         )?.tokens ?? 0)
                       : undefined,
@@ -1113,6 +1159,7 @@ function App() {
             })}
           </div>
 
+          </div>
           {/* Scale semantics: the All chart and a single-agent chart each rescale
               to their own window max, so the same bar height never implies the
               same amount across filters; the per-bar values stay absolute. */}
@@ -1125,7 +1172,7 @@ function App() {
           {/* Hover/focus tooltip — the fixed, clamped overlay. It is suppressed
               on the pinned day, whose details already live in the panel below. */}
           {activeDay !== null &&
-            summary.last7Days[activeDay]?.date !== selectedDay && (
+            historyDays[activeDay] && historyDays[activeDay]?.date !== selectedDay && (
               <div
                 className="chart-tooltip"
                 role="tooltip"
@@ -1133,9 +1180,9 @@ function App() {
                 style={tooltipPos ?? undefined}
               >
                 <DayDetailContent
-                  day={summary.last7Days[activeDay]!}
+                  day={historyDays[activeDay]!}
                   prevDay={
-                    activeDay > 0 ? summary.last7Days[activeDay - 1] : undefined
+                    activeDay > 0 ? historyDays[activeDay - 1] : undefined
                   }
                   filter={activeFilter}
                   filterName={activeFilterName}
@@ -1153,10 +1200,10 @@ function App() {
           {(() => {
             const selected =
               selectedDay !== null
-                ? summary.last7Days.find((day) => day.date === selectedDay)
+                ? historyDays.find((day) => day.date === selectedDay)
                 : undefined;
             if (!selected) return null;
-            const selectedIndex = summary.last7Days.indexOf(selected);
+            const selectedIndex = historyDays.indexOf(selected);
             return (
               <div
                 className="day-detail"
@@ -1167,7 +1214,7 @@ function App() {
                   day={selected}
                   prevDay={
                     selectedIndex > 0
-                      ? summary.last7Days[selectedIndex - 1]
+                      ? historyDays[selectedIndex - 1]
                       : undefined
                   }
                   filter={activeFilter}
@@ -1177,6 +1224,21 @@ function App() {
                   lang={lang}
                   basis={deltaBasisFor(selectedIndex)}
                 />
+                <p>{costDisplay(selected.estimatedCostUsd, selected.costUnknownReason, selected.totalTokens > 0, lang).text}</p>
+                <p>{coverageText(historyRange === 30 && history ? history.coverage : summary.coverage, lang)}</p>
+                <p>{d.selectedDayAll}</p>
+                <BreakdownList total={selected.totalTokens} breakdown={selected.tokenBreakdown} d={d} />
+                {sortAgents(selected.agents).map(agent => <details key={agent.id} className="history-models">
+                  <summary>{agent.displayName} · {agent.tokens.toLocaleString(lang)} Token</summary>
+                  {agent.reasoningTokens > 0 && <p>{d.includesReasoning(agent.reasoningTokens.toLocaleString(lang))}</p>}
+                  {agent.unclassifiedTokens > 0 && <p>{d.includesUnclassified(agent.unclassifiedTokens.toLocaleString(lang))}</p>}
+                  {agent.models.map(model => <div key={model.modelName}>
+                    <p>{model.modelDisplayName} · {model.totalTokens.toLocaleString(lang)} Token</p>
+                    <BreakdownList total={model.totalTokens} breakdown={{ ...model, reasoningTokens: 0, unclassifiedTokens: 0 }} d={d} />
+                  </div>)}
+                  {agent.models.length === 0 && <p>{d.noModelDetails}</p>}
+                </details>)}
+
               </div>
             );
           })()}

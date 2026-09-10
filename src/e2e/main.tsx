@@ -36,6 +36,12 @@ mockWindows("main");
 mockIPC(
   (cmd: string, args?: unknown) => {
     if (cmd === "get_usage_state" || cmd === "refresh_usage_state") return fixture;
+    if (cmd === "get_usage_history") {
+      const history = (window as unknown as { __E2E_HISTORY__?: unknown }).__E2E_HISTORY__;
+      if (!history) return Promise.reject("fixture history unavailable");
+      const delay = (window as unknown as { __E2E_HISTORY_DELAY__?: number }).__E2E_HISTORY_DELAY__ ?? 0;
+      return new Promise(resolve => window.setTimeout(() => resolve(history), delay));
+    }
     if (cmd === "get_preferences") return injectedPreferences;
     if (cmd === "update_preferences") {
       const patch =

@@ -33,6 +33,17 @@ export function systemLanguage(): Language {
 }
 
 const en = {
+  last30Days: "Last 30 days",
+  historyRange: "History range",
+  days7: "7 days",
+  days30: "30 days",
+  backToday: "Back to today",
+  historyLoading: "Loading 30-day history…",
+  historyFailed: "History could not be loaded.",
+  historyIncludesToday: "Includes query date; local calendar days",
+  historyOld: "Historical snapshot — expired or date/time zone changed. Refresh to update.",
+  selectedDayAll: "Selected date · token and model details (all agents)",
+  noModelDetails: "No model breakdown available.",
   loadingTitle: "Loading usage…",
   errorTitle: "Usage unavailable",
   errorTimedOut: "The usage refresh did not finish in time. You can try again.",
@@ -164,6 +175,17 @@ const en = {
 export type Dict = typeof en;
 
 const zhCN: Dict = {
+  last30Days: "最近 30 天",
+  historyRange: "历史范围",
+  days7: "7 天",
+  days30: "30 天",
+  backToday: "回到今日",
+  historyLoading: "正在加载 30 天历史…",
+  historyFailed: "历史查询失败。",
+  historyIncludesToday: "包含查询当日，按本地日历日统计",
+  historyOld: "历史快照：已过期或日期、时区已变化，请刷新。",
+  selectedDayAll: "所选日期 · 当日 Token 与模型明细（全部 Agent）",
+  noModelDetails: "没有可用的模型明细。",
   loadingTitle: "正在加载用量…",
   errorTitle: "无法获取用量",
   errorTimedOut: "用量刷新未在限时内完成，可以重试。",

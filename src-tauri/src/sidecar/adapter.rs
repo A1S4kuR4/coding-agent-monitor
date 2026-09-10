@@ -389,9 +389,43 @@ pub fn normalize_snapshot(
     today: &str,
     collected_at: &str,
 ) -> Result<UsageSummary, AppError> {
+    let end = NaiveDate::parse_from_str(today, "%Y-%m-%d")
+        .map_err(|e| AppError::invalid_date(e.to_string()))?;
+    let scope = crate::usage::UsageScope {
+        start_date: (end - Duration::days(6)).to_string(),
+        end_date: today.to_string(),
+        time_zone: "UTC".to_string(),
+    };
+    let history = normalize_history(snapshot, &scope, collected_at)?;
+    Ok(UsageSummary {
+        collected_at: history.collected_at,
+        today: history.days.last().expect("seven days").clone(),
+        last7_days: history.days,
+        coverage: history.coverage,
+    })
+}
+
+pub fn normalize_history(
+    snapshot: &CollectorSnapshotResponseV1,
+    scope: &crate::usage::UsageScope,
+    collected_at: &str,
+) -> Result<crate::usage::HistoryUsage, AppError> {
+    if snapshot.fatal_error.is_some() {
+        return Err(AppError::invalid_ccusage(
+            "history",
+            "snapshot failed".into(),
+        ));
+    }
+    let today = scope.end_date.as_str();
     let today = NaiveDate::parse_from_str(today, "%Y-%m-%d")
         .map_err(|error| AppError::invalid_date(error.to_string()))?;
 
+    let start = NaiveDate::parse_from_str(&scope.start_date, "%Y-%m-%d")
+        .map_err(|e| AppError::invalid_date(e.to_string()))?;
+    let count = (today - start).num_days() + 1;
+    if count != 7 && count != 30 {
+        return Err(AppError::invalid_date("expected 7 or 30 days".into()));
+    }
     let mut by_date = BTreeMap::<String, BTreeMap<String, AgentTotals>>::new();
     for agent_snapshot in &snapshot.agents {
         let report = match &agent_snapshot.outcome {
@@ -478,16 +512,20 @@ pub fn normalize_snapshot(
         }
     }
 
-    let last7_days = summarize_days(&by_date, today)?;
-    let today_summary = last7_days
-        .last()
-        .cloned()
-        .expect("a seven-day range always contains today");
-
-    Ok(UsageSummary {
+    let days = summarize_range(&by_date, today, count)?;
+    let active: Vec<_> = days.iter().filter(|day| day.total_tokens > 0).collect();
+    let estimated_cost_usd =
+        if active.is_empty() || active.iter().any(|day| day.estimated_cost_usd.is_none()) {
+            None
+        } else {
+            let sum: f64 = active.iter().filter_map(|day| day.estimated_cost_usd).sum();
+            sum.is_finite().then_some(sum)
+        };
+    Ok(crate::usage::HistoryUsage {
+        scope: scope.clone(),
         collected_at: collected_at.to_string(),
-        today: today_summary,
-        last7_days,
+        days,
+        estimated_cost_usd,
         coverage: coverage_from_snapshot(snapshot),
     })
 }
@@ -553,8 +591,16 @@ fn summarize_days(
     by_date: &BTreeMap<String, BTreeMap<String, AgentTotals>>,
     today: chrono::NaiveDate,
 ) -> Result<Vec<DailyUsage>, AppError> {
-    let mut last7_days = Vec::with_capacity(7);
-    for days_ago in (0..7).rev() {
+    summarize_range(by_date, today, 7)
+}
+
+fn summarize_range(
+    by_date: &BTreeMap<String, BTreeMap<String, AgentTotals>>,
+    today: chrono::NaiveDate,
+    count: i64,
+) -> Result<Vec<DailyUsage>, AppError> {
+    let mut last7_days = Vec::with_capacity(count as usize);
+    for days_ago in (0..count).rev() {
         let date = today - Duration::days(days_ago);
         let date_key = date.format("%Y-%m-%d").to_string();
         let (agents, estimated_cost_usd, cache_read_share, cost_unknown_reason) =

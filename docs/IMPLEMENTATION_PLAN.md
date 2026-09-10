@@ -42,7 +42,7 @@ the time of that record. Neither checkbox implies a current release gate PASS.
 | v0.3 migration decisions and phase mapping | [v0.3 plan](V0.3_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) |
 | v0.3 production architecture | [Phase 4B](V0.3_PHASE4B_PRODUCTION_SWITCH.md), [Phase 5 cleanup and acceptance](V0.3_PHASE5_RELEASE_CANDIDATE.md) |
 | v0.3 final gates, waivers and publication | [Gate decision](V0.3_RELEASE_GATE_DECISION.md), [release checklist](OPEN_SOURCE_RELEASE_CHECKLIST.md), [release notes](V0.3_RELEASE_NOTES.md) |
-| v0.4 current development entry | [v0.4 development and acceptance plan](V0.4_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) — T00–T06 complete; T07–T10 inactive candidates |
+| v0.4 current development entry | [v0.4 development and acceptance plan](V0.4_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) — T00–T06 complete; T07 implemented (2026-09-07; native/performance limitations in §11.8); T08–T10 inactive candidates |
 | Documentation audit and remaining maintenance observations | [2026-09-06 audit](DOCUMENTATION_AUDIT_2026-09-06.md) |
 
 ## Phase 1 — Project Scaffold
@@ -187,10 +187,9 @@ task does not turn its waived or unrun scenarios into technical passes.
 
 The v0.4 planning task T00 and the core implementation tasks T01–T06 are
 complete; their evidence and unrun native scenarios are recorded in the v0.4
-plan §11.2–§11.7. There is no further core task: T07–T10 are inactive
-candidates and never become authorized merely because their dependencies are
-complete — each starts only when the user sends its standalone Prompt, and T08
-is always research-only under this plan. Core-chain completion is not a v0.4
+plan §11.2–§11.7. T07 was assigned and implemented on 2026-09-07; see §11.8 and its acceptance
+record for completed checks and unverified native/performance scenarios.
+T08–T10 remain inactive candidates and require independent assignment. Core-chain completion is not a v0.4
 release candidate and does not authorize a version bump, tag, or publication.
 See the [v0.4 plan](V0.4_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) for the dependency
 table, semantic boundaries, acceptance matrix and task result locations.
