@@ -200,31 +200,46 @@ impl PreferencesManager {
             .clone()
     }
 
-    /// Applies a patch, persists atomically, and returns the new state. The
-    /// autostart registry is updated by the command layer *before* calling
-    /// this, so a failed registry write never persists a lie.
-    pub fn update(&self, patch: PreferencesPatch) -> Preferences {
-        let mut inner = self
-            .inner
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        inner.apply_patch(patch);
-        let prefs = inner.clone();
-        drop(inner);
-        let _ = self.store(&prefs);
-        prefs
+    /// Serialize mutation and disk replacement; publish only a saved value.
+    pub fn update(&self, patch: PreferencesPatch) -> Result<Preferences, crate::error::AppError> {
+        self.update_with_startup(patch, |_| Ok(()))
     }
 
-    /// Replaces the stored window geometry and persists.
+    pub fn update_with_startup(
+        &self,
+        patch: PreferencesPatch,
+        mut set_startup: impl FnMut(bool) -> Result<(), crate::error::AppError>,
+    ) -> Result<Preferences, crate::error::AppError> {
+        let mut inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());
+        let mut next = inner.clone();
+        next.apply_patch(patch);
+        if let Some(enabled) = patch.start_with_windows {
+            set_startup(enabled)?;
+        }
+        if self.store(&next).is_err() {
+            if patch.start_with_windows.is_some() && set_startup(inner.start_with_windows).is_err()
+            {
+                return Err(crate::error::AppError {
+                    code: "preferences_rollback_failed".into(),
+                    message: "Preferences could not be saved or Windows startup restored.".into(),
+                });
+            }
+            return Err(crate::error::AppError::filesystem(
+                "Preferences could not be saved.".into(),
+            ));
+        }
+        *inner = next.clone();
+        Ok(next)
+    }
+
+    /// Geometry is best effort, but a failed save must not change memory.
     pub fn set_window_geometry(&self, geometry: Option<WindowGeometry>) {
-        let mut inner = self
-            .inner
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        inner.window = geometry;
-        let prefs = inner.clone();
-        drop(inner);
-        let _ = self.store(&prefs);
+        let mut inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());
+        let mut next = inner.clone();
+        next.window = geometry;
+        if self.store(&next).is_ok() {
+            *inner = next;
+        }
     }
 
     fn store(&self, prefs: &Preferences) -> std::io::Result<()> {
@@ -321,12 +336,14 @@ mod tests {
     fn save_then_load_round_trips_every_field() {
         let path = temp_path("roundtrip");
         let manager = PreferencesManager::at(path.clone());
-        let saved = manager.update(PreferencesPatch {
-            language: Some(LanguagePref::ZhCn),
-            start_with_windows: Some(true),
-            start_hidden_to_tray: Some(true),
-            close_notice_acknowledged: Some(true),
-        });
+        let saved = manager
+            .update(PreferencesPatch {
+                language: Some(LanguagePref::ZhCn),
+                start_with_windows: Some(true),
+                start_hidden_to_tray: Some(true),
+                close_notice_acknowledged: Some(true),
+            })
+            .expect("save preferences");
         manager.set_window_geometry(Some(geometry(64, -8, 1360, 1400)));
 
         let reloaded = PreferencesManager::at(path.clone()).get();
@@ -340,6 +357,44 @@ mod tests {
         assert!(!path.with_extension("json.tmp").exists());
 
         std::fs::remove_file(&path).expect("remove test preference file");
+    }
+
+    #[test]
+    fn failed_save_preserves_memory_and_disk_and_rolls_back_startup() {
+        let path = temp_path("failed-save");
+        let manager = PreferencesManager::at(path.clone());
+        manager
+            .update(PreferencesPatch {
+                language: Some(LanguagePref::En),
+                ..Default::default()
+            })
+            .unwrap();
+        let original = fs::read(&path).unwrap();
+        let tmp = path.with_extension("json.tmp");
+        fs::create_dir(&tmp).unwrap();
+        let mut calls = Vec::new();
+        let result = manager.update_with_startup(
+            PreferencesPatch {
+                language: Some(LanguagePref::ZhCn),
+                start_with_windows: Some(true),
+                ..Default::default()
+            },
+            |enabled| {
+                calls.push(enabled);
+                Ok(())
+            },
+        );
+        assert_eq!(
+            result.unwrap_err().message,
+            "Preferences could not be saved."
+        );
+        assert_eq!(calls, vec![true, false]);
+        assert_eq!(manager.get().language, LanguagePref::En);
+        assert_eq!(fs::read(&path).unwrap(), original);
+        manager.set_window_geometry(Some(geometry(1, 1, 680, 700)));
+        assert!(manager.get().window.is_none());
+        fs::remove_dir(tmp).unwrap();
+        fs::remove_file(path).unwrap();
     }
 
     #[test]

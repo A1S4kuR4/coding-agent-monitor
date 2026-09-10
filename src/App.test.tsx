@@ -89,6 +89,11 @@ vi.mock("./lib/preferences-api", () => ({
   getPreferences: () => tauri.getPreferences(),
   updatePreferences: (patch: unknown) => tauri.updatePreferences(patch),
   hideMainWindow: () => tauri.hideMainWindow(),
+  acknowledgeCloseNotice: async () => {
+    const saved = await tauri.updatePreferences({ closeNoticeAcknowledged: true });
+    await tauri.hideMainWindow();
+    return saved;
+  },
 }));
 
 export const defaultPreferences: AppPreferences = {
@@ -1128,6 +1133,29 @@ describe("App — tray residency and minimal preferences (T05)", () => {
     ).toBeTruthy();
   });
 
+  it("failed language persistence keeps the previous language and selection", async () => {
+    tauri.fetch.mockResolvedValueOnce(collectionState(summary(13_590_000)));
+    render(<App />);
+    await waitTotal("13.59M");
+    openSettings();
+    tauri.updatePreferences.mockRejectedValueOnce(new Error("disk denied"));
+    await act(async () => { fireEvent.change(languageSelect(), { target: { value: "zh-CN" } }); });
+    expect(languageSelect().value).toBe("system");
+    expect(screen.getByText("This preference could not be saved.")).toBeTruthy();
+  });
+
+  it("failed close acknowledgement remains visible and does not hide", async () => {
+    tauri.fetch.mockResolvedValueOnce(collectionState(summary(13_590_000)));
+    render(<App />);
+    await waitTotal("13.59M");
+    await act(async () => { tauri.closeNotice?.({ payload: undefined }); });
+    tauri.updatePreferences.mockRejectedValueOnce(new Error("disk denied"));
+    await act(async () => { fireEvent.click(screen.getByText("Got it — don’t show again")); });
+    expect(screen.getByText("Still running in the tray")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("could not be saved");
+    expect(tauri.hideMainWindow).not.toHaveBeenCalled();
+  });
+
   it("the first-close notice explains tray residency and remembers the acknowledgement", async () => {
 
     tauri.fetch.mockResolvedValueOnce(collectionState(summary(13_590_000)));
@@ -1149,6 +1177,7 @@ describe("App — tray residency and minimal preferences (T05)", () => {
       closeNoticeAcknowledged: true,
     });
     expect(screen.queryByText("Still running in the tray")).toBeNull();
+    expect(tauri.hideMainWindow).toHaveBeenCalledTimes(1);
   });
 
   it("the notice’s hide-once action hides without acknowledging", async () => {

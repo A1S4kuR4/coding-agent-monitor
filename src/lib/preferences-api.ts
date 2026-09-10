@@ -5,9 +5,8 @@ export function getPreferences(): Promise<AppPreferences> {
   return invoke<AppPreferences>("get_preferences");
 }
 
-/** Applies a partial update. The Rust side applies OS effects (the Windows
- * Run key, tray language) before persisting, so a rejection means nothing
- * was recorded and callers can revert their optimistic state. */
+/** Persists a partial update. Rejections keep the last saved preference;
+ * the Rust boundary returns only a safe error, never a filesystem path. */
 export function updatePreferences(
   patch: PreferencesPatch,
 ): Promise<AppPreferences> {
@@ -18,4 +17,8 @@ export function updatePreferences(
  * window show/hide is a native-side operation). */
 export function hideMainWindow(): Promise<void> {
   return invoke<void>("hide_main_window");
+}
+
+export function acknowledgeCloseNotice(): Promise<AppPreferences> {
+  return invoke<AppPreferences>("acknowledge_close_notice");
 }

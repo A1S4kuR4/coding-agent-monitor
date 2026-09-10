@@ -13,6 +13,7 @@ import "./App.css";
 import { fetchUsageHistory, fetchUsageState, refreshUsageState } from "./lib/usage-api";
 import {
   getPreferences,
+  acknowledgeCloseNotice as saveCloseNotice,
   hideMainWindow,
   updatePreferences,
 } from "./lib/preferences-api";
@@ -263,6 +264,8 @@ function App() {
   // the settings section only renders when they are known.
   const [prefs, setPrefs] = useState<AppPreferences | null>(null);
   const [settingsError, setSettingsError] = useState(false);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const preferenceSave = useRef(false);
   // The first-close tray explanation, opened by a Rust event when the user
   // closes the window before acknowledging it once.
   const [closeNoticeOpen, setCloseNoticeOpen] = useState(false);
@@ -528,22 +531,30 @@ function App() {
     if (historyRange === 30) chooseRange(30);
   };
 
-  // Optimistic preference update with an honest revert: the Rust command
-  // applies its OS effects before persisting, so a rejection means nothing
-  // was recorded and the control returns to the persisted value.
+  // Serialize preference requests; retain the saved language until success.
+  // Failed saves return the optimistic controls to their previous values.
   const changePrefs = async (patch: PreferencesPatch) => {
-    if (!prefs) return;
+    if (!prefs || preferenceSave.current) return;
+    preferenceSave.current = true;
+    setSavingPrefs(true);
     const previous = prefs;
     setSettingsError(false);
     setPrefs({ ...prefs, ...patch });
     try {
       const saved = await updatePreferences(patch);
-      if (mounted.current) setPrefs(saved);
+      if (mounted.current) {
+        setPrefs(saved);
+        setLang(saved.language === "system" ? systemLanguage() : saved.language);
+      }
     } catch {
       if (mounted.current) {
         setPrefs(previous);
+        setLang(previous.language === "system" ? systemLanguage() : previous.language);
         setSettingsError(true);
       }
+    } finally {
+      preferenceSave.current = false;
+      if (mounted.current) setSavingPrefs(false);
     }
   };
 
@@ -551,18 +562,23 @@ function App() {
   // re-resolves the tray language from the same preference, so the tray and
   // the window stay in one language.
   const changeLanguage = (preference: LanguagePreference) => {
-    setLang(preference === "system" ? systemLanguage() : preference);
     void changePrefs({ language: preference });
   };
 
-  const acknowledgeCloseNotice = () => {
-    setCloseNoticeOpen(false);
-    void updatePreferences({ closeNoticeAcknowledged: true }).then(
-      (saved) => {
-        if (mounted.current) setPrefs(saved);
-      },
-      () => undefined,
-    );
+  const acknowledgeCloseNotice = async () => {
+    if (preferenceSave.current) return;
+    preferenceSave.current = true;
+    setSavingPrefs(true);
+    setSettingsError(false);
+    try {
+      const saved = await saveCloseNotice();
+      if (mounted.current) { setPrefs(saved); setCloseNoticeOpen(false); }
+    } catch {
+      if (mounted.current) setSettingsError(true);
+    } finally {
+      preferenceSave.current = false;
+      if (mounted.current) setSavingPrefs(false);
+    }
   };
 
   const hideCloseNoticeOnce = () => {
@@ -576,8 +592,9 @@ function App() {
     <div className="close-notice" role="alert">
       <p className="close-notice-title">{d.closeNoticeTitle}</p>
       <p>{d.closeNoticeBody}</p>
+      {settingsError && <p>{d.settingsSaveFailed}</p>}
       <div className="close-notice-actions">
-        <button type="button" onClick={acknowledgeCloseNotice}>
+        <button type="button" disabled={savingPrefs} onClick={() => void acknowledgeCloseNotice()}>
           {d.closeNoticeAcknowledge}
         </button>
         <button
@@ -1297,6 +1314,7 @@ function App() {
               <label className="setting-row">
                 <span className="setting-name">{d.languageLabel}</span>
                 <select
+                  disabled={savingPrefs}
                   value={prefs.language}
                   onChange={(event) =>
                     changeLanguage(event.target.value as LanguagePreference)
@@ -1310,6 +1328,7 @@ function App() {
               <label className="setting-row setting-check">
                 <input
                   type="checkbox"
+                  disabled={savingPrefs}
                   checked={prefs.startWithWindows}
                   onChange={(event) =>
                     void changePrefs({
@@ -1322,6 +1341,7 @@ function App() {
               <label className="setting-row setting-check">
                 <input
                   type="checkbox"
+                  disabled={savingPrefs}
                   checked={prefs.startHiddenToTray}
                   onChange={(event) =>
                     void changePrefs({

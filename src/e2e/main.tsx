@@ -48,6 +48,7 @@ mockIPC(
         (args as { patch?: Partial<AppPreferences> } | undefined)?.patch ?? {};
       return { ...injectedPreferences, ...patch };
     }
+    if (cmd === "acknowledge_close_notice") return { ...injectedPreferences, closeNoticeAcknowledged: true };
     if (cmd === "hide_main_window") return null;
     return null;
   },
