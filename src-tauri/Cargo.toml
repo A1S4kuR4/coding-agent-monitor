@@ -1,6 +1,6 @@
 [package]
 name = "coding-agent-monitor"
-version = "0.3.0"
+version = "0.4.0"
 description = "A lightweight, local-first Windows monitor for coding-agent token usage."
 authors = ["Coding Agent Monitor contributors"]
 edition = "2021"
