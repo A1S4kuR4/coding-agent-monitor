@@ -21,6 +21,13 @@ v20.0.20 的采集源码与 Antigravity 的 downstream 移植直接编译进产�
 > 发布安装包未经 Authenticode 签名，安装时可能出现 SmartScreen/未知发布者提示，
 > 请核对 Release 附带的 SHA-256 校验值。
 
+## v0.4.0 本地候选包
+
+v0.4.0 已进入本轮干净构建与原生验收；它尚未作为正式 Release 发布。
+新功能包括统一新鲜度/覆盖说明、中英偏好、托盘启动行为、跨重启恢复和按需 30 日历史。
+构建与实际验收状态见 [v0.4 验证记录](docs/V0.4_RELEASE_VERIFICATION.md)，
+变化摘要见 [v0.4 Release Notes](docs/V0.4_RELEASE_NOTES.md)。
+
 ## 隐私与安全
 
 - 所有统计都在本机完成，程序不要求登录或云端账号。
@@ -227,7 +234,7 @@ Rust 采集源码 vendored 进本仓库（含可审计的补丁与定价快照�
 
 # 项目状态
 
-> v0.3.0 已发布；三份 manifest 版本均为 `0.3.0`。发布资产与校验记录见
+> v0.3.0 是已发布版本；当前三份 manifest 为候选构建 `0.4.0`。历史发布资产与校验记录见
 > [发布清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md)。
 
 v0.3 的主要变化：采集从外部 ccusage sidecar 切换为 vendored 源码 + 单 EXE 隔离
@@ -268,6 +275,7 @@ v0.3 延续同一签名策略与披露。
 - Rust 负责 worker 监督、SQLite 初始化、系统托盘和本地错误边界。
 - SQLite 使用统一的 `sqlite 0.37.0` bundled/linkage 实现，只初始化
   `%APPDATA%\com.codingagentmonitor\usage-cache.sqlite3`，不创建业务表或持久化用量；
+  跨重启恢复另存单条版本化的 `last-snapshot.json` 聚合快照；偏好保存在 `preferences.json`。
   所有 Agent 源数据库一律只读。相同日期范围、时区、来源与协议的并发采集共享结果，成功/失败结果在内存缓存 2 秒，
   最多保留两个查询身份；不同查询串行执行且不串用结果。读取短缓存不改写成功采集时间。
 - Dashboard 与系统托盘的数据来自产品 EXE 自身的隔离 worker（v0.3 起不再有 sidecar）。

@@ -32,6 +32,14 @@ the time of that record. Neither checkbox implies a current release gate PASS.
 > race test for focus/tray listeners — which were fixed, tested, and recorded
 > in `docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md §12.6`.**
 
+> **2026-09-10 current work:** user assigned T07/T08 grouped commits, save/check
+> fixes, clean validation, native acceptance and local v0.4.0 packaging. Current
+> manifests are `0.4.0`; the published version remains v0.3.0. See the
+> [fresh verification record](V0.4_RELEASE_VERIFICATION.md) and
+> [candidate release notes](V0.4_RELEASE_NOTES.md). T09's product feature and T10
+> remain inactive. Historical no-bump restrictions below describe prior tasks;
+> local packaging is explicitly authorized by this new assignment.
+
 ## Current documentation index
 
 | Purpose | Document |
