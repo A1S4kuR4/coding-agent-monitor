@@ -1156,6 +1156,28 @@ describe("App — tray residency and minimal preferences (T05)", () => {
     expect(tauri.hideMainWindow).not.toHaveBeenCalled();
   });
 
+  it("reveals and focuses the close notice, including repeated close requests", async () => {
+    tauri.fetch.mockResolvedValueOnce(collectionState(summary(13_590_000)));
+    const scrollIntoView = vi.fn();
+    const previous = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(<App />);
+      await waitTotal("13.59M");
+      await act(async () => { tauri.closeNotice?.({ payload: undefined }); });
+      const acknowledge = screen.getByText("Got it — don’t show again");
+      expect(document.activeElement).toBe(acknowledge);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+      const calls = scrollIntoView.mock.calls.length;
+      screen.getByText("Refresh").focus();
+      await act(async () => { tauri.closeNotice?.({ payload: undefined }); });
+      expect(document.activeElement).toBe(acknowledge);
+      expect(scrollIntoView.mock.calls.length).toBeGreaterThan(calls);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = previous;
+    }
+  });
+
   it("the first-close notice explains tray residency and remembers the acknowledgement", async () => {
 
     tauri.fetch.mockResolvedValueOnce(collectionState(summary(13_590_000)));

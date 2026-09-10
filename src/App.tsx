@@ -250,6 +250,11 @@ function DayDetailContent({
   );
 }
 
+function revealCloseNotice(notice: HTMLDivElement | null) {
+  notice?.scrollIntoView?.({ block: "center" });
+  notice?.querySelector("button")?.focus({ preventScroll: true });
+}
+
 function App() {
   // The language resolves once per mount from the system (v0.4 plan §4.5);
   // an explicit persisted choice (T05) overrides it when the preference
@@ -269,6 +274,10 @@ function App() {
   // The first-close tray explanation, opened by a Rust event when the user
   // closes the window before acknowledging it once.
   const [closeNoticeOpen, setCloseNoticeOpen] = useState(false);
+  const closeNoticeRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (closeNoticeOpen) revealCloseNotice(closeNoticeRef.current);
+  }, [closeNoticeOpen]);
   // Clock sampling happens in effects/events, never during rendering.
   const [now, setTick] = useState(() => Date.now());
   // Which agent ids currently have their per-model breakdown expanded.
@@ -440,7 +449,10 @@ function App() {
       () => undefined,
     );
     void listen("close-notice-requested", () => {
-      if (active) setCloseNoticeOpen(true);
+      if (active) {
+        setCloseNoticeOpen(true);
+        revealCloseNotice(closeNoticeRef.current);
+      }
     }).then(
       (fn) => {
         if (active) {
@@ -589,7 +601,7 @@ function App() {
   // The first-close explanation must be reachable from every view state
   // (loading, error, dashboard) — the user can close the window during any.
   const closeNotice = closeNoticeOpen ? (
-    <div className="close-notice" role="alert">
+    <div ref={closeNoticeRef} className="close-notice" role="alert">
       <p className="close-notice-title">{d.closeNoticeTitle}</p>
       <p>{d.closeNoticeBody}</p>
       {settingsError && <p>{d.settingsSaveFailed}</p>}
