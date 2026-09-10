@@ -261,7 +261,11 @@ fn build_shadow17_fixture_anchored(name: &str, day_a_epoch: i64) -> PathBuf {
         604,
         "resp-1",
     );
-    common::write_antigravity_db(&agent_dir("antigravity"), "conv-1.db", &[blob.clone()]);
+    common::write_antigravity_db(
+        &agent_dir("antigravity"),
+        "conv-1.db",
+        std::slice::from_ref(&blob),
+    );
     common::write_antigravity_db(&agent_dir("antigravity"), "conv-2.db", &[blob]);
 
     // Golden-copied agents with date normalization into the shadow window.
@@ -1606,7 +1610,8 @@ fn percentile<F: Fn(&BenchRecord) -> f64>(runs: &[BenchRecord], p: f64, f: F) ->
 
 fn print_bench_report(label: &str, runs: &[BenchRecord]) {
     let warm = &runs[1..];
-    let fields: Vec<(&str, Box<dyn Fn(&BenchRecord) -> f64>)> = vec![
+    type BenchField = (&'static str, Box<dyn Fn(&BenchRecord) -> f64>);
+    let fields: Vec<BenchField> = vec![
         ("totalWallMs", Box::new(|r: &BenchRecord| r.total_wall_ms)),
         ("spawnWallMs", Box::new(|r: &BenchRecord| r.spawn_wall_ms)),
         ("normalizeMs", Box::new(|r: &BenchRecord| r.normalize_ms)),
@@ -1626,7 +1631,7 @@ fn print_bench_report(label: &str, runs: &[BenchRecord]) {
     ];
     for (field_name, field) in &fields {
         let first = field(&runs[0]);
-        let warm_values: Vec<f64> = warm.iter().map(|r| field(r)).collect();
+        let warm_values: Vec<f64> = warm.iter().map(field).collect();
         let min = warm_values.iter().cloned().fold(f64::INFINITY, f64::min);
         let max = warm_values
             .iter()

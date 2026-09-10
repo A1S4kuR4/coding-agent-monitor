@@ -172,7 +172,7 @@ mod imp {
                 std::ptr::null_mut(),
                 &mut size,
             );
-            let result = if needed == ERROR_SUCCESS && size > 0 && size % 2 == 0 {
+            let result = if needed == ERROR_SUCCESS && size > 0 && size.is_multiple_of(2) {
                 let mut buffer = vec![0u8; size as usize];
                 let read = RegQueryValueExW(
                     handle,
@@ -184,7 +184,9 @@ mod imp {
                 );
                 if read == ERROR_SUCCESS {
                     let units: Vec<u16> = buffer
-                        .chunks_exact(2)
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
                         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
                         .collect();
                     String::from_utf16_lossy(&units)

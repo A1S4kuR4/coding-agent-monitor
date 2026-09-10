@@ -275,8 +275,6 @@ pub fn model(name: &str) -> ModelName {
 
 use sqlite::Connection;
 
-/// Antigravity: `<root>/conversations/<name>.db` (see write_antigravity_db).
-
 /// Goose: `<root>/sessions.db` with the vendored `sessions` schema.
 pub fn create_goose_db(path: &Path) {
     // Recreate from scratch so repeated runs start clean.

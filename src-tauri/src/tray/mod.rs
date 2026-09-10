@@ -480,6 +480,7 @@ mod tests {
         let (menu, tooltip) = tray_strings(&state, &tray_text(Language::En));
         assert!(menu.contains("Usage unavailable"));
         assert!(menu.contains("Waiting to refresh"));
+        assert!(tooltip.contains("Usage unavailable"));
         let (menu_zh, tooltip_zh) = tray_strings(&state, &tray_text(Language::ZhCn));
         assert!(menu_zh.contains("无法获取用量"));
         assert!(menu_zh.contains("等待刷新"));

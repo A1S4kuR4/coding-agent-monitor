@@ -418,7 +418,7 @@ fn supervisor_survives_stderr_flood() {
     // of hanging the suite.
     let outcome = supervisor::collect_with_options(
         &request,
-        &NEVER_CANCEL_TEST_FLAG(),
+        NEVER_CANCEL_TEST_FLAG(),
         Duration::from_secs(20),
     );
     assert!(

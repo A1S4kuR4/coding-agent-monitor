@@ -88,4 +88,3 @@ def main():
               "cpu_p50_ms": statistics.median(r[1] for r in rows), "peak_working_set_mib": max(r[2] for r in rows),
               "daily_rows": sorted(set(r[3] for r in rows))} for days, rows in results.items()}}, indent=2))
 if __name__ == "__main__": main()
-

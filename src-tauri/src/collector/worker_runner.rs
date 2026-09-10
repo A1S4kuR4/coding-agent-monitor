@@ -40,7 +40,9 @@ struct Flight {
     result: Result<CollectResult, CollectorError>,
 }
 
-static FLIGHT: Mutex<Option<Arc<(Mutex<Flight>, Condvar)>>> = Mutex::new(None);
+type SharedFlight = Arc<(Mutex<Flight>, Condvar)>;
+
+static FLIGHT: Mutex<Option<SharedFlight>> = Mutex::new(None);
 static LAST_RESULT: Mutex<Option<CachedWorkerResult>> = Mutex::new(None);
 
 struct CachedWorkerResult {
@@ -344,6 +346,15 @@ pub fn production_snapshot_request_for_scope(scope: &UsageScope) -> CollectorSna
     }
 }
 
+/// User-requested history never enters the collection coordinator, tray events
+/// or T06 disk store. It shares only the bounded, identity-keyed worker cache.
+pub fn collect_history_for_scope(
+    scope: &UsageScope,
+) -> Result<crate::usage::HistoryUsage, AppError> {
+    let result = collect_snapshot_stamped(&production_snapshot_request_for_scope(scope));
+    crate::sidecar::adapter::normalize_history(&result.result?, scope, &result.collected_at)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -368,13 +379,4 @@ mod tests {
         next_zone.timezone = "UTC".into();
         assert!(!same_snapshot_query(&first, &next_zone));
     }
-}
-
-/// User-requested history never enters the collection coordinator, tray events
-/// or T06 disk store. It shares only the bounded, identity-keyed worker cache.
-pub fn collect_history_for_scope(
-    scope: &UsageScope,
-) -> Result<crate::usage::HistoryUsage, AppError> {
-    let result = collect_snapshot_stamped(&production_snapshot_request_for_scope(scope));
-    crate::sidecar::adapter::normalize_history(&result.result?, scope, &result.collected_at)
 }

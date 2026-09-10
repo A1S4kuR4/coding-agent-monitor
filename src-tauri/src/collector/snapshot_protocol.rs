@@ -84,6 +84,8 @@ pub struct CollectorSnapshotResponseV1 {
     pub agents: Vec<AgentSnapshotV1>,
 }
 
+pub type AgentDomainResult = (AgentKind, Result<CollectResult, CollectorError>);
+
 impl CollectorSnapshotResponseV1 {
     /// Builds a whole-batch fatal error response (no partial agent results).
     pub fn fatal(
@@ -371,9 +373,7 @@ impl CollectorSnapshotResponseV1 {
 
     /// Converts the snapshot response into per-agent domain results, preserving
     /// registry order and per-agent errors.
-    pub fn into_domain_results(
-        self,
-    ) -> Result<Vec<(AgentKind, Result<CollectResult, CollectorError>)>, CollectorError> {
+    pub fn into_domain_results(self) -> Result<Vec<AgentDomainResult>, CollectorError> {
         // Whole-batch fatal error: no per-agent results exist.
         if let Some(fatal) = &self.fatal_error {
             return Err(CollectorError::Internal {

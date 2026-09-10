@@ -57,7 +57,7 @@ fn antigravity_config() -> AgentConfig {
             let conversations = root.join("conversations");
             fs::create_dir_all(&conversations).expect("create conversations");
             write_antigravity_db(
-                &root,
+                root,
                 "conv-1.db",
                 &[generation_blob(
                     "gemini-3.1-pro-low",
@@ -902,7 +902,7 @@ fn requesting_one_sqlite_agent_never_touches_another_agents_database() {
     // Antigravity has a valid db; opencode's root would hold a corrupt db.
     let (roots, _) = (antigravity_config().build_valid)(&root.path);
     let corrupt_dir = &root.path.join("opencode-corrupt");
-    fs::create_dir_all(&corrupt_dir).expect("create opencode dir");
+    fs::create_dir_all(corrupt_dir).expect("create opencode dir");
     fs::write(corrupt_dir.join("opencode.db"), b"junk-not-sqlite").expect("write junk");
     let _env = common::isolate_env(&root.path);
 

@@ -101,10 +101,9 @@ mod imp {
     /// launch signals the activation event. The event is auto-reset, so every
     /// signal wakes exactly one iteration.
     pub fn spawn_activation_listener(activate: impl Fn() + Send + 'static) {
-        let event = ACTIVATION_EVENT
+        let event = *ACTIVATION_EVENT
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone();
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let Some(event) = event else {
             return;
         };
