@@ -1,0 +1,18 @@
+Coding Agent Monitor v0.4.0 local candidate source identity
+
+Build source commit:
+6b6f9db9548ecd3392983e96288079ead8dfe6cf
+
+Build source checkout:
+D:\DevTools\cam-v040-clean-20260910
+
+Build source state:
+detached HEAD; clean at final identity check
+
+Candidate artifacts:
+4574d0a21fc2fc4633c68be2e4ab4a100ff4b76054374360f4b323b4b4df47e0  Coding Agent Monitor_0.4.0_x64_en-US.msi
+9831e15d76d0dd464cb470f791a87f97ba85029bd26cff577efcb8e1cc7b3415  Coding Agent Monitor_0.4.0_x64-setup.exe
+
+Both artifacts report Authenticode NotSigned. The source identity describes
+the binaries only; acceptance documentation may be committed later without
+changing the binary source identity.
