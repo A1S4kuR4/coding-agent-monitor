@@ -6,6 +6,8 @@
 //! Fault injection uses `CAM_TEST_WORKER_*` env vars that exist only in
 //! debug/test builds.
 
+mod common;
+
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -28,12 +30,11 @@ fn init_product_exe() {
 /// Injection env vars are process-global, so every test that spawns the worker
 /// holds this lock for its whole body. Concurrency inside a test comes from
 /// explicit threads (the 20-caller test), which the lock does not affect.
-static WORKER_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-fn lock_worker_tests() -> std::sync::MutexGuard<'static, ()> {
-    WORKER_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+fn lock_worker_tests() -> common::EnvGuard {
+    // The shared env guard serializes this binary and prevents every worker,
+    // including Environment-source recovery tests, from reading real records.
+    let root = common::fixture_root("worker-isolation");
+    common::isolate_env(&root)
 }
 
 const EXE: &str = env!("CARGO_BIN_EXE_coding-agent-monitor");
@@ -488,7 +489,7 @@ fn supervisor_recovers_after_failures() {
     init_product_exe();
     let _worker_lock = lock_worker_tests();
     // Use an Environment-source codex request: the assertion is about the
-    // flight recovering, not about the data volume (which varies by machine).
+    // flight recovering, with an empty isolated source on every machine.
     let request = CollectorRequestV1::new("sup-recover", AgentKind::Codex);
     {
         let _guard = EnvGuard::set("CAM_TEST_WORKER_EXIT", "1");
