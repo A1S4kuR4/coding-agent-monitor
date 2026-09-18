@@ -784,10 +784,15 @@ test.describe("Chinese UI (zh-CN system locale)", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("day selection (T04)", () => {
-  test("clicking a day pins a stable detail panel; clicking again unpins", async ({ page }) => {
+  test("today is pinned by default, other days pin on click, re-click unpins", async ({ page }) => {
     await boot(page, 1400, 900);
     const detail = page.locator(".day-detail");
-    await expect(detail).toHaveCount(0);
+    // C1: the current window's last day (today) starts pinned, so the day
+    // detail interaction and the model breakdown are discoverable with zero
+    // clicks.
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText("August 25, 2026");
+    await expect(page.locator(".trend-day").nth(6)).toHaveAttribute("aria-pressed", "true");
 
     await page.locator(".trend-day").nth(5).click();
     await expect(detail).toBeVisible();
@@ -809,6 +814,17 @@ test.describe("day selection (T04)", () => {
     // Clicking the pinned day again unpins it.
     await page.locator(".trend-day").nth(6).click();
     await expect(detail).toHaveCount(0);
+  });
+
+  test("the pinned panel's close button dismisses it and restores focus to the bar", async ({ page }) => {
+    await boot(page, 1400, 900);
+    await page.locator(".trend-day").nth(5).click();
+    const detail = page.locator(".day-detail");
+    await expect(detail).toContainText("August 24, 2026");
+    // C2: the dismissal lives in the panel itself as a fixed control.
+    await detail.locator(".dd-close").click();
+    await expect(detail).toHaveCount(0);
+    await expect(page.locator(".trend-day").nth(5)).toBeFocused();
   });
 
   test("the pinned detail survives a resize, stays in flow and keeps its content", async ({ page }) => {
@@ -855,27 +871,22 @@ test.describe("day selection (T04)", () => {
 });
 
 test.describe("filter scope and scale semantics (T04)", () => {
-  test("the filter note states it only affects the trend; today's total never changes", async ({ page }) => {
+  test("the single context line shows the scale note unfiltered and the scope note filtered", async ({ page }) => {
     await boot(page, 1400, 900);
-    await expect(page.locator(".filter-note")).toHaveText(
-      "Filter affects the trend only — today's summary above is always complete.",
+    // A1: one context line, two states. Without a filter it states the
+    // scaling basis.
+    await expect(page.locator(".trend-hint")).toHaveText(
+      "Bar height scales to the busiest day of the window; filtering rescales the chart.",
     );
     await page.getByRole("button", { name: "Codex", exact: true }).click();
-    await expect(page.locator(".filter-note")).toBeVisible();
+    // With a filter it states that the filter only affects the trend.
+    await expect(page.locator(".trend-hint")).toHaveText(
+      "Filter affects the trend only — today's summary above is always complete.",
+    );
     // Today's headline figure is untouched by the trend filter.
     await expect(page.locator(".total")).toContainText("93.89M");
     // The Claude Code agent row is still listed in full.
     await expect(page.locator(".agent-block", { hasText: "Claude Code" })).toBeVisible();
-  });
-
-  test("the scale hint names the rescaling when switching between All and one agent", async ({ page }) => {
-    await boot(page, 1400, 900);
-    const hint = page.locator(".scale-hint");
-    await expect(hint).toHaveText(
-      "Bar height scales to the busiest day of the window; filtering rescales the chart.",
-    );
-    await page.getByRole("button", { name: "Codex", exact: true }).click();
-    await expect(hint).toHaveText("Bar height scales to Codex’s busiest day.");
   });
 
   test("a selected agent that has left the trend window falls back to All deterministically", async ({ page }) => {
@@ -901,6 +912,74 @@ test.describe("filter scope and scale semantics (T04)", () => {
     await expect(page.locator(".trend-day").nth(6).locator(".bar-segment")).toHaveCount(3);
     // Today's summary keeps listing Antigravity — the filter never touches it.
     await expect(page.locator(".agent-block", { hasText: "Antigravity" })).toBeVisible();
+  });
+});
+
+test.describe("Claude Desktop", () => {
+  /** The base fixture plus a second Claude surface: Desktop sessions are their
+   * own agent, and the app must show them as a distinct row rather than hiding
+   * them or merging them into Claude Code. */
+  function claudeDesktopState(): UsageCollectionState {
+    const state = structuredClone(e2eFixture);
+    const desktop = () => ({
+      id: "claude-desktop",
+      displayName: "Claude Desktop",
+      tokens: 12_000_000,
+      reasoningTokens: 0,
+      unclassifiedTokens: 0,
+      models: [],
+    });
+    state.snapshot!.summary.today.agents.push(desktop());
+    state.snapshot!.summary.today.totalTokens += 12_000_000;
+    for (const day of state.snapshot!.summary.last7Days.slice(-2)) {
+      day.agents.push(desktop());
+      day.totalTokens += 12_000_000;
+    }
+    return state;
+  }
+
+  test("is listed as its own agent row next to Claude Code", async ({ page }) => {
+    await bootWithState(page, claudeDesktopState(), 1400, 900);
+
+    // A row of its own: not hidden, and not merged into the Claude Code row.
+    const rows = page.locator(".agent-block");
+    expect(await rows.count()).toBe(5);
+    const desktopRow = page.locator(".agent-block", { hasText: "Claude Desktop" });
+    const claudeRow = page.locator(".agent-block", { hasText: "Claude Code" });
+    await expect(desktopRow).toHaveCount(1);
+    await expect(claudeRow).toHaveCount(1);
+    await expect(desktopRow.locator(".agent-tokens")).toHaveText("12M");
+
+    // Its own identity: the pinned "CD" mark in the Claude Desktop colour, not
+    // the "CL" mark and colour of Claude Code standing in for it.
+    await expect(desktopRow.locator(".agent-mark")).toHaveText("CD");
+    const desktopColor = await cssColor(page, "--agent-claude-desktop");
+    const claudeColor = await cssColor(page, "--agent-claude");
+    expect(desktopColor).not.toBe(claudeColor);
+    const markColor = await desktopRow
+      .locator(".agent-mark")
+      .evaluate((el) => getComputedStyle(el).borderTopColor);
+    expect(markColor).toBe(desktopColor);
+  });
+
+  test("filters the trend to its own colour, and stays out of the overflow menu", async ({ page }) => {
+    await bootWithState(page, claudeDesktopState(), 680, 700);
+
+    // Five known agents: the inline capacity must not hide this one, since it
+    // is the newest agent a user is looking for.
+    const chip = page.getByRole("button", { name: "Claude Desktop", exact: true });
+    await expect(chip).toBeVisible();
+    await chip.click();
+    await expect(chip).toHaveAttribute("aria-pressed", "true");
+
+    const segments = page.locator(".trend-day").nth(6).locator(".bar-segment");
+    await expect(segments).toHaveCount(1);
+    expect(await rgbOf(segments.nth(0))).toBe(await cssColor(page, "--agent-claude-desktop"));
+
+    const noOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    );
+    expect(noOverflow).toBe(true);
   });
 });
 
@@ -1150,7 +1229,8 @@ test("T07 30-day chart scrolls inside minimum window, keeps today's total and ke
   await page.keyboard.press("Enter");
   await expect(page.locator(".day-detail")).toBeVisible();
   await expect(page.locator(".day-detail .breakdown-list").first()).toBeVisible();
-  await page.getByRole("button", { name: "Back to today" }).click();
+  // C2: the pin's dismissal lives inside the panel as a fixed close button.
+  await page.getByRole("button", { name: "Close details" }).click();
   await expect(page.locator(".day-detail")).toHaveCount(0);
   await page.getByRole("button", { name: "7 days", exact: true }).click();
   await expect(page.locator(".trend-day")).toHaveCount(7);

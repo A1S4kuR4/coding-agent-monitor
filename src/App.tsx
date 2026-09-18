@@ -23,6 +23,7 @@ import type {
   PreferencesPatch,
 } from "./types/preferences";
 import type {
+  AgentUsage,
   DailyUsage,
   HistoryUsage,
   RefreshTrigger,
@@ -42,7 +43,7 @@ import { costDisplay } from "./features/usage/costDisplay";
 import { coverageText } from "./features/usage/coverage";
 import { cacheInputShare } from "./features/usage/cacheInputShare";
 import { relativeTime } from "./features/usage/relativeTime";
-import { agentMark, agentMeta, compareByMeta, sortAgents } from "./features/usage/agents";
+import { agentMarkFor, agentMeta, compareByMeta, sortAgents } from "./features/usage/agents";
 import { formatDelta, type DeltaBasis } from "./features/usage/formatDelta";
 import {
   buildAllChart,
@@ -79,15 +80,15 @@ function errorCopy(d: Dict, reason: ViewStateErrorReason): string {
 /** Today's token composition by type, each with its count and share of the day.
  * Input, Output and Cache read always render; optional known types and the
  * explicit unclassified fallback render only when they carry tokens. */
-function BreakdownList({
-  total,
-  breakdown,
-  d,
-}: {
-  total: number;
-  breakdown: TokenBreakdown;
-  d: Dict;
-}) {
+/** The visible composition parts of a breakdown: input, output and cache read
+ * always render; optional known types and the explicit unclassified fallback
+ * render only when they carry tokens. Shared by the BreakdownList rows and the
+ * today-section composition strip so the two can never disagree about what is
+ * visible. */
+function breakdownParts(
+  breakdown: TokenBreakdown,
+  d: Dict,
+): { key: string; label: string; value: number }[] {
   const parts: { key: string; label: string; value: number }[] = [
     { key: "input", label: d.breakdown.input, value: breakdown.inputTokens },
     { key: "output", label: d.breakdown.output, value: breakdown.outputTokens },
@@ -114,6 +115,19 @@ function BreakdownList({
       value: breakdown.unclassifiedTokens,
     });
   }
+  return parts;
+}
+
+function BreakdownList({
+  total,
+  breakdown,
+  d,
+}: {
+  total: number;
+  breakdown: TokenBreakdown;
+  d: Dict;
+}) {
+  const parts = breakdownParts(breakdown, d);
 
   return (
     <dl className="breakdown-list">
@@ -145,12 +159,136 @@ function BreakdownList({
   );
 }
 
+/** Today-section composition strip (review B1 + A3): a thin segmented bar under
+ * the meta line that stitches the big number, the agent list and the trend
+ * colours together, and carries the core "where did today's tokens go" data at
+ * zero scroll. Two dimensions share the one bar — by agent (identity colours
+ * from the --agent-* tokens) and by token type (an ink ladder, no new hues).
+ * Activating the bar or the text action expands the per-slice detail rows. */
+function CompositionBar({
+  total,
+  agents,
+  breakdown,
+  d,
+}: {
+  total: number;
+  agents: AgentUsage[];
+  breakdown: TokenBreakdown;
+  d: Dict;
+}) {
+  const [dim, setDim] = useState<"agent" | "type">("agent");
+  const [open, setOpen] = useState(false);
+  const items = (
+    dim === "agent"
+      ? agents.map((agent) => ({
+          key: agent.id,
+          label: agent.displayName,
+          value: agent.tokens,
+          colorVar: agentMeta(agent.id).colorVar,
+        }))
+      : breakdownParts(breakdown, d)
+          .filter((part) => part.value > 0)
+          .map((part) => ({ ...part, colorVar: null }))
+  ).map((item) => ({
+    ...item,
+    width: total > 0 ? (item.value / total) * 100 : 0,
+  }));
+
+  return (
+    <div className="comp-wrap">
+      <div className="comp-head">
+        <div className="comp-dims" role="group" aria-label={d.compDimensions}>
+          <button
+            type="button"
+            className={dim === "agent" ? "comp-dim active" : "comp-dim"}
+            aria-pressed={dim === "agent"}
+            onClick={() => setDim("agent")}
+          >
+            {d.compByAgent}
+          </button>
+          <button
+            type="button"
+            className={dim === "type" ? "comp-dim active" : "comp-dim"}
+            aria-pressed={dim === "type"}
+            onClick={() => setDim("type")}
+          >
+            {d.compByType}
+          </button>
+        </div>
+        <button
+          type="button"
+          className="text-action"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? d.compCollapse : d.compExpand}
+        </button>
+      </div>
+      <button
+        type="button"
+        className="comp-bar"
+        aria-label={d.compBarLabel}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {items.map((item) => (
+          <span
+            key={item.key}
+            className={item.colorVar === null ? `comp-seg-${item.key}` : undefined}
+            style={
+              {
+                width: `${item.width}%`,
+                ...(item.colorVar !== null
+                  ? { background: `var(${item.colorVar})` }
+                  : {}),
+              } as CSSProperties
+            }
+          />
+        ))}
+      </button>
+      {open && (
+        <dl className="comp-detail">
+          {items.map((item) => {
+            const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+            return (
+              <div className="comp-row" key={item.key}>
+                <dt>
+                  <span
+                    className={
+                      item.colorVar === null
+                        ? `swatch comp-seg-${item.key}`
+                        : "swatch"
+                    }
+                    style={
+                      item.colorVar !== null
+                        ? { background: `var(${item.colorVar})` }
+                        : undefined
+                    }
+                    aria-hidden="true"
+                  />
+                  {item.label}
+                </dt>
+                <dd>
+                  <span className="comp-count" title={item.value.toLocaleString()}>
+                    {formatTokens(item.value)}
+                  </span>
+                  <span className="comp-pct">{pct}%</span>
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
+    </div>
+  );
+}
+
 /** The stable identity disc shared by list rows, filter chips, tooltip legends
  * and the day-detail panel: an agent-coloured ring with the deterministic
- * agentMark monogram in ordinary ink. Colour alone never has to identify an
- * agent — unknown agents share one neutral token, so the glyph carries identity
- * and the ring only echoes it. The glyph is decorative; the name is the
- * accessible label. */
+ * `agentMarkFor` monogram in ordinary ink. Colour alone never has to identify
+ * an agent — unknown agents share one neutral token, so the glyph carries
+ * identity and the ring only echoes it. The glyph is decorative; the name is
+ * the accessible label. */
 function AgentMark({ colorVar, glyph }: { colorVar: string; glyph: string }) {
   return (
     <span
@@ -234,7 +372,7 @@ function DayDetailContent({
           const pct = day.totalTokens > 0 ? (a.tokens / day.totalTokens) * 100 : 0;
           return (
             <li key={a.id}>
-              <AgentMark colorVar={agentMeta(a.id).colorVar} glyph={agentMark(a.displayName)} />
+              <AgentMark colorVar={agentMeta(a.id).colorVar} glyph={agentMarkFor(a.id, a.displayName)} />
               <span className="tooltip-agent-name">{a.displayName}</span>
               <span className="tooltip-agent-value">
                 {formatTokens(a.tokens)} · {pct.toFixed(1)}%
@@ -289,7 +427,14 @@ function App() {
   // The click-pinned trend day, tracked by ISO date so refreshes and window
   // shifts can never misalign the detail: a date that leaves the visible range
   // simply stops matching and the panel disappears deterministically.
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  // `undefined` means "no explicit choice yet" and follows the default — the
+  // current window's last day (today), so the day-detail interaction and the
+  // model-level breakdown are discoverable with zero clicks (review C1).
+  // `null` is an explicit dismissal (bar re-click, Escape, close button) and
+  // is never overridden by the default again.
+  const [selectedDay, setSelectedDay] = useState<string | null | undefined>(
+    undefined,
+  );
   const [historyRange, setHistoryRange] = useState<7 | 30>(7);
   const [history, setHistory] = useState<HistoryUsage | null>(null);
   const [historyStatus, setHistoryStatus] = useState<"idle" | "loading" | "failed">("idle");
@@ -299,7 +444,9 @@ function App() {
     setHistoryRange(days);
     setHistory(null);
     setActiveDay(null);
-    setSelectedDay(null);
+    // Returning to the 7-day window restores the default selection (today);
+    // switching to 30 days starts unselected (prototype intent).
+    setSelectedDay(days === 7 ? undefined : null);
     setHistoryStatus(days === 7 ? "idle" : "loading");
     if (days === 7) return;
     void fetchUsageHistory(days).then((result) => {
@@ -707,6 +854,12 @@ function App() {
   const trendSeries = historyDays.map((day) => dayValue(day, activeFilter));
   const trendTotal = trendSeries.reduce((sum, value) => sum + BigInt(value), 0n);
 
+  // The effective pinned day: an explicit selection, or the default — the last
+  // day of the visible window (today) until the user dismisses the panel.
+  const defaultSelectedKey =
+    historyDays.length > 0 ? historyDays[historyDays.length - 1].date : null;
+  const selectedKey = selectedDay === undefined ? defaultSelectedKey : selectedDay;
+
   // Trend filter chips: canonically ordered agents, capped inline with the
   // overflow behind a keyboard-operable "More agents" disclosure. The effective
   // (not raw) selection drives the swap so a vanished agent never pins a chip.
@@ -739,6 +892,15 @@ function App() {
       : null;
 
   const hideTooltip = () => setActiveDay(null);
+
+  // Dismiss the pinned day panel and hand focus back to its bar, so keyboard
+  // users keep their place (the bar stays mounted for the whole window).
+  const closeDetail = () => {
+    const index = historyDays.findIndex((day) => day.date === selectedKey);
+    setSelectedDay(null);
+    setActiveDay(null);
+    dayEls.current[index]?.focus({ preventScroll: true });
+  };
 
   return (
     <main className="shell">
@@ -842,6 +1004,18 @@ function App() {
             )}
           </p>
 
+          {/* Composition strip (review B1 + A3): today's core "where did the
+              tokens go" data, zero scroll from the big number. Hidden only
+              when there is nothing to compose. */}
+          {summary.today.totalTokens > 0 && todayAgents.length > 0 && (
+            <CompositionBar
+              total={summary.today.totalTokens}
+              agents={todayAgents}
+              breakdown={summary.today.tokenBreakdown}
+              d={d}
+            />
+          )}
+
           {todayAgents.length > 0 ? (
             <div className="agent-list">
               {todayAgents.map((agent) => {
@@ -881,12 +1055,18 @@ function App() {
                 // one accessible toggle — a full-width click/keyboard target
                 // with aria-expanded and a clear focus ring. The caret is
                 // decorative; direction comes from aria-expanded, not colour.
+                // The 3px share sliver (review A3) echoes the composition
+                // strip above; it is decorative, the figures are the row text.
+                const shareOfToday =
+                  summary.today.totalTokens > 0
+                    ? (agent.tokens / summary.today.totalTokens) * 100
+                    : 0;
                 const rowContent = (
                   <>
                     <span className="agent-lead">
                       <AgentMark
                         colorVar={meta.colorVar}
-                        glyph={agentMark(agent.displayName)}
+                        glyph={agentMarkFor(agent.id, agent.displayName)}
                       />
                       <span className="agent-toggle-group">
                         {/* Agents without models keep an empty, faded spacer
@@ -903,6 +1083,14 @@ function App() {
                     </span>
                     <span className="agent-tokens">
                       {formatTokens(agent.tokens)}
+                    </span>
+                    <span className="agent-share" aria-hidden="true">
+                      <span
+                        style={{
+                          width: `${shareOfToday}%`,
+                          background: `var(${meta.colorVar})`,
+                        }}
+                      />
                     </span>
                   </>
                 );
@@ -1003,6 +1191,10 @@ function App() {
             </div>
           )}
 
+          {/* B3 扩展卡槽:配额/预算监控(docs/QUOTA_MONITOR_FEASIBILITY.md)的
+              预留插入点。空态不渲染、不接数据;未来以同尺寸卡片插入此位置,
+              与被钉住的日详情面板同属"确需边界"的披露/模块。 */}
+
         </section>
 
         <section className="dash-right" aria-labelledby="trend-heading">
@@ -1012,16 +1204,23 @@ function App() {
           <div className="history-controls" role="group" aria-label={d.historyRange}>
             <button type="button" aria-pressed={historyRange === 7} onClick={() => chooseRange(7)}>{d.days7}</button>
             <button type="button" aria-pressed={historyRange === 30} onClick={() => chooseRange(30)}>{d.days30}</button>
-            {selectedDay && <button type="button" onClick={() => { setSelectedDay(null); setActiveDay(null); }}>{d.backToday}</button>}
           </div>
           </div>
+          {/* 30-day status: one expandable meta line instead of a four-row
+              block (review A1). Loading and failure keep their dedicated
+              wording; only the success state collapses. */}
           {historyRange === 30 && <div className="history-status" role="status">
-            {historyStatus === "loading" ? d.historyLoading : historyStatus === "failed" ? <>{d.historyFailed} <button onClick={() => chooseRange(30)}>{d.retry}</button></> : history && <>
-              <p>{history.scope.startDate} – {history.scope.endDate} · {history.scope.timeZone} · {d.historyIncludesToday}</p>
-              <p>{relativeTime(history.collectedAt, new Date(), lang)} · {costDisplay(history.estimatedCostUsd, null, history.days.some(day => day.totalTokens > 0), lang).text}</p>
-              {(!historyIsCurrent || historyExpired) && <p>{d.historyOld}</p>}
-              <p>{coverageText(history.coverage, lang)}</p>
-            </>}
+            {historyStatus === "loading" ? d.historyLoading : historyStatus === "failed" ? <>{d.historyFailed} <button onClick={() => chooseRange(30)}>{d.retry}</button></> : history && (
+              <details className="history-meta">
+                <summary>
+                  {history.scope.startDate} – {history.scope.endDate} · {relativeTime(history.collectedAt, new Date(), lang)}
+                </summary>
+                <p>{history.scope.startDate} – {history.scope.endDate} · {history.scope.timeZone} · {d.historyIncludesToday}</p>
+                <p>{relativeTime(history.collectedAt, new Date(), lang)} · {costDisplay(history.estimatedCostUsd, null, history.days.some(day => day.totalTokens > 0), lang).text}</p>
+                {(!historyIsCurrent || historyExpired) && <p>{d.historyOld}</p>}
+                {coverageText(history.coverage, lang) !== "" && <p>{coverageText(history.coverage, lang)}</p>}
+              </details>
+            )}
           </div>}
           {/* Trend filter chips: capped inline; the overflow stays keyboard-
               reachable behind a native details disclosure. The chip state and
@@ -1055,7 +1254,7 @@ function App() {
                     } as CSSProperties
                   }
                 >
-                  <AgentMark colorVar={meta.colorVar} glyph={agentMark(agent.displayName)} />
+                  <AgentMark colorVar={meta.colorVar} glyph={agentMarkFor(agent.id, agent.displayName)} />
                   {agent.displayName}
                 </button>
               );
@@ -1105,7 +1304,7 @@ function App() {
                           } as CSSProperties
                         }
                       >
-                        <AgentMark colorVar={meta.colorVar} glyph={agentMark(agent.displayName)} />
+                        <AgentMark colorVar={meta.colorVar} glyph={agentMarkFor(agent.id, agent.displayName)} />
                         {agent.displayName}
                       </button>
                     );
@@ -1114,14 +1313,18 @@ function App() {
               </details>
             )}
           </div>
-          {/* Scope note: the filter never touches today's summary above. */}
-          <p className="filter-note">{d.filterTrendOnly}</p>
+          {/* One context line, not two (review A1): without a filter it states
+              the chart's scaling basis; with a filter it states that the filter
+              only affects the trend above. Never both at once. */}
+          <p className="trend-hint">
+            {activeFilter === null ? d.scaleAll : d.filterTrendOnly}
+          </p>
 
           <div className="history-chart-scroll">
           <div className={historyRange === 30 ? "trend trend-30" : "trend"}>
             {chartDays.map((chartDay, index) => {
               const day = historyDays[index];
-              const isSelected = selectedDay === day.date;
+              const isSelected = selectedKey === day.date;
               const valueLabel = formatTokens(trendSeries[index]);
               const aria = activeFilter === null
                 ? allDayAriaLabel(
@@ -1189,19 +1392,11 @@ function App() {
           </div>
 
           </div>
-          {/* Scale semantics: the All chart and a single-agent chart each rescale
-              to their own window max, so the same bar height never implies the
-              same amount across filters; the per-bar values stay absolute. */}
-          <p className="scale-hint">
-            {activeFilter === null
-              ? d.scaleAll
-              : d.scaleAgent(activeFilterName ?? "")}
-          </p>
 
           {/* Hover/focus tooltip — the fixed, clamped overlay. It is suppressed
               on the pinned day, whose details already live in the panel below. */}
           {activeDay !== null &&
-            historyDays[activeDay] && historyDays[activeDay]?.date !== selectedDay && (
+            historyDays[activeDay] && historyDays[activeDay]?.date !== selectedKey && (
               <div
                 className="chart-tooltip"
                 role="tooltip"
@@ -1228,8 +1423,8 @@ function App() {
               leaves the visible range simply closes the panel. */}
           {(() => {
             const selected =
-              selectedDay !== null
-                ? historyDays.find((day) => day.date === selectedDay)
+              selectedKey !== null
+                ? historyDays.find((day) => day.date === selectedKey)
                 : undefined;
             if (!selected) return null;
             const selectedIndex = historyDays.indexOf(selected);
@@ -1239,6 +1434,18 @@ function App() {
                 role="region"
                 aria-label={d.dayDetailRegion}
               >
+                {/* Fixed-position close (review C2): the pin's dismissal lives
+                    in the panel it belongs to, so the heading row never
+                    reflows when a day is pinned. Clicking the pinned bar or
+                    pressing Escape works exactly the same. */}
+                <button
+                  type="button"
+                  className="dd-close"
+                  aria-label={d.closeDetail}
+                  onClick={closeDetail}
+                >
+                  ✕
+                </button>
                 <DayDetailContent
                   day={selected}
                   prevDay={

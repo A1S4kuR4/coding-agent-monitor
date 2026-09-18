@@ -646,15 +646,22 @@ describe("App", () => {
     render(<App />);
     await screen.findByText("Token Breakdown");
 
-    // 100 total → components 30/10/60, with no residual categories.
-    expect(screen.getByText("Input")).toBeTruthy();
-    expect(screen.getByText("30%")).toBeTruthy();
-    expect(screen.getByText("10%")).toBeTruthy();
-    expect(screen.getByText("60%")).toBeTruthy();
+    // 100 total → components 30/10/60, with no residual categories. The
+    // default-pinned today panel renders the same day's rows, so scope to the
+    // bottom on-demand section.
+    const section = document.querySelector(
+      ".breakdown-section",
+    ) as HTMLDetailsElement;
+    section.open = true;
+    const text = section.textContent ?? "";
+    expect(text).toContain("Input");
+    expect(text).toContain("30%");
+    expect(text).toContain("10%");
+    expect(text).toContain("60%");
     // Empty optional categories do not render.
-    expect(screen.queryByText("Cache creation")).toBeNull();
-    expect(screen.queryByText("Reasoning")).toBeNull();
-    expect(screen.queryByText("Unclassified")).toBeNull();
+    expect(text).not.toContain("Cache creation");
+    expect(text).not.toContain("Reasoning");
+    expect(text).not.toContain("Unclassified");
   });
 
   it("describes agent-level reasoning without presenting it as a model", async () => {
@@ -686,13 +693,18 @@ describe("App", () => {
       toggle.click();
     });
     // Model composition line renders the in/out/cache-read figures, the model's
-    // own cached-input share, and the model's total.
-    expect(
-      screen.getByText("100 in · 100 out · 100 cache read · ~50% cached input"),
-    ).toBeTruthy();
-    expect(screen.getByText("Agent total includes 700 reasoning")).toBeTruthy();
+    // own cached-input share, and the model's total. The default-pinned today
+    // panel repeats the day's model rows, so scope to the agent's list block.
+    const block = Array.from(
+      document.querySelectorAll(".agent-block"),
+    ).find((el) => el.querySelector(".agent-name")?.textContent === "Antigravity");
+    expect(block).toBeTruthy();
+    expect(block!.textContent).toContain(
+      "100 in · 100 out · 100 cache read · ~50% cached input",
+    );
+    expect(block!.textContent).toContain("Agent total includes 700 reasoning");
     expect(screen.queryByText("Other")).toBeNull();
-    expect(document.querySelectorAll(".model-row")).toHaveLength(1);
+    expect(block!.querySelectorAll(".model-row")).toHaveLength(1);
   });
 
   it("labels unknown residuals as unclassified at both scopes", async () => {
@@ -716,12 +728,21 @@ describe("App", () => {
     render(<App />);
     await screen.findByText("Token Breakdown");
 
-    expect(screen.getByText("Reasoning")).toBeTruthy();
-    expect(screen.getByText("Unclassified")).toBeTruthy();
+    // Scope to the bottom section: the pinned today panel repeats the rows.
+    const section = document.querySelector(
+      ".breakdown-section",
+    ) as HTMLDetailsElement;
+    section.open = true;
+    const text = section.textContent ?? "";
+    expect(text).toContain("Reasoning");
+    expect(text).toContain("Unclassified");
     await act(async () => {
       agentToggle("claude").click();
     });
-    expect(screen.getByText("Agent total includes 700 unclassified tokens")).toBeTruthy();
+    expect(
+      screen.getAllByText("Agent total includes 700 unclassified tokens")
+        .length,
+    ).toBeGreaterThan(0);
   });
 
   it("trend filter switching updates the bar series and aggregate", async () => {
@@ -797,11 +818,11 @@ describe("App", () => {
       unclassifiedTokens: 0,
     };
     tauri.fetch.mockResolvedValueOnce(collectionState(s));
-    const { container } = render(<App />);
+    render(<App />);
     await screen.findByText("Token Breakdown");
 
     const rows = Array.from(
-      container.querySelectorAll(".breakdown-row"),
+      document.querySelectorAll(".breakdown-section .breakdown-row"),
     ) as HTMLElement[];
     // Input / Output / Cache read only (all optional categories are 0 → hidden).
     expect(rows).toHaveLength(3);
@@ -1269,7 +1290,8 @@ describe("T07 on-demand history", () => {
     expect(container.querySelectorAll(".trend-day")).toHaveLength(30);
     fireEvent.click(container.querySelector(".trend-day")!);
     expect(screen.getByRole("region", { name: "Selected day details" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Back to today" }));
+    // C2: the pin's dismissal lives inside the panel as a fixed close button.
+    fireEvent.click(screen.getByRole("button", { name: "Close details" }));
     expect(container.querySelector(".day-detail")).toBeNull();
   });
   it("shows history failure without zero results and recovers on retry", async () => {

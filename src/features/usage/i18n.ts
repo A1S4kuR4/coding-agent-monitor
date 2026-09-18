@@ -165,6 +165,15 @@ const en = {
   startWithWindows: "Start with Windows",
   startHiddenToTray: "Hide to tray on startup",
   settingsSaveFailed: "This preference could not be saved.",
+  // Today-section composition strip (review B1 + A3) and the pinned-day close
+  // button (review C2).
+  compDimensions: "Composition dimension",
+  compByAgent: "By agent",
+  compByType: "By type",
+  compExpand: "Expand detail",
+  compCollapse: "Collapse detail",
+  compBarLabel: "Today's token composition — activate to toggle the detail rows",
+  closeDetail: "Close details",
   closeNoticeTitle: "Still running in the tray",
   closeNoticeBody:
     "Closing the window keeps Coding Agent Monitor running in the system tray. Reopen it from the tray icon, or exit from the tray menu.",
@@ -289,6 +298,14 @@ const zhCN: Dict = {
   startWithWindows: "随 Windows 启动",
   startHiddenToTray: "启动时隐藏到托盘",
   settingsSaveFailed: "此偏好设置未能保存。",
+  // 今日区构成条(review B1 + A3)与日详情关闭按钮(review C2)。
+  compDimensions: "构成维度",
+  compByAgent: "按 Agent",
+  compByType: "按类型",
+  compExpand: "展开明细",
+  compCollapse: "收起明细",
+  compBarLabel: "今日 Token 构成，点击展开或收起明细",
+  closeDetail: "关闭详情",
   closeNoticeTitle: "仍在托盘运行",
   closeNoticeBody:
     "关闭窗口后，Coding Agent Monitor 会继续在系统托盘中运行。可从托盘图标重新打开主界面，或从托盘菜单退出。",

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { agentMark, agentMeta, compareByMeta, sortAgents, KNOWN_AGENT_IDS } from "./agents";
+import {
+  agentMark,
+  agentMarkFor,
+  agentMeta,
+  compareByMeta,
+  sortAgents,
+  KNOWN_AGENT_IDS,
+} from "./agents";
 import type { AgentUsage } from "../../types/usage";
 
 const dagent = (id: string, displayName: string, tokens = 1): AgentUsage => ({
@@ -12,27 +19,33 @@ const dagent = (id: string, displayName: string, tokens = 1): AgentUsage => ({
 });
 
 describe("agentMeta", () => {
-  it("maps the four known agent ids to their colour tokens, names and sort", () => {
+  it("maps the five known agent ids to their colour tokens, names and sort", () => {
     expect(agentMeta("claude")).toMatchObject({
       displayName: "Claude Code",
       colorVar: "--agent-claude",
       softVar: "--agent-claude-soft",
       sort: 1,
     });
+    expect(agentMeta("claude-desktop")).toMatchObject({
+      displayName: "Claude Desktop",
+      colorVar: "--agent-claude-desktop",
+      softVar: "--agent-claude-desktop-soft",
+      sort: 2,
+    });
     expect(agentMeta("codex")).toMatchObject({
       displayName: "Codex",
       colorVar: "--agent-codex",
-      sort: 2,
+      sort: 3,
     });
     expect(agentMeta("antigravity")).toMatchObject({
       displayName: "Antigravity",
       colorVar: "--agent-antigravity",
-      sort: 3,
+      sort: 4,
     });
     expect(agentMeta("opencode")).toMatchObject({
       displayName: "OpenCode",
       colorVar: "--agent-opencode",
-      sort: 4,
+      sort: 5,
     });
   });
 
@@ -47,7 +60,13 @@ describe("agentMeta", () => {
 
 describe("KNOWN_AGENT_IDS", () => {
   it("is in the canonical fixed order", () => {
-    expect(KNOWN_AGENT_IDS).toEqual(["claude", "codex", "antigravity", "opencode"]);
+    expect(KNOWN_AGENT_IDS).toEqual([
+      "claude",
+      "claude-desktop",
+      "codex",
+      "antigravity",
+      "opencode",
+    ]);
   });
 });
 
@@ -59,10 +78,12 @@ describe("compareByMeta / sortAgents", () => {
       dagent("mystery", "Mystery Agent"),
       dagent("antigravity", "Antigravity"),
       dagent("codex", "Codex"),
+      dagent("claude-desktop", "Claude Desktop"),
     ];
     const sorted = sortAgents(input);
     expect(sorted.map((a) => a.id)).toEqual([
       "claude",
+      "claude-desktop",
       "codex",
       "antigravity",
       "opencode",
@@ -98,8 +119,29 @@ describe("compareByMeta / sortAgents", () => {
   });
 });
 
+describe("agentMarkFor", () => {
+  it("gives every known agent its own mark", () => {
+    const marks = KNOWN_AGENT_IDS.map((id) => agentMarkFor(id, agentMeta(id).displayName));
+    expect(marks).toEqual(["CL", "CD", "CO", "AN", "OP"]);
+    expect(new Set(marks).size).toBe(marks.length);
+  });
+
+  it("keeps the two Claude surfaces apart even though their names collide", () => {
+    // Both names begin "Claude", so the derived form gives both "CL" — the
+    // pinned marks are what tell the two surfaces apart.
+    expect(agentMark("Claude Code")).toBe(agentMark("Claude Desktop"));
+    expect(agentMarkFor("claude", "Claude Code")).toBe("CL");
+    expect(agentMarkFor("claude-desktop", "Claude Desktop")).toBe("CD");
+  });
+
+  it("derives the mark for unknown agents from the data's display name", () => {
+    expect(agentMarkFor("future-agent-xyz", "Future Agent XYZ")).toBe("FU");
+    expect(agentMarkFor("z", "Zed Agent")).toBe("ZE");
+  });
+});
+
 describe("agentMark", () => {
-  it("derives stable marks for the four known agents", () => {
+  it("derives stable marks for the known display names", () => {
     expect(agentMark("Claude Code")).toBe("CL");
     expect(agentMark("Codex")).toBe("CO");
     expect(agentMark("Antigravity")).toBe("AN");

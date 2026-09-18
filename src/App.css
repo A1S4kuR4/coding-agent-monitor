@@ -45,6 +45,12 @@
      what tells them apart), and the display-only "others" chart group gets its
      own quiet neutral. */
   --agent-claude: #e8836b;
+  /* Claude Desktop is a second Claude surface, but it is NOT a shade of
+     --agent-claude: the two appear side by side in the same chart and row list,
+     and the warm family is already shared with the terracotta primary button.
+     A cool rose keeps the identity distinct while the "C*" monogram carries
+     the family resemblance. */
+  --agent-claude-desktop: #c987a8;
   --agent-codex: #8b93e6;
   --agent-antigravity: #5fb8a5;
   --agent-opencode: #d9b36a;
@@ -52,6 +58,7 @@
   --agent-others: #8f8571;
   /* 20% tint used for a selected agent chip's soft background. */
   --agent-claude-soft: rgb(232 131 107 / 20%);
+  --agent-claude-desktop-soft: rgb(201 135 168 / 20%);
   --agent-codex-soft: rgb(139 147 230 / 20%);
   --agent-antigravity-soft: rgb(95 184 165 / 20%);
   --agent-opencode-soft: rgb(217 179 106 / 20%);
@@ -307,6 +314,8 @@ h1 {
   min-width: 0;
   min-height: 55px;
   gap: var(--space-3);
+  /* The share sliver wraps onto its own full-width line under the row. */
+  flex-wrap: wrap;
 }
 
 /* Left cell: colour dot, then the caret + name that are vertically aligned so
@@ -404,6 +413,23 @@ button.agent-toggle:hover .chevron {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+/* Per-agent share sliver (review A3): a 3px bar under each row echoing the
+   composition strip above, in the agent's identity colour. Decorative
+   (aria-hidden); the row's text carries the numbers. */
+.agent-share {
+  flex: 1 1 100%;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 2px;
+  background: var(--chart-track);
+  overflow: hidden;
+}
+.agent-share > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
 }
 
 /* Expanded per-model detail: indented under its agent with a faint vertical
@@ -676,13 +702,41 @@ button.agent-toggle:hover .chevron {
 }
 
 /* Click-pinned stable day detail: an in-flow panel under the chart — same
-   content as the tooltip, but it stays until dismissed. */
+   content as the tooltip, but it stays until dismissed. The close button is
+   anchored to the panel itself (review C2), so the heading row never reflows. */
 .day-detail {
+  position: relative;
   margin-top: var(--space-4);
   padding: 12px 14px;
   border: 1px solid var(--hairline);
   border-radius: 8px;
   font-size: 0.8rem;
+}
+
+/* Fixed-position dismiss for the pinned panel. Decorative ✕; the accessible
+   name comes from aria-label, and Escape on the bars works identically. */
+.dd-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-3);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.dd-close:hover {
+  color: var(--ink);
+  background: var(--paper-track);
+}
+/* Keep the panel's date line clear of the close button. */
+.day-detail .tooltip-date {
+  padding-right: 28px;
 }
 
 .tooltip-share {
@@ -801,6 +855,156 @@ button:hover {
    quiet metadata styling; the copy itself carries the distinction. */
 .meta-cost-unknown {
   opacity: 0.85;
+}
+
+/* Secondary actions (marks doc §3): quiet underlined text. The only solid
+   button family in the window stays the terracotta primary (retry/confirm). */
+.text-action {
+  padding: 4px 1px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--hairline);
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+.text-action:hover {
+  color: var(--ink);
+  background: none;
+  text-decoration-color: var(--ink-3);
+}
+
+/* Today-section composition strip (review B1 + A3): a thin segmented bar that
+   stitches the big number to the agent list and the trend colours. */
+.comp-wrap {
+  margin-bottom: var(--space-4);
+}
+.comp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: 4px;
+}
+/* Dimension toggle speaks the mono-kicker control language (position/aggregation
+   family): uppercase mono with an ink underline when active — no pill. */
+.comp-dims {
+  display: inline-flex;
+  gap: var(--space-3);
+}
+.comp-dim {
+  min-height: 30px;
+  padding: 4px 1px 3px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.comp-dim:hover {
+  color: var(--ink-2);
+  background: none;
+}
+.comp-dim.active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.comp-bar {
+  display: flex;
+  width: 100%;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--chart-track);
+  overflow: hidden;
+  cursor: pointer;
+}
+.comp-bar:hover {
+  background: var(--paper-track);
+}
+.comp-bar > span {
+  display: block;
+  min-width: 0;
+  height: 100%;
+}
+/* Type dimension uses an ink ladder — no new hues (control rule 5). Steps
+   ordered so the common trio matches the prototype's COMP_TYPES pairing. */
+.comp-seg-input {
+  background: var(--ink-3);
+}
+.comp-seg-output {
+  background: var(--ink);
+}
+.comp-seg-cacheRead {
+  background: var(--agent-others);
+}
+.comp-seg-cacheCreation {
+  background: var(--ink-2);
+}
+.comp-seg-reasoning {
+  background: var(--hairline);
+}
+/* Unclassified gets a stripe: it is exactly the residue the source cannot
+   attribute, so it must not read as a solid, known type. */
+.comp-seg-unclassified {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--hairline) 0 3px,
+    transparent 3px 6px
+  );
+}
+.comp-detail {
+  margin: var(--space-2) 0 0;
+}
+.comp-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 26px;
+  font-size: 0.8rem;
+}
+.comp-row dt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--ink-2);
+}
+.comp-row dd {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.comp-count {
+  font-weight: 600;
+}
+.comp-pct {
+  min-width: 3ch;
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  text-align: right;
+}
+.swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--ink-3);
 }
 
 /* Expandable statistics explainer (scope, token types, cache denominator,
@@ -1136,14 +1340,9 @@ button:hover {
   justify-content: flex-start;
 }
 
-.filter-note {
-  margin: var(--space-2) 0 0;
-  color: var(--ink-3);
-  font-size: 0.72rem;
-}
-
-/* Scale semantics hint under the chart — mono, quiet, factual. */
-.scale-hint {
+/* Single context line above the chart (review A1): the scaling basis without a
+   filter, the filter-scope note with one — never both. Mono, quiet, factual. */
+.trend-hint {
   margin: var(--space-2) 0 0;
   color: var(--ink-3);
   font-family: var(--font-mono);
@@ -1216,6 +1415,12 @@ button:hover {
     margin-bottom: var(--space-1);
   }
 
+  /* The composition strip sits directly under the meta line; keep its bottom
+     breathing room small so the first screen still fits 680x700. */
+  .comp-wrap {
+    margin-bottom: var(--space-2);
+  }
+
   .agent-row {
     min-height: 40px;
   }
@@ -1271,6 +1476,22 @@ button:hover {
 .history-chart-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 6px; }
 .trend.trend-30 { grid-template-columns: repeat(30, minmax(48px, 1fr)); min-width: 1672px; }
 .history-status { color: var(--ink-2); font-size: 12px; overflow-wrap: anywhere; }
+/* 30-day status collapsed into one expandable meta line (review A1). */
+.history-meta { margin-top: 2px; }
+.history-meta summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  cursor: pointer;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.history-meta summary:hover { color: var(--ink); }
+.history-meta summary::marker { color: var(--ink-3); }
+.history-meta p { margin: 4px 0 0; }
 .history-models { margin-block: 12px; overflow-wrap: anywhere; }
 .history-models summary { cursor: pointer; }
 
