@@ -2,21 +2,22 @@ import type { AgentUsage } from "../../types/usage";
 
 /**
  * Single source of truth for agent presentation metadata: canonical order,
- * display names, the CSS colour tokens they pin, and their 20% soft-token for
- * the selected-chip background. Unknown agent ids are never lost or hard-coded
- * per-UI-site; they collapse to the neutral `--agent-unknown` colours and sort
- * after the five known agents. The colour *values* live only in `App.css` theme
- * tokens — components reference them through the `--` variable names below.
+ * display names, the CSS colour tokens they pin, and the sigil asset key for
+ * the inline SVG mark (marks doc §2). Unknown agent ids are never lost or
+ * hard-coded per-UI-site; they collapse to the neutral `--agent-unknown`
+ * colours and the neutral diamond sigil, and sort after the five known
+ * agents. The colour *values* live only in `App.css` theme tokens —
+ * components reference them through the `--` variable names below.
  */
 export interface AgentMeta {
   id: string;
   /** Display name used when the data has none of its own to offer. */
   displayName: string;
-  /** Identity mark, pinned per known agent. Two known agents must never share
-   * one: the derived form takes the first two characters of the name, which
-   * collides for products that share a first word (Claude Code / Claude
-   * Desktop). Unknown agents keep deriving theirs from the display name. */
-  mark: string;
+  /** Sigil asset key under `src/assets/agent-marks/` (without extension),
+   * rendered as an inline stroke-currentColor SVG at 15px. Known agents pin
+   * their redrawn official mark; ids without a drawn mark (and unknown ids)
+   * fall back to the neutral diamond. */
+  sigil: string;
   /** Readable CSS custom-property name, e.g. "--agent-claude". */
   colorVar: string;
   /** Readable CSS custom-property name for the 20% chip-selection tint. */
@@ -27,68 +28,51 @@ export interface AgentMeta {
 
 const KNOWN_AGENTS: Record<string, AgentMeta> = {
   claude: {
-    mark: "CL",
     id: "claude",
     displayName: "Claude Code",
+    sigil: "claude-code",
     colorVar: "--agent-claude",
     softVar: "--agent-claude-soft",
     sort: 1,
   },
   // Claude Desktop sits with Claude Code rather than at the end of the list:
   // the two are the same product family, and reading them together is how a
-  // user tells which surface spent the tokens.
+  // user tells which surface spent the tokens. No official product mark has
+  // been redrawn for it yet, so it carries the neutral diamond in its own
+  // identity colour — shape stays neutral, colour still disambiguates.
   "claude-desktop": {
-    mark: "CD",
     id: "claude-desktop",
     displayName: "Claude Desktop",
+    sigil: "unknown",
     colorVar: "--agent-claude-desktop",
     softVar: "--agent-claude-desktop-soft",
     sort: 2,
   },
   codex: {
-    mark: "CO",
     id: "codex",
     displayName: "Codex",
+    sigil: "codex",
     colorVar: "--agent-codex",
     softVar: "--agent-codex-soft",
     sort: 3,
   },
   antigravity: {
-    mark: "AN",
     id: "antigravity",
     displayName: "Antigravity",
+    sigil: "antigravity",
     colorVar: "--agent-antigravity",
     softVar: "--agent-antigravity-soft",
     sort: 4,
   },
   opencode: {
-    mark: "OP",
     id: "opencode",
     displayName: "OpenCode",
+    sigil: "opencode",
     colorVar: "--agent-opencode",
     softVar: "--agent-opencode-soft",
     sort: 5,
   },
 };
-
-/** Deterministic 1–2 character identity mark rendered next to an agent's name
- * (list rows, filter chips, tooltip legends, day details). Colour alone cannot
- * identify agents — especially the unknown ones, which share one neutral token
- * — so every surface shows this same monogram derived from the display name:
- * the first two alphanumeric characters, uppercased. Dynamic user data is only
- * transformed, never dictionary-matched. */
-export function agentMark(displayName: string): string {
-  const chars = [...displayName].filter((c) => /\p{L}|\p{N}/u.test(c));
-  return (chars[0] ?? "").toUpperCase() + (chars[1] ?? "").toUpperCase();
-}
-
-/** The mark to render for an agent: its pinned mark when it is a known agent,
- * otherwise the one derived from the name the data supplied. Every surface uses
- * this rather than `agentMark` directly, so a known agent's mark is decided in
- * exactly one place. */
-export function agentMarkFor(id: string, displayName: string): string {
-  return KNOWN_AGENTS[id]?.mark ?? agentMark(displayName);
-}
 
 /** Canonical fixed order for the known agents: Claude Code, Claude Desktop,
  * Codex, Antigravity, OpenCode (bottom-up in the stacked chart too). The two
@@ -106,14 +90,15 @@ export const KNOWN_AGENT_IDS = [
 const UNKNOWN_SORT = Number.MAX_SAFE_INTEGER;
 
 /** Metadata for an agent id. Unknown ids keep their real css-colour fallback
- * (rendered from the data) but always resolve to `--agent-unknown` colours and
- * sort last with a stable, deterministic secondary order. */
+ * (rendered from the data) but always resolve to `--agent-unknown` colours,
+ * the neutral diamond sigil, and sort last with a stable, deterministic
+ * secondary order. */
 export function agentMeta(id: string): AgentMeta {
   return (
     KNOWN_AGENTS[id] ?? {
       id,
       displayName: id,
-      mark: agentMark(id),
+      sigil: "unknown",
       colorVar: "--agent-unknown",
       softVar: "--agent-unknown-soft",
       sort: UNKNOWN_SORT,

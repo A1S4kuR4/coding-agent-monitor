@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { allChartGrouping, buildAllChart, buildAgentChart, dayValue } from "./chartView";
+import {
+  allChartGrouping,
+  buildAgentChart,
+  buildAllChart,
+  buildWeekBuckets,
+  dayValue,
+} from "./chartView";
 import type { DailyUsage } from "../../types/usage";
 
 function dtotal(totalTokens: number): number {
@@ -315,5 +321,174 @@ describe("dayValue", () => {
     expect(dayValue(d, null)).toBe(50_000_000);
     expect(dayValue(d, "claude")).toBe(30_000_000);
     expect(dayValue(d, "antigravity")).toBe(0);
+  });
+});
+
+describe("buildWeekBuckets (review B2)", () => {
+  function pricedDay(
+    date: string,
+    rows: [string, string, number][],
+    overrides: Partial<DailyUsage> = {},
+  ): DailyUsage {
+    return {
+      ...day(date, rows),
+      estimatedCostUsd: null,
+      costUnknownReason: null,
+      tokenBreakdown: {
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheReadTokens: 300,
+        cacheCreationTokens: 0,
+        reasoningTokens: 0,
+        unclassifiedTokens: 0,
+      },
+      ...overrides,
+    };
+  }
+
+  it("buckets 30 days into four full weeks plus a short current bucket", () => {
+    const days = Array.from({ length: 30 }, (_, i) =>
+      pricedDay(`2026-08-${String(i + 1).padStart(2, "0")}`, [
+        ["claude", "Claude Code", 1000],
+      ]),
+    );
+    const buckets = buildWeekBuckets(days);
+    expect(buckets).toHaveLength(5);
+    expect(buckets.slice(0, 4).map((b) => b.totalTokens)).toEqual([
+      7000, 7000, 7000, 7000,
+    ]);
+    // The final bucket carries the two remaining days.
+    expect(buckets[4].totalTokens).toBe(2000);
+    expect(buckets[0].date).toBe("2026-08-01");
+    expect(buckets[0].dateEnd).toBe("2026-08-07");
+    expect(buckets[4].date).toBe("2026-08-29");
+    expect(buckets[4].dateEnd).toBe("2026-08-30");
+  });
+
+  it("merges agents and models by id/modelName with all counts summed", () => {
+    const days = [
+      pricedDay("2026-08-24", [["claude", "Claude Code", 10]], {
+        agents: [
+          {
+            id: "claude",
+            displayName: "Claude Code",
+            tokens: 10,
+            reasoningTokens: 1,
+            unclassifiedTokens: 2,
+            models: [
+              {
+                modelName: "m1",
+                modelDisplayName: "M1",
+                inputTokens: 3,
+                outputTokens: 3,
+                cacheReadTokens: 3,
+                cacheCreationTokens: 1,
+                totalTokens: 10,
+              },
+            ],
+          },
+        ],
+      }),
+      pricedDay("2026-08-25", [["claude", "Claude Code", 15]], {
+        agents: [
+          {
+            id: "claude",
+            displayName: "Claude Code",
+            tokens: 15,
+            reasoningTokens: 4,
+            unclassifiedTokens: 0,
+            models: [
+              {
+                modelName: "m1",
+                modelDisplayName: "M1",
+                inputTokens: 5,
+                outputTokens: 5,
+                cacheReadTokens: 5,
+                cacheCreationTokens: 0,
+                totalTokens: 15,
+              },
+              {
+                modelName: "m2",
+                modelDisplayName: "M2",
+                inputTokens: 1,
+                outputTokens: 1,
+                cacheReadTokens: 1,
+                cacheCreationTokens: 0,
+                totalTokens: 3,
+              },
+            ],
+          },
+        ],
+      }),
+    ];
+    const [bucket] = buildWeekBuckets(days);
+    expect(bucket.totalTokens).toBe(25);
+    expect(bucket.agents).toHaveLength(1);
+    const agent = bucket.agents[0];
+    expect(agent.tokens).toBe(25);
+    expect(agent.reasoningTokens).toBe(5);
+    expect(agent.unclassifiedTokens).toBe(2);
+    expect(agent.models).toHaveLength(2);
+    expect(agent.models[0].totalTokens).toBe(25);
+    expect(agent.models[0].inputTokens).toBe(8);
+    expect(agent.models[1].totalTokens).toBe(3);
+  });
+
+  it("recomputes the cached-input share from the merged denominator", () => {
+    const days = [
+      pricedDay("2026-08-24", [["claude", "Claude Code", 450]], {
+        tokenBreakdown: {
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheReadTokens: 300,
+          cacheCreationTokens: 50,
+          reasoningTokens: 0,
+          unclassifiedTokens: 0,
+        },
+      }),
+      pricedDay("2026-08-25", [["claude", "Claude Code", 450]], {
+        tokenBreakdown: {
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheReadTokens: 300,
+          cacheCreationTokens: 50,
+          reasoningTokens: 0,
+          unclassifiedTokens: 0,
+        },
+      }),
+    ];
+    const [bucket] = buildWeekBuckets(days);
+    // cacheRead ÷ (input + cacheRead + cacheCreation) = 600/900.
+    expect(bucket.cacheReadShare).toBeCloseTo(2 / 3, 6);
+  });
+
+  it("never fakes a bucket cost: one unpriced day with usage poisons the sum", () => {
+    const days = [
+      pricedDay("2026-08-24", [["claude", "Claude Code", 100]], {
+        estimatedCostUsd: 1.5,
+      }),
+      pricedDay("2026-08-25", [["claude", "Claude Code", 100]], {
+        estimatedCostUsd: null,
+        costUnknownReason: "missingModelPricing",
+      }),
+    ];
+    const [bucket] = buildWeekBuckets(days);
+    expect(bucket.estimatedCostUsd).toBeNull();
+    expect(bucket.costUnknownReason).toBe("missingModelPricing");
+  });
+
+  it("sums the bucket cost when every day with usage is priced", () => {
+    const days = [
+      pricedDay("2026-08-24", [["claude", "Claude Code", 100]], {
+        estimatedCostUsd: 1.5,
+      }),
+      pricedDay("2026-08-25", [], { estimatedCostUsd: null }), // no usage day
+      pricedDay("2026-08-26", [["claude", "Claude Code", 100]], {
+        estimatedCostUsd: 0,
+      }),
+    ];
+    const [bucket] = buildWeekBuckets(days);
+    expect(bucket.estimatedCostUsd).toBe(1.5);
+    expect(bucket.costUnknownReason).toBeNull();
   });
 });

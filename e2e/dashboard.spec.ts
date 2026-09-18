@@ -85,7 +85,7 @@ test.describe("single column (800x1200)", () => {
     expect(refresh!.y + refresh!.height).toBeLessThanOrEqual(1200);
 
     // No chip is clipped horizontally.
-    const chips = page.locator(".filter-chip");
+    const chips = page.locator(".filter-tab");
     for (let i = 0; i < (await chips.count()); i++) {
       const box = await chips.nth(i).boundingBox();
       expect(box!.width).toBeGreaterThan(0);
@@ -536,36 +536,52 @@ test.describe("tooltip interaction", () => {
 });
 
 test.describe("color carry-through", () => {
-  test("row mark, chip mark, chart segment and tooltip mark all echo --agent-codex", async ({ page }) => {
+  test("row sigil, filter tab sigil, chart segment and tooltip sigil all echo --agent-codex", async ({ page }) => {
     await boot(page, 1400, 900);
     const codex = await cssColor(page, "--agent-codex");
 
-    // Identity marks share one deterministic monogram across every surface.
-    const markOf = page.locator(".agent-block", { hasText: "Codex" }).locator(".agent-mark");
-    await expect(markOf).toHaveText("CO");
+    // Identity sigils share one stroke-currentColor SVG across every surface;
+    // the span's colour IS the mark colour (--mark-color ← --agent-*).
+    const rowSigil = page
+      .locator(".agent-block", { hasText: "Codex" })
+      .locator(".agent-row .sigil");
+    await expect(rowSigil).toHaveCount(1);
+    await expect(rowSigil.locator("svg")).toHaveCount(1);
+    expect(await rowSigil.evaluate((el) => getComputedStyle(el).color)).toBe(codex);
 
-    // Row mark ring.
-    const rowMark = page.locator(".agent-block", { hasText: "Codex" }).locator(".agent-row .agent-mark");
-    expect(await rowMark.evaluate((el) => getComputedStyle(el).borderColor)).toBe(codex);
-
-    // Chip mark ring.
-    const chipMark = page
-      .locator(".filter-chip", { hasText: "Codex" })
-      .locator(".agent-mark");
-    expect(await chipMark.evaluate((el) => getComputedStyle(el).borderColor)).toBe(codex);
+    // Filter tab sigil.
+    const tabSigil = page
+      .locator(".filter-tab", { hasText: "Codex" })
+      .locator(".sigil");
+    await expect(tabSigil).toHaveCount(1);
+    expect(await tabSigil.evaluate((el) => getComputedStyle(el).color)).toBe(codex);
 
     // Chart segment on a Codex-heavy day keeps the colour echo.
     const segment = page.locator(".trend-day").nth(5).locator(".bar-segment").nth(1);
     expect(await rgbOf(segment)).toBe(codex);
 
-    // Tooltip legend mark, once open.
+    // Tooltip legend sigil, once open.
     await page.locator(".trend-day").nth(5).hover();
     await expect(page.locator(".chart-tooltip")).toBeVisible();
-    const tipMark = page
+    const tipSigil = page
       .locator(".tooltip-agents li", { hasText: "Codex" })
-      .locator(".agent-mark");
-    expect(await tipMark.evaluate((el) => getComputedStyle(el).borderColor)).toBe(codex);
-    await expect(tipMark).toHaveText("CO");
+      .locator(".sigil");
+    expect(await tipSigil.evaluate((el) => getComputedStyle(el).color)).toBe(codex);
+    await expect(tipSigil.locator("svg")).toHaveCount(1);
+  });
+
+  test("filter tabs carry the identity underline only when active", async ({ page }) => {
+    await boot(page, 1400, 900);
+    const codexTab = page.getByRole("button", { name: "Codex", exact: true });
+    // Rest: no underline (a transparent 2px bottom border).
+    const restBorder = await codexTab.evaluate((el) =>
+      getComputedStyle(el).borderBottomColor,
+    );
+    expect(restBorder).toBe("rgba(0, 0, 0, 0)");
+    // Active: the underline takes the agent colour.
+    await codexTab.click();
+    await expect(codexTab).toHaveAttribute("aria-pressed", "true");
+    expect(await codexTab.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(codex);
   });
 });
 
@@ -614,12 +630,17 @@ test.describe("dark theme", () => {
 });
 
 test.describe("statistics transparency (T02)", () => {
-  test("a missing-price day shows unavailable cost with its reason, never $0.00", async ({ page }) => {
+  test("a missing-price day demotes to the short mark and keeps the reason on the tooltip", async ({ page }) => {
     const state = structuredClone(e2eFixture);
     state.snapshot!.summary.today.estimatedCostUsd = null;
     state.snapshot!.summary.today.costUnknownReason = "missingModelPricing";
     await bootWithState(page, state);
-    await expect(page.locator(".meta-cost")).toHaveText(
+    // A2: a quiet short mark in the meta slot; the concrete reason stays on
+    // the title tooltip. Never a fake $0.00.
+    const mark = page.locator(".meta-cost");
+    await expect(mark).toHaveText("Cost n/a ⓘ");
+    await expect(mark).toHaveAttribute(
+      "title",
       "Est. cost unavailable — missing model prices",
     );
     await expect(page.locator(".meta")).not.toContainText("$0.00");
@@ -647,7 +668,10 @@ test.describe("statistics transparency (T02)", () => {
       zeroDay(day);
     }
     await bootWithState(page, state);
-    await expect(page.locator(".meta-cost")).toHaveText("Est. cost N/A — no usage");
+    // A2 short mark; the title carries the N/A reason.
+    const mark = page.locator(".meta-cost");
+    await expect(mark).toHaveText("Cost n/a ⓘ");
+    await expect(mark).toHaveAttribute("title", "Est. cost N/A — no usage");
     await expect(page.locator(".empty-state")).toContainText(
       "No agent usage was found for",
     );
@@ -719,7 +743,7 @@ test.describe("Chinese UI (zh-CN system locale)", () => {
     await boot(page, 800, 700);
     await expect(page.getByRole("heading", { name: "今日", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "刷新" })).toBeVisible();
-    await expect(page.locator(".filter-chip", { hasText: "全部" })).toBeVisible();
+    await expect(page.locator(".filter-tab", { hasText: "全部" })).toBeVisible();
     await expect(page.locator(".total-delta")).toHaveText(/▲ \+66\.2% 较昨日全天/);
     // The tooltip date is a Chinese full date; agent names stay untranslated.
     await page.locator(".trend-day").nth(5).hover();
@@ -770,7 +794,10 @@ test.describe("Chinese UI (zh-CN system locale)", () => {
       ],
     };
     await bootWithState(page, state);
-    await expect(page.locator(".meta-cost")).toHaveText("预估成本不可用 — 缺少模型价格");
+    // A2: 短标记 + tooltip 保留完整原因。
+    const mark = page.locator(".meta-cost");
+    await expect(mark).toHaveText("成本 n/a ⓘ");
+    await expect(mark).toHaveAttribute("title", "预估成本不可用 — 缺少模型价格");
     const banner = page.locator(".coverage-banner");
     await expect(banner).toContainText("覆盖可能不完整");
     await expect(banner).toContainText("Claude Code: 2 条记录格式错误已跳过");
@@ -950,16 +977,17 @@ test.describe("Claude Desktop", () => {
     await expect(claudeRow).toHaveCount(1);
     await expect(desktopRow.locator(".agent-tokens")).toHaveText("12M");
 
-    // Its own identity: the pinned "CD" mark in the Claude Desktop colour, not
-    // the "CL" mark and colour of Claude Code standing in for it.
-    await expect(desktopRow.locator(".agent-mark")).toHaveText("CD");
+    // Its own identity: no drawn mark exists for Claude Desktop yet, so it
+    // carries the neutral diamond sigil in its OWN colour — never Claude
+    // Code's coral spark.
+    const desktopSigil = desktopRow.locator(".agent-row .sigil");
+    await expect(desktopSigil).toHaveCount(1);
     const desktopColor = await cssColor(page, "--agent-claude-desktop");
     const claudeColor = await cssColor(page, "--agent-claude");
     expect(desktopColor).not.toBe(claudeColor);
-    const markColor = await desktopRow
-      .locator(".agent-mark")
-      .evaluate((el) => getComputedStyle(el).borderTopColor);
-    expect(markColor).toBe(desktopColor);
+    expect(
+      await desktopSigil.evaluate((el) => getComputedStyle(el).color),
+    ).toBe(desktopColor);
   });
 
   test("filters the trend to its own colour, and stays out of the overflow menu", async ({ page }) => {
@@ -1016,8 +1044,8 @@ test.describe("seventeen agents (T04)", () => {
 
     // All 17 agent rows exist; the page grows vertically (natural scroll).
     expect(await page.locator(".agent-block").count()).toBe(17);
-    // Only All + four inline chips; the rest are behind the disclosure.
-    expect(await page.locator(".trend-filter > .filter-chip").count()).toBe(5);
+    // Only All + four inline tabs; the rest are behind the disclosure.
+    expect(await page.locator(".trend-filter > .filter-tab").count()).toBe(5);
     const more = page.locator(".filter-more");
     await expect(more.locator("summary")).toHaveText(/More agents \(13\)/);
     await expect(more).not.toHaveAttribute("open");
@@ -1046,7 +1074,7 @@ test.describe("seventeen agents (T04)", () => {
     // pressed (it no longer lives inside the menu), the menu is closed, and
     // the chart is monochrome unknown.
     const selectedChip = page
-      .locator(".trend-filter > .filter-chip", { hasText: "Team Sync Agent 05" });
+      .locator(".trend-filter > .filter-tab", { hasText: "Team Sync Agent 05" });
     await expect(selectedChip).toHaveAttribute("aria-pressed", "true");
     await expect(more).not.toHaveAttribute("open");
     const unknown = await cssColor(page, "--agent-unknown");
@@ -1060,7 +1088,7 @@ test.describe("seventeen agents (T04)", () => {
 
     // The selected overflow agent is swapped inline deterministically.
     await expect(
-      page.locator(".trend-filter > .filter-chip", { hasText: "Team Sync Agent 05" }),
+      page.locator(".trend-filter > .filter-tab", { hasText: "Team Sync Agent 05" }),
     ).toBeVisible();
     await expect(summary).toHaveText(/More agents \(13\)/);
   });
@@ -1109,13 +1137,18 @@ test.describe("seventeen agents (T04)", () => {
     await expect(detail).toContainText("Antigravity");
   });
 
-  test("unknown long-named agents keep deterministic monogram marks and never overflow", async ({ page }) => {
+  test("unknown long-named agents keep the neutral diamond sigil and never overflow", async ({ page }) => {
     await bootWithState(page, seventeenAgentState(), 1400, 900);
-    // "Team Sync Agent 01 — long agent display name" -> "TE".
-    const rowMark = page
+    // Unknown agents share the neutral diamond sigil; identity comes from the
+    // name, the shape stays quiet, and the colour is the shared neutral.
+    const rowSigil = page
       .locator(".agent-block", { hasText: "Team Sync Agent 01" })
-      .locator(".agent-row .agent-mark");
-    await expect(rowMark).toHaveText("TE");
+      .locator(".agent-row .sigil");
+    await expect(rowSigil).toHaveCount(1);
+    await expect(rowSigil.locator("svg")).toHaveCount(1);
+    expect(await rowSigil.evaluate((el) => getComputedStyle(el).color)).toBe(
+      await cssColor(page, "--agent-unknown"),
+    );
     // Long names wrap inside the row; the row itself never overflows.
     const row = page
       .locator(".agent-block", { hasText: "Team Sync Agent 01" })
@@ -1213,12 +1246,20 @@ test("T07 30-day chart scrolls inside minimum window, keeps today's total and ke
     collectedAt: base.summary.collectedAt, days, coverage: base.summary.coverage, estimatedCostUsd: null });
   await boot(page, 420, 560);
   const total = await page.locator(".total").innerText();
-  const started = await page.evaluate(() => performance.now());
   await page.getByRole("button", { name: "30 days", exact: true }).click();
-  await expect(page.locator(".trend-day")).toHaveCount(30);
-  const elapsed = await page.evaluate(start => performance.now() - start, started);
-  console.log(`T07 browser switch through Playwright: ${elapsed.toFixed(1)}ms (includes automation latency)`);
+  // B2: the 30-day window defaults to the week aggregation — five buckets,
+  // structurally identical to the 7-day view, no horizontal scroll.
+  await expect(page.locator(".trend-day")).toHaveCount(5);
   await expect(page.locator(".total")).toHaveText(total);
+  const weekGeometry = await page.evaluate(() => {
+    const chart = document.querySelector(".history-chart-scroll")!;
+    return { windowFits: document.documentElement.scrollWidth <= innerWidth,
+      chartScrolls: chart.scrollWidth > chart.clientWidth };
+  });
+  expect(weekGeometry).toEqual({ windowFits: true, chartScrolls: false });
+  // Day mode keeps the existing horizontal-scroll behaviour for drilling.
+  await page.getByRole("button", { name: "By day", exact: true }).click();
+  await expect(page.locator(".trend-day")).toHaveCount(30);
   const geometry = await page.evaluate(() => {
     const chart = document.querySelector(".history-chart-scroll")!;
     return { windowFits: document.documentElement.scrollWidth <= innerWidth,

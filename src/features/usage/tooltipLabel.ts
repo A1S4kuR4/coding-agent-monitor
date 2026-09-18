@@ -21,17 +21,20 @@ export function fullDate(lang: Language, isoDate: string): string {
 }
 
 /** Accessible (aria-label) description of a day in All mode: full date, the
- * day total, then each agent's value and share, then the day-over-day delta. */
+ * day total, then each agent's value and share, then the day-over-day delta.
+ * `dateLabel` overrides the full date for aggregated buckets (a week range
+ * instead of a single day). */
 export function allDayAriaLabel(
   day: DailyUsage,
   prevTotal: number | undefined,
   lang: Language,
   basis: DeltaBasis,
+  dateLabel?: string,
 ): string {
   const d = dictFor(lang);
   const delta = formatDelta(day.totalTokens, prevTotal, lang, basis);
   const total = formatTokens(day.totalTokens);
-  const parts = [`${fullDate(lang, day.date)}, ${d.ariaTotal(total)}`];
+  const parts = [`${dateLabel ?? fullDate(lang, day.date)}, ${d.ariaTotal(total)}`];
   for (const agent of sortAgents(day.agents)) {
     const share = day.totalTokens > 0 ? (agent.tokens / day.totalTokens) * 100 : 0;
     parts.push(
@@ -54,6 +57,7 @@ export function agentDayAriaLabel(
   prevAgentValue: number | undefined,
   lang: Language,
   basis: DeltaBasis,
+  dateLabel?: string,
 ): string {
   const d = dictFor(lang);
   const agent = day.agents.find((a) => a.id === agentId);
@@ -62,7 +66,7 @@ export function agentDayAriaLabel(
   const name = agent?.displayName ?? agentId;
   const delta = formatDelta(value, prevAgentValue, lang, basis);
   const parts = [
-    `${fullDate(lang, day.date)}, ${d.ariaAgentOfDay(name, formatTokens(value), share.toFixed(1))}`,
+    `${dateLabel ?? fullDate(lang, day.date)}, ${d.ariaAgentOfDay(name, formatTokens(value), share.toFixed(1))}`,
   ];
   if (delta.label) parts.push(delta.label);
   return parts.join(" ");

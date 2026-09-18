@@ -94,4 +94,30 @@ describe("formatDelta", () => {
     expect(formatDelta(100, null, "en")).toEqual({ kind: "none", label: null, percent: null });
     expect(formatDelta(undefined, 100, "en")).toEqual({ kind: "none", label: null, percent: null });
   });
+
+  it("compares week buckets against the previous week, stated in the label", () => {
+    expect(formatDelta(30_000_000, 20_000_000, "en", "previous-week")).toMatchObject({
+      kind: "up",
+      label: "▲ +50.0% vs previous week",
+    });
+    expect(formatDelta(10_000_000, 20_000_000, "zh-CN", "previous-week")).toMatchObject({
+      label: "▼ -50.0% 较前一周",
+    });
+  });
+
+  it("renders no delta line for week buckets without a prior bucket", () => {
+    // The first bucket has nothing before the window, and the partial current
+    // bucket is passed with no prior on purpose — a partial-vs-full-week
+    // comparison would read as a collapse.
+    expect(formatDelta(5_000_000, undefined, "en", "previous-week")).toEqual({
+      kind: "none",
+      label: null,
+      percent: null,
+    });
+    expect(formatDelta(5_000_000, undefined, "zh-CN", "previous-week")).toEqual({
+      kind: "none",
+      label: null,
+      percent: null,
+    });
+  });
 });

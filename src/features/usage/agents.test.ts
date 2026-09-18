@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  agentMark,
-  agentMarkFor,
   agentMeta,
   compareByMeta,
   sortAgents,
@@ -55,6 +53,33 @@ describe("agentMeta", () => {
       softVar: "--agent-unknown-soft",
       sort: Number.MAX_SAFE_INTEGER,
     });
+  });
+});
+
+describe("sigils (marks doc §2)", () => {
+  it("pins a sigil asset to every known agent", () => {
+    expect(agentMeta("claude").sigil).toBe("claude-code");
+    expect(agentMeta("codex").sigil).toBe("codex");
+    expect(agentMeta("antigravity").sigil).toBe("antigravity");
+    expect(agentMeta("opencode").sigil).toBe("opencode");
+  });
+
+  it("falls back to the neutral diamond for unknown agents", () => {
+    expect(agentMeta("future-agent-xyz").sigil).toBe("unknown");
+  });
+
+  it("Claude Desktop has no drawn mark yet and carries the neutral diamond", () => {
+    // Marks doc §2 covers four agents; Claude Desktop (added with its own
+    // colour) has no redrawn official mark, so it keeps the neutral diamond
+    // in its own identity colour until one is drawn.
+    expect(agentMeta("claude-desktop").sigil).toBe("unknown");
+  });
+
+  it("the retired letter monograms no longer exist", () => {
+    // The ring+monogram AgentMark mode is retired; only the sigil asset key
+    // remains on the metadata.
+    const meta = agentMeta("claude") as unknown as Record<string, unknown>;
+    expect(meta.mark).toBeUndefined();
   });
 });
 
@@ -116,47 +141,5 @@ describe("compareByMeta / sortAgents", () => {
       { id: "claude", displayName: "Claude Code" },
     ];
     expect(items.sort(compareByMeta).map((i) => i.id)).toEqual(["claude", "mystery"]);
-  });
-});
-
-describe("agentMarkFor", () => {
-  it("gives every known agent its own mark", () => {
-    const marks = KNOWN_AGENT_IDS.map((id) => agentMarkFor(id, agentMeta(id).displayName));
-    expect(marks).toEqual(["CL", "CD", "CO", "AN", "OP"]);
-    expect(new Set(marks).size).toBe(marks.length);
-  });
-
-  it("keeps the two Claude surfaces apart even though their names collide", () => {
-    // Both names begin "Claude", so the derived form gives both "CL" — the
-    // pinned marks are what tell the two surfaces apart.
-    expect(agentMark("Claude Code")).toBe(agentMark("Claude Desktop"));
-    expect(agentMarkFor("claude", "Claude Code")).toBe("CL");
-    expect(agentMarkFor("claude-desktop", "Claude Desktop")).toBe("CD");
-  });
-
-  it("derives the mark for unknown agents from the data's display name", () => {
-    expect(agentMarkFor("future-agent-xyz", "Future Agent XYZ")).toBe("FU");
-    expect(agentMarkFor("z", "Zed Agent")).toBe("ZE");
-  });
-});
-
-describe("agentMark", () => {
-  it("derives stable marks for the known display names", () => {
-    expect(agentMark("Claude Code")).toBe("CL");
-    expect(agentMark("Codex")).toBe("CO");
-    expect(agentMark("Antigravity")).toBe("AN");
-    expect(agentMark("OpenCode")).toBe("OP");
-  });
-
-  it("is deterministic for unknown agent display names", () => {
-    expect(agentMark("future-agent-xyz")).toBe("FU");
-    expect(agentMark("future-agent-xyz")).toBe(agentMark("future-agent-xyz"));
-  });
-
-  it("keeps CJK and numeric names, uppercases latin, and never throws on odd input", () => {
-    expect(agentMark("助手 Agent")).toBe("助手");
-    expect(agentMark("3D Tools")).toBe("3D");
-    expect(agentMark("  ")).toBe("");
-    expect(agentMark("")).toBe("");
   });
 });

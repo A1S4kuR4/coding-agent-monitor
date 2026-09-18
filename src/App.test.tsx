@@ -895,16 +895,19 @@ describe("App — cost, coverage and statistics transparency (T02)", () => {
     expect(screen.getByText("Est. cost $0.00")).toBeTruthy();
   });
 
-  it("shows a missing-price day as unavailable with the concrete reason, never $0.00", async () => {
+  it("shows a missing-price day as a short mark whose tooltip keeps the reason, never $0.00", async () => {
     const s = summary(1_000);
     s.today.estimatedCostUsd = null;
     s.today.costUnknownReason = "missingModelPricing";
     tauri.fetch.mockResolvedValueOnce(collectionState(s));
     render(<App />);
     await waitTotal("1K");
-    expect(
-      screen.getByText("Est. cost unavailable — missing model prices"),
-    ).toBeTruthy();
+    // A2: the meta slot demotes to a quiet short mark; the concrete reason
+    // stays reachable on the tooltip.
+    const mark = screen.getByText("Cost n/a ⓘ");
+    expect(mark.getAttribute("title")).toBe(
+      "Est. cost unavailable — missing model prices",
+    );
     expect(document.querySelector(".meta")?.textContent).not.toContain("$0.00");
   });
 
@@ -919,8 +922,11 @@ describe("App — cost, coverage and statistics transparency (T02)", () => {
     tauri.fetch.mockResolvedValueOnce(collectionState(s));
     render(<App />);
     await waitTotal("0");
-    expect(screen.getByText("Est. cost N/A — no usage")).toBeTruthy();
-    expect(screen.queryByText(/missing model prices/)).toBeNull();
+    const mark = screen.getByText("Cost n/a ⓘ");
+    expect(mark.getAttribute("title")).toBe("Est. cost N/A — no usage");
+    expect(document.querySelector(".meta")?.textContent).not.toContain(
+      /missing model prices/,
+    );
   });
 
   it("surfaces skipped-record diagnostics as a coverage banner without paths", async () => {
@@ -1284,6 +1290,10 @@ describe("T07 on-demand history", () => {
     await act(async () => pending[0](h));
     expect(container.querySelectorAll(".trend-day")).toHaveLength(0);
     await act(async () => pending[1](h));
+    // B2: 30 days default to the week aggregation — five scroll-free buckets.
+    expect(container.querySelectorAll(".trend-day")).toHaveLength(5);
+    // Day mode keeps the per-day scroll view.
+    fireEvent.click(screen.getByRole("button", { name: "By day" }));
     expect(container.querySelectorAll(".trend-day")).toHaveLength(30);
     await act(async () => tauri.focus?.({ payload: true }));
     expect(tauri.history).toHaveBeenCalledTimes(2);
@@ -1293,6 +1303,15 @@ describe("T07 on-demand history", () => {
     // C2: the pin's dismissal lives inside the panel as a fixed close button.
     fireEvent.click(screen.getByRole("button", { name: "Close details" }));
     expect(container.querySelector(".day-detail")).toBeNull();
+    // Returning to 7 days restores the default pinned-today selection.
+    fireEvent.click(screen.getByRole("button", { name: "7 days" }));
+    await waitFor(() =>
+      expect(container.querySelectorAll(".trend-day")).toHaveLength(7),
+    );
+    expect(container.querySelectorAll(".trend-day.selected")).toHaveLength(1);
+    expect(
+      container.querySelector(".trend-day.selected .trend-date")?.textContent,
+    ).toBe("08/24");
   });
   it("shows history failure without zero results and recovers on retry", async () => {
     const h = historyFixture();
@@ -1306,6 +1325,7 @@ describe("T07 on-demand history", () => {
     expect(container.textContent).not.toContain("private source text");
     expect(container.querySelectorAll(".trend-day")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(container.querySelectorAll(".trend-day")).toHaveLength(30));
+    // Recovery renders the week-bucket default view (five scroll-free bars).
+    await waitFor(() => expect(container.querySelectorAll(".trend-day")).toHaveLength(5));
   });
 });

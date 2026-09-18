@@ -43,11 +43,13 @@ import { costDisplay } from "./features/usage/costDisplay";
 import { coverageText } from "./features/usage/coverage";
 import { cacheInputShare } from "./features/usage/cacheInputShare";
 import { relativeTime } from "./features/usage/relativeTime";
-import { agentMarkFor, agentMeta, compareByMeta, sortAgents } from "./features/usage/agents";
+import { agentMeta, compareByMeta, sortAgents } from "./features/usage/agents";
+import { Sigil } from "./features/usage/sigils";
 import { formatDelta, type DeltaBasis } from "./features/usage/formatDelta";
 import {
   buildAllChart,
   buildAgentChart,
+  buildWeekBuckets,
   dayValue,
   type AllChartGrouping,
 } from "./features/usage/chartView";
@@ -283,28 +285,11 @@ function CompositionBar({
   );
 }
 
-/** The stable identity disc shared by list rows, filter chips, tooltip legends
- * and the day-detail panel: an agent-coloured ring with the deterministic
- * `agentMarkFor` monogram in ordinary ink. Colour alone never has to identify
- * an agent — unknown agents share one neutral token, so the glyph carries
- * identity and the ring only echoes it. The glyph is decorative; the name is
- * the accessible label. */
-function AgentMark({ colorVar, glyph }: { colorVar: string; glyph: string }) {
-  return (
-    <span
-      className="agent-mark"
-      aria-hidden="true"
-      style={{ "--mark-color": `var(${colorVar})` } as CSSProperties}
-    >
-      {glyph}
-    </span>
-  );
-}
-
-/** Full composition of one trend day, shared verbatim by the hover/focus
- * tooltip and the click-pinned detail panel. In All mode it always lists every
- * contributing agent — the chart's "others" group is display-only and never
- * hides members here; its aggregate row is clearly labelled. */
+/** Full composition of one trend day (or week bucket), shared verbatim by the
+ * hover/focus tooltip and the click-pinned detail panel. In All mode it always
+ * lists every contributing agent — the chart's "others" group is display-only
+ * and never hides members here; its aggregate row is clearly labelled.
+ * `dateLabel` lets a week bucket name its range instead of a single date. */
 function DayDetailContent({
   day,
   prevDay,
@@ -314,6 +299,7 @@ function DayDetailContent({
   d,
   lang,
   basis,
+  dateLabel,
 }: {
   day: DailyUsage;
   prevDay: DailyUsage | undefined;
@@ -323,6 +309,7 @@ function DayDetailContent({
   d: Dict;
   lang: Language;
   basis: DeltaBasis;
+  dateLabel?: string;
 }) {
   if (filter !== null) {
     const sel = day.agents.find((a) => a.id === filter);
@@ -334,7 +321,7 @@ function DayDetailContent({
     const share = day.totalTokens > 0 ? (selValue / day.totalTokens) * 100 : 0;
     return (
       <>
-        <p className="tooltip-date">{fullDate(lang, day.date)}</p>
+        <p className="tooltip-date">{dateLabel ?? fullDate(lang, day.date)}</p>
         <p className="tooltip-total">
           {filterName}: {formatTokens(selValue)}
         </p>
@@ -354,14 +341,14 @@ function DayDetailContent({
     day.totalTokens > 0 ? (othersTokens / day.totalTokens) * 100 : 0;
   return (
     <>
-      <p className="tooltip-date">{fullDate(lang, day.date)}</p>
+      <p className="tooltip-date">{dateLabel ?? fullDate(lang, day.date)}</p>
       <p className="tooltip-total">
         {d.tooltipTokensTotal(formatTokens(day.totalTokens))}
       </p>
       <ul className="tooltip-agents">
         {grouping.hasOthers && othersTokens > 0 && (
           <li>
-            <AgentMark colorVar="--agent-others" glyph="+" />
+            <Sigil id="others" colorVar="--agent-others" />
             <span className="tooltip-agent-name">{d.otherAgents(others.length)}</span>
             <span className="tooltip-agent-value">
               {formatTokens(othersTokens)} · {othersPct.toFixed(1)}%
@@ -372,7 +359,7 @@ function DayDetailContent({
           const pct = day.totalTokens > 0 ? (a.tokens / day.totalTokens) * 100 : 0;
           return (
             <li key={a.id}>
-              <AgentMark colorVar={agentMeta(a.id).colorVar} glyph={agentMarkFor(a.id, a.displayName)} />
+              <Sigil id={a.id} colorVar={agentMeta(a.id).colorVar} />
               <span className="tooltip-agent-name">{a.displayName}</span>
               <span className="tooltip-agent-value">
                 {formatTokens(a.tokens)} · {pct.toFixed(1)}%
@@ -436,6 +423,10 @@ function App() {
     undefined,
   );
   const [historyRange, setHistoryRange] = useState<7 | 30>(7);
+  // 30-day aggregation (review B2): the window defaults to weekly buckets —
+  // structurally identical to the 7-day view, no horizontal scroll — and a
+  // per-day mode keeps the existing scroll behaviour for day-level drilling.
+  const [historyAgg, setHistoryAgg] = useState<"week" | "day">("week");
   const [history, setHistory] = useState<HistoryUsage | null>(null);
   const [historyStatus, setHistoryStatus] = useState<"idle" | "loading" | "failed">("idle");
   const historyRequest = useRef(0);
@@ -448,6 +439,7 @@ function App() {
     // switching to 30 days starts unselected (prototype intent).
     setSelectedDay(days === 7 ? undefined : null);
     setHistoryStatus(days === 7 ? "idle" : "loading");
+    if (days === 30) setHistoryAgg("week");
     if (days === 7) return;
     void fetchUsageHistory(days).then((result) => {
       if (!mounted.current || identity !== historyRequest.current) return;
@@ -797,6 +789,19 @@ function App() {
   if (!snapshot) return null;
   const { summary } = snapshot;
   const historyDays = historyRange === 7 ? summary.last7Days : (history?.days ?? []);
+  // Week aggregation (review B2): in week mode the whole trend pipeline runs
+  // on merged 7-day buckets — real sums of the window's days, never fabricated
+  // rows — so stacking, tooltips, the pinned panel and the filter behave
+  // exactly as they do for days.
+  const weekMode = historyRange === 30 && historyAgg === "week";
+  const seriesDays: DailyUsage[] = weekMode
+    ? buildWeekBuckets(historyDays)
+    : historyDays;
+  // The final bucket is partial whenever the window isn't an exact multiple of
+  // 7 (30 days → four full weeks + 2 days). Comparing it against a full week
+  // would read as a collapse, so it gets no delta line.
+  const partialLastBucket =
+    weekMode && historyDays.length % 7 !== 0 && seriesDays.length > 0;
   const historyScope = historyRange === 7 ? snapshot.scope : history?.scope;
   const historyAge = history ? now - Date.parse(history.collectedAt) : 0;
   const historyExpired = !Number.isFinite(historyAge) || historyAge < 0 || historyAge > 600_000;
@@ -840,29 +845,32 @@ function App() {
   }
   recognized.sort(compareByMeta);
 
-  // The seven-day chart honours the agent filter. The raw selection resolves
+  // The trend chart honours the agent filter. The raw selection resolves
   // against the visible range first: if the selected agent has disappeared the
-  // filter falls back to All deterministically (and its chip renders as such).
+  // filter falls back to All deterministically (and its tab renders as such).
   // `chartDays` is the pure view-model (stacked vs single-agent); `trendSeries`
-  // feeds the per-day axis labels and the "Total" aggregate.
+  // feeds the axis labels and the "Total" aggregate. In week mode both run on
+  // the merged buckets, so the filter semantics carry over unchanged.
   const activeFilter = effectiveAgentFilter(agentFilter, historyDays);
-  const allChart = buildAllChart(historyDays);
+  const allChart = buildAllChart(seriesDays);
   const chartDays =
     activeFilter === null
       ? allChart.days
-      : buildAgentChart(historyDays, activeFilter);
-  const trendSeries = historyDays.map((day) => dayValue(day, activeFilter));
+      : buildAgentChart(seriesDays, activeFilter);
+  const trendSeries = seriesDays.map((item) => dayValue(item, activeFilter));
   const trendTotal = trendSeries.reduce((sum, value) => sum + BigInt(value), 0n);
 
   // The effective pinned day: an explicit selection, or the default — the last
-  // day of the visible window (today) until the user dismisses the panel.
+  // day of the visible window (today) until the user dismisses the panel. In
+  // week mode the default date never matches a bucket, so the panel starts
+  // closed there (prototype intent).
   const defaultSelectedKey =
     historyDays.length > 0 ? historyDays[historyDays.length - 1].date : null;
   const selectedKey = selectedDay === undefined ? defaultSelectedKey : selectedDay;
 
-  // Trend filter chips: canonically ordered agents, capped inline with the
+  // Trend filter tabs: canonically ordered agents, capped inline with the
   // overflow behind a keyboard-operable "More agents" disclosure. The effective
-  // (not raw) selection drives the swap so a vanished agent never pins a chip.
+  // (not raw) selection drives the swap so a vanished agent never pins a tab.
   const chipLayout = visibleFilterAgents(recognized, activeFilter);
   const activeFilterName =
     activeFilter !== null
@@ -870,14 +878,34 @@ function App() {
         agentMeta(activeFilter).displayName)
       : null;
 
-  // Direction of a day-over-day comparison is stated with its time basis: the
-  // last day of the current scope is today's running total vs yesterday's FULL
-  // day; every other pair is a full day vs its previous full day. There is no
-  // hourly data, so no same-period comparison is claimed.
-  const deltaBasisFor = (index: number): DeltaBasis =>
-    historyIsCurrent && index === historyDays.length - 1
+  // Direction of a comparison is stated with its time basis: the last day of
+  // the current scope is today's running total vs yesterday's FULL day; every
+  // other day pair is a full day vs its previous full day; week buckets
+  // compare against the previous full week. There is no hourly data, so no
+  // same-period comparison is claimed.
+  const deltaBasisFor = (index: number): DeltaBasis => {
+    if (weekMode) return "previous-week";
+    return historyIsCurrent && index === historyDays.length - 1
       ? "yesterday-full-day"
       : "previous-day";
+  };
+
+  // The prior series item for a delta, or undefined when there is none: the
+  // first item, and (in week mode) the partial current bucket, which must not
+  // be compared against a full week.
+  const prevSeriesItem = (index: number): DailyUsage | undefined => {
+    if (weekMode && partialLastBucket && index === seriesDays.length - 1) {
+      return undefined;
+    }
+    return index > 0 ? seriesDays[index - 1] : undefined;
+  };
+
+  // Axis tick and tooltip/panel date label: a single day shows MM/DD; a week
+  // bucket shows its full range.
+  const seriesDateLabel = (item: DailyUsage): string =>
+    "dateEnd" in item
+      ? `${shortDate(item.date)}–${shortDate((item as { dateEnd: string }).dateEnd)}`
+      : shortDate(item.date);
 
   // Header day-over-day delta (today vs the previous day in the window).
   const prevIndex = summary.last7Days.length - 2;
@@ -893,10 +921,19 @@ function App() {
 
   const hideTooltip = () => setActiveDay(null);
 
+  // Aggregation switch (review B2): re-bucketing invalidates the pinned
+  // selection (a bucket start is not a day), so the panel closes deterministically.
+  const changeAgg = (agg: "week" | "day") => {
+    if (agg === historyAgg) return;
+    setHistoryAgg(agg);
+    setSelectedDay(null);
+    setActiveDay(null);
+  };
+
   // Dismiss the pinned day panel and hand focus back to its bar, so keyboard
   // users keep their place (the bar stays mounted for the whole window).
   const closeDetail = () => {
-    const index = historyDays.findIndex((day) => day.date === selectedKey);
+    const index = seriesDays.findIndex((item) => item.date === selectedKey);
     setSelectedDay(null);
     setActiveDay(null);
     dayEls.current[index]?.focus({ preventScroll: true });
@@ -986,14 +1023,21 @@ function App() {
           )}
           <p className="unit">{d.tokensUnit}</p>
 
+          {/* Cost slot (review A2): a priced value shows in full; every other
+              state demotes to a quiet short mark whose tooltip still carries
+              the concrete reason (and the statistics explainer the semantics).
+              The three states stay distinct — no fake $0.00, no collapsed copy. */}
           <p className="meta">
-            <span
-              className={
-                cost.kind === "value" ? "meta-cost" : "meta-cost meta-cost-unknown"
-              }
-            >
-              {cost.text}
-            </span>
+            {cost.kind === "value" ? (
+              <span className="meta-cost">{cost.text}</span>
+            ) : (
+              <span
+                className="meta-cost meta-cost-unknown cost-na"
+                title={cost.text}
+              >
+                {cost.short}
+              </span>
+            )}
             {shareText !== null && (
               <>
                 <span className="meta-sep" aria-hidden="true">
@@ -1064,10 +1108,7 @@ function App() {
                 const rowContent = (
                   <>
                     <span className="agent-lead">
-                      <AgentMark
-                        colorVar={meta.colorVar}
-                        glyph={agentMarkFor(agent.id, agent.displayName)}
-                      />
+                      <Sigil id={agent.id} colorVar={meta.colorVar} />
                       <span className="agent-toggle-group">
                         {/* Agents without models keep an empty, faded spacer
                             so names align; it is not an expander. */}
@@ -1205,6 +1246,14 @@ function App() {
             <button type="button" aria-pressed={historyRange === 7} onClick={() => chooseRange(7)}>{d.days7}</button>
             <button type="button" aria-pressed={historyRange === 30} onClick={() => chooseRange(30)}>{d.days30}</button>
           </div>
+          {/* Aggregation switch (review B2): only meaningful with 30-day data
+              on screen; the default is the scroll-free week bucket view. */}
+          {historyRange === 30 && history && (
+            <div className="history-controls" role="group" aria-label={d.aggMode}>
+              <button type="button" aria-pressed={historyAgg === "week"} onClick={() => changeAgg("week")}>{d.aggWeek}</button>
+              <button type="button" aria-pressed={historyAgg === "day"} onClick={() => changeAgg("day")}>{d.aggDay}</button>
+            </div>
+          )}
           </div>
           {/* 30-day status: one expandable meta line instead of a four-row
               block (review A1). Loading and failure keep their dedicated
@@ -1229,7 +1278,7 @@ function App() {
           <div className="trend-filter" role="group" aria-label={d.filterByAgent}>
             <button
               type="button"
-              className={activeFilter === null ? "filter-chip active" : "filter-chip"}
+              className={activeFilter === null ? "filter-tab active" : "filter-tab"}
               aria-pressed={activeFilter === null}
               onClick={() => setAgentFilter(null)}
             >
@@ -1243,18 +1292,17 @@ function App() {
                   type="button"
                   key={agent.id}
                   className={
-                    active ? "filter-chip agent-chip active" : "filter-chip agent-chip"
+                    active ? "filter-tab active" : "filter-tab"
                   }
                   aria-pressed={active}
                   onClick={() => setAgentFilter(active ? null : agent.id)}
                   style={
                     {
-                      "--chip-color": `var(${meta.colorVar})`,
-                      "--chip-soft": `var(${meta.softVar})`,
+                      "--tab-color": `var(${meta.colorVar})`,
                     } as CSSProperties
                   }
                 >
-                  <AgentMark colorVar={meta.colorVar} glyph={agentMarkFor(agent.id, agent.displayName)} />
+                  <Sigil id={agent.id} colorVar={meta.colorVar} />
                   {agent.displayName}
                 </button>
               );
@@ -1271,11 +1319,12 @@ function App() {
                 }}
               >
                 <summary
-                  className="filter-chip filter-more-summary"
+                  className="text-action filter-more-summary"
                   ref={moreMenuSummaryRef}
                 >
-                  <AgentMark colorVar="--agent-others" glyph="+" />
+                  <Sigil id="others" colorVar="--agent-others" />
                   {d.moreAgents(chipLayout.hidden.length)}
+                  <span aria-hidden="true"> ▸</span>
                 </summary>
                 <div
                   className="filter-more-menu"
@@ -1290,7 +1339,7 @@ function App() {
                         type="button"
                         key={agent.id}
                         className={
-                          active ? "filter-chip agent-chip active" : "filter-chip agent-chip"
+                          active ? "filter-tab active" : "filter-tab"
                         }
                         aria-pressed={active}
                         onClick={() => {
@@ -1299,12 +1348,11 @@ function App() {
                         }}
                         style={
                           {
-                            "--chip-color": `var(${meta.colorVar})`,
-                            "--chip-soft": `var(${meta.softVar})`,
+                            "--tab-color": `var(${meta.colorVar})`,
                           } as CSSProperties
                         }
                       >
-                        <AgentMark colorVar={meta.colorVar} glyph={agentMarkFor(agent.id, agent.displayName)} />
+                        <Sigil id={agent.id} colorVar={meta.colorVar} />
                         {agent.displayName}
                       </button>
                     );
@@ -1314,43 +1362,58 @@ function App() {
             )}
           </div>
           {/* One context line, not two (review A1): without a filter it states
-              the chart's scaling basis; with a filter it states that the filter
-              only affects the trend above. Never both at once. */}
+              the chart's scaling basis (week buckets name their own basis);
+              with a filter it states that the filter only affects the trend
+              above. Never both at once. */}
           <p className="trend-hint">
-            {activeFilter === null ? d.scaleAll : d.filterTrendOnly}
+            {activeFilter === null
+              ? weekMode
+                ? d.scaleAllWeek
+                : d.scaleAll
+              : d.filterTrendOnly}
           </p>
 
           <div className="history-chart-scroll">
-          <div className={historyRange === 30 ? "trend trend-30" : "trend"}>
+          <div
+            className={
+              historyRange === 30
+                ? weekMode
+                  ? "trend trend-week"
+                  : "trend trend-30"
+                : "trend"
+            }
+          >
             {chartDays.map((chartDay, index) => {
-              const day = historyDays[index];
-              const isSelected = selectedKey === day.date;
+              const item = seriesDays[index];
+              const isSelected = selectedKey === item.date;
               const valueLabel = formatTokens(trendSeries[index]);
               const aria = activeFilter === null
                 ? allDayAriaLabel(
-                    day,
-                    index > 0
-                      ? historyDays[index - 1].totalTokens
-                      : undefined,
+                    item,
+                    prevSeriesItem(index)?.totalTokens,
                     lang,
                     deltaBasisFor(index),
+                    weekMode ? seriesDateLabel(item) : undefined,
                   )
                 : agentDayAriaLabel(
-                    day,
+                    item,
                     activeFilter,
-                    index > 0
-                      ? (historyDays[index - 1].agents.find(
-                          (a) => a.id === activeFilter,
-                        )?.tokens ?? 0)
-                      : undefined,
+                    (() => {
+                      const prev = prevSeriesItem(index);
+                      return prev
+                        ? (prev.agents.find((a) => a.id === activeFilter)
+                            ?.tokens ?? 0)
+                        : undefined;
+                    })(),
                     lang,
                     deltaBasisFor(index),
+                    weekMode ? seriesDateLabel(item) : undefined,
                   );
               return (
                 <button
                   type="button"
                   className={isSelected ? "trend-day selected" : "trend-day"}
-                  key={day.date}
+                  key={item.date}
                   ref={(el) => {
                     dayEls.current[index] = el;
                   }}
@@ -1363,7 +1426,7 @@ function App() {
                   // Click pins the day into the stable in-flow detail panel;
                   // clicking the selected day again unpins it. Escape clears
                   // both the hover tooltip and the pinned selection.
-                  onClick={() => setSelectedDay(isSelected ? null : day.date)}
+                  onClick={() => setSelectedDay(isSelected ? null : item.date)}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
                       hideTooltip();
@@ -1385,7 +1448,7 @@ function App() {
                     ))}
                     <span className="bar-baseline" aria-hidden="true" />
                   </span>
-                  <span className="trend-date">{shortDate(day.date)}</span>
+                  <span className="trend-date">{seriesDateLabel(item)}</span>
                 </button>
               );
             })}
@@ -1396,7 +1459,7 @@ function App() {
           {/* Hover/focus tooltip — the fixed, clamped overlay. It is suppressed
               on the pinned day, whose details already live in the panel below. */}
           {activeDay !== null &&
-            historyDays[activeDay] && historyDays[activeDay]?.date !== selectedKey && (
+            seriesDays[activeDay] && seriesDays[activeDay]?.date !== selectedKey && (
               <div
                 className="chart-tooltip"
                 role="tooltip"
@@ -1404,16 +1467,15 @@ function App() {
                 style={tooltipPos ?? undefined}
               >
                 <DayDetailContent
-                  day={historyDays[activeDay]!}
-                  prevDay={
-                    activeDay > 0 ? historyDays[activeDay - 1] : undefined
-                  }
+                  day={seriesDays[activeDay]!}
+                  prevDay={prevSeriesItem(activeDay)}
                   filter={activeFilter}
                   filterName={activeFilterName}
                   grouping={allChart.grouping}
                   d={d}
                   lang={lang}
                   basis={deltaBasisFor(activeDay)}
+                  dateLabel={weekMode ? seriesDateLabel(seriesDays[activeDay]!) : undefined}
                 />
               </div>
             )}
@@ -1424,10 +1486,10 @@ function App() {
           {(() => {
             const selected =
               selectedKey !== null
-                ? historyDays.find((day) => day.date === selectedKey)
+                ? seriesDays.find((item) => item.date === selectedKey)
                 : undefined;
             if (!selected) return null;
-            const selectedIndex = historyDays.indexOf(selected);
+            const selectedIndex = seriesDays.indexOf(selected);
             return (
               <div
                 className="day-detail"
@@ -1448,21 +1510,18 @@ function App() {
                 </button>
                 <DayDetailContent
                   day={selected}
-                  prevDay={
-                    selectedIndex > 0
-                      ? historyDays[selectedIndex - 1]
-                      : undefined
-                  }
+                  prevDay={prevSeriesItem(selectedIndex)}
                   filter={activeFilter}
                   filterName={activeFilterName}
                   grouping={allChart.grouping}
                   d={d}
                   lang={lang}
                   basis={deltaBasisFor(selectedIndex)}
+                  dateLabel={weekMode ? seriesDateLabel(selected) : undefined}
                 />
                 <p>{costDisplay(selected.estimatedCostUsd, selected.costUnknownReason, selected.totalTokens > 0, lang).text}</p>
                 <p>{coverageText(historyRange === 30 && history ? history.coverage : summary.coverage, lang)}</p>
-                <p>{d.selectedDayAll}</p>
+                <p>{weekMode ? d.selectedWeekAll : d.selectedDayAll}</p>
                 <BreakdownList total={selected.totalTokens} breakdown={selected.tokenBreakdown} d={d} />
                 {sortAgents(selected.agents).map(agent => <details key={agent.id} className="history-models">
                   <summary>{agent.displayName} · {agent.tokens.toLocaleString(lang)} Token</summary>

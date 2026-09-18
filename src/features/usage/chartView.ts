@@ -1,5 +1,6 @@
-import type { DailyUsage } from "../../types/usage";
+import type { AgentUsage, CostUnknownReason, DailyUsage } from "../../types/usage";
 import { agentMeta, compareByMeta, sortAgents } from "./agents";
+import { cacheInputShare } from "./cacheInputShare";
 
 /**
  * Bar-chart view-model. It is a pure transform from `DailyUsage[]` to the exact
@@ -173,4 +174,127 @@ export function buildAgentChart(days: DailyUsage[], agentId: string): ChartDay[]
 export function dayValue(day: DailyUsage, agentId: string | null): number {
   if (agentId === null) return day.totalTokens;
   return day.agents.find((a) => a.id === agentId)?.tokens ?? 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Week aggregation (review B2): a 30-day window defaults to five
+ * 7-day buckets (the last one usually partial), so the chart is
+ * structurally identical to the 7-day view — no horizontal scroll.
+ * Each bucket is a merged DailyUsage, so every downstream consumer
+ * (stacking, tooltip, pinned panel, filter) works unchanged; the
+ * extra `dateEnd` marks the bucket as a range.
+ * ------------------------------------------------------------------ */
+
+/** A week bucket: a real merged sum of DailyUsage rows (never fabricated),
+ * spanning `date`..`dateEnd`. */
+export interface WeekUsage extends DailyUsage {
+  /** Inclusive end of the bucket (ISO date). */
+  dateEnd: string;
+}
+
+/** Days per bucket. 30 / 7 → four full weeks plus a short current bucket. */
+export const WEEK_BUCKET_DAYS = 7;
+
+type ModelUsageList = AgentUsage["models"];
+
+function mergeModels(target: ModelUsageList, models: ModelUsageList): void {
+  for (const model of models) {
+    const existing = target.find((m) => m.modelName === model.modelName);
+    if (!existing) {
+      target.push({ ...model });
+      continue;
+    }
+    existing.inputTokens += model.inputTokens;
+    existing.outputTokens += model.outputTokens;
+    existing.cacheReadTokens += model.cacheReadTokens;
+    existing.cacheCreationTokens += model.cacheCreationTokens;
+    existing.totalTokens += model.totalTokens;
+  }
+}
+
+/** A day with usage but no price poisons the whole bucket's estimate: the sum
+ * would be a partial cost masquerading as a total, so the bucket reports the
+ * same honest three-state semantics as a single day. */
+function mergeCost(
+  days: DailyUsage[],
+): { usd: number | null; reason: CostUnknownReason | null } {
+  let sum = 0;
+  for (const day of days) {
+    if (day.estimatedCostUsd !== null) {
+      sum += day.estimatedCostUsd;
+      continue;
+    }
+    if (day.totalTokens > 0) return { usd: null, reason: "missingModelPricing" };
+  }
+  return { usd: sum, reason: null };
+}
+
+function mergeBucket(days: DailyUsage[]): WeekUsage {
+  const agents = new Map<string, AgentUsage>();
+  const breakdown = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    reasoningTokens: 0,
+    unclassifiedTokens: 0,
+  };
+  let totalTokens = 0;
+  for (const day of days) {
+    totalTokens += day.totalTokens;
+    breakdown.inputTokens += day.tokenBreakdown.inputTokens;
+    breakdown.outputTokens += day.tokenBreakdown.outputTokens;
+    breakdown.cacheReadTokens += day.tokenBreakdown.cacheReadTokens;
+    breakdown.cacheCreationTokens += day.tokenBreakdown.cacheCreationTokens;
+    breakdown.reasoningTokens += day.tokenBreakdown.reasoningTokens;
+    breakdown.unclassifiedTokens += day.tokenBreakdown.unclassifiedTokens;
+    for (const agent of day.agents) {
+      const existing = agents.get(agent.id);
+      if (!existing) {
+        agents.set(agent.id, {
+          id: agent.id,
+          displayName: agent.displayName,
+          tokens: agent.tokens,
+          reasoningTokens: agent.reasoningTokens,
+          unclassifiedTokens: agent.unclassifiedTokens,
+          models: agent.models.map((m) => ({ ...m })),
+        });
+        continue;
+      }
+      existing.tokens += agent.tokens;
+      existing.reasoningTokens += agent.reasoningTokens;
+      existing.unclassifiedTokens += agent.unclassifiedTokens;
+      mergeModels(existing.models, agent.models);
+    }
+  }
+  const cost = mergeCost(days);
+  return {
+    date: days[0].date,
+    dateEnd: days[days.length - 1].date,
+    totalTokens,
+    tokenBreakdown: breakdown,
+    estimatedCostUsd: cost.usd,
+    costUnknownReason: cost.reason,
+    // Same denominator口径 as everywhere else (cacheRead ÷ input+cacheRead+
+    // cacheCreation), recomputed from the merged counts.
+    cacheReadShare: cacheInputShare(
+      breakdown.inputTokens,
+      breakdown.cacheReadTokens,
+      breakdown.cacheCreationTokens,
+    ),
+    agents: [...agents.values()],
+  };
+}
+
+/** Aggregate a run of DailyUsage rows into 7-day buckets, first day first.
+ * The final bucket carries whatever days remain (1–7). Deterministic for a
+ * given window: the bucket's ISO start date identifies it. */
+export function buildWeekBuckets(days: DailyUsage[]): WeekUsage[] {
+  const buckets: WeekUsage[] = [];
+  for (let start = 0; start < days.length; start += WEEK_BUCKET_DAYS) {
+    const slice = days.slice(start, start + WEEK_BUCKET_DAYS);
+    if (slice.length === 0) break;
+    buckets.push(mergeBucket(slice));
+  }
+  return buckets;
 }

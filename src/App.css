@@ -39,11 +39,11 @@
   --accent-fill-hover: #993d24;
   --on-accent: #fff;
 
-  /* Agent identity — one colour per agent, carried through row marks, chips,
-     chart segments and tooltip legends. Values are theme-neutral. Unknown
-     agents share the neutral token (their monogram mark, not the colour, is
-     what tells them apart), and the display-only "others" chart group gets its
-     own quiet neutral. */
+  /* Agent identity — one colour per agent, carried through row sigils, filter
+     tab underlines, chart segments and tooltip legends. Values are
+     theme-neutral. Unknown agents share the neutral token (their diamond
+     sigil, not the colour, is what tells them apart), and the display-only
+     "others" chart group gets its own quiet neutral. */
   --agent-claude: #e8836b;
   /* Claude Desktop is a second Claude surface, but it is NOT a shade of
      --agent-claude: the two appear side by side in the same chart and row list,
@@ -56,7 +56,8 @@
   --agent-opencode: #d9b36a;
   --agent-unknown: #9a9a8c;
   --agent-others: #8f8571;
-  /* 20% tint used for a selected agent chip's soft background. */
+  /* 20% tints kept after the chip→tab change (marks doc §5.3) in case a
+     future surface needs them; nothing currently consumes them. */
   --agent-claude-soft: rgb(232 131 107 / 20%);
   --agent-claude-desktop-soft: rgb(201 135 168 / 20%);
   --agent-codex-soft: rgb(139 147 230 / 20%);
@@ -331,26 +332,27 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-/* Identity mark: an agent-coloured ring with the deterministic agentMark
-   monogram in ordinary ink, shared by rows, chips, tooltip legends and the day
-   detail so every surface reads the same agent the same way. The ring is the
-   colour echo; the glyph (and the name) carry identity. */
-.agent-mark {
+/* Identity sigil (marks doc §2): the redrawn stroke-only official mark,
+   inlined from src/assets/agent-marks/*.svg, coloured via --mark-color ←
+   --agent-*. Colour alone never identifies an agent — the six silhouettes
+   (spark / ›_ / arch / square / diamond / plus) are distinguishable at 15px,
+   and the name is the accessible label. Shared by rows, filter tabs, tooltip
+   legends and the day detail so every surface reads the same agent the same
+   way. */
+.sigil {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 17px;
-  height: 17px;
-  border: 1.5px solid var(--mark-color, var(--agent-unknown));
-  border-radius: 50%;
-  color: var(--ink-2);
-  font-family: var(--font-mono);
-  font-size: 0.52rem;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.02em;
+  width: 15px;
+  height: 15px;
+  color: var(--mark-color, var(--ink-3));
   user-select: none;
+}
+.sigil svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .agent-toggle-group {
@@ -857,6 +859,13 @@ button:hover {
   opacity: 0.85;
 }
 
+/* A2: the negative cost state demotes to a short quiet mark; the full reason
+   rides on the title tooltip and in the statistics explainer. */
+.cost-na {
+  cursor: help;
+  border-bottom: 1px dotted var(--ink-3);
+}
+
 /* Secondary actions (marks doc §3): quiet underlined text. The only solid
    button family in the window stays the terracotta primary (retry/confirm). */
 .text-action {
@@ -1278,47 +1287,56 @@ button:hover {
   text-align: right;
 }
 
-/* Trend agent filter — simple chips; overrides the global accent button fill so
-   selection is an inked pill (All) or an agent-tinted pill, not a primary action. */
+/* Trend agent filter — underline text tabs (marks doc §3): no border, no
+   background, no rounded backing. Rest state ink-3, hover ink-2, active full
+   ink + a 2px agent-coloured underline ("All" uses ink). Identity colour
+   appears in exactly two places: the sigil and the active underline. */
 .trend-filter {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: 4px 18px;
   margin-top: var(--space-4);
 }
 
-.filter-chip {
+.filter-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  color: var(--ink-2);
-  background: transparent;
+  gap: 7px;
+  min-height: 30px;
+  padding: 4px 1px 3px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-3);
+  background: none;
   font-family: var(--font-sans);
   font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.filter-tab:hover {
+  color: var(--ink-2);
+  background: none;
+}
+.filter-tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--tab-color, var(--ink));
 }
 
-/* "More agents" disclosure — the summary reads as another chip; the menu is a
-   quiet dropdown panel with its own natural scroll when very long. */
+/* "More agents" disclosure — a quiet text action (not a tab); the menu is a
+   dropdown panel whose items speak the same tab language. */
 .filter-more {
   position: relative;
 }
 .filter-more-summary {
   list-style: none;
+  gap: 5px;
 }
 .filter-more-summary::-webkit-details-marker {
   display: none;
 }
-.filter-more-summary .agent-mark {
-  --mark-color: var(--agent-others);
-}
-.filter-more[open] > summary.filter-chip {
-  border-color: var(--indigo);
-  background: var(--paper-track);
+.filter-more[open] > summary.filter-more-summary {
+  color: var(--ink);
 }
 .filter-more-menu {
   position: absolute;
@@ -1326,7 +1344,7 @@ button:hover {
   left: 0;
   z-index: 40;
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 200px;
   max-height: 240px;
   padding: 6px;
@@ -1336,8 +1354,8 @@ button:hover {
   background: var(--surface-tooltip);
   box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
 }
-.filter-more-menu .filter-chip {
-  justify-content: flex-start;
+.filter-more-menu .filter-tab {
+  min-height: 30px;
 }
 
 /* Single context line above the chart (review A1): the scaling basis without a
@@ -1348,30 +1366,6 @@ button:hover {
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
-}
-
-.filter-chip:hover {
-  border-color: var(--indigo);
-  background: var(--paper-track);
-}
-
-/* All chip — neutral selected state. */
-.filter-chip.active {
-  color: var(--paper);
-  border-color: var(--ink);
-  background: var(--ink);
-}
-
-/* Agent chip — selected state uses its own 20% soft tint + colour border; the
-   colour comes from the --chip-color/--chip-soft custom properties. */
-.filter-chip.agent-chip.active {
-  color: var(--ink);
-  border-color: var(--chip-color);
-  background: var(--chip-soft);
-}
-.filter-chip.agent-chip.active:hover {
-  border-color: var(--chip-color);
-  background: var(--chip-soft);
 }
 
 /* Desktop: two columns, taller chart. Left = Today + agents + breakdown,
@@ -1449,32 +1443,40 @@ button:hover {
 
 /* Each historical day retains readable absolute values and a keyboard target.
    The chart alone scrolls horizontally; the window and details reflow normally. */
-.history-controls { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-block: 8px; }
-/* Range buttons speak the same pill language as the trend filter chips below:
-   same shape, padding and type; the pressed state shares the All chip's
-   inverted-ink pill so one section shows one control family. */
+.history-controls { display: flex; gap: var(--space-4); flex-wrap: wrap; margin-block: 8px; }
+/* Range + aggregation controls speak the mono-kicker language (marks doc §3):
+   uppercase mono with wide tracking; the active underline is indigo — indigo's
+   role is "current position/focus" while agent colour is identity, never mixed. */
 .history-controls button {
-  padding: 5px 12px;
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  color: var(--ink-2);
-  background: transparent;
-  font-family: var(--font-sans);
-  font-size: 0.82rem;
-  font-weight: 500;
+  min-height: 30px;
+  padding: 4px 1px 3px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--ink-3);
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
 }
 .history-controls button:hover {
-  border-color: var(--indigo);
-  background: var(--paper-track);
+  color: var(--ink-2);
+  background: none;
 }
 .history-controls button[aria-pressed="true"] {
-  color: var(--paper);
-  border-color: var(--ink);
-  background: var(--ink);
+  color: var(--ink);
+  border-bottom-color: var(--indigo);
+  background: none;
 }
 .history-chart-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 6px; }
 .trend.trend-30 { grid-template-columns: repeat(30, minmax(48px, 1fr)); min-width: 1672px; }
+/* Week buckets: structurally identical to the 7-day view — five equal
+   columns, no horizontal scroll (review B2). */
+.trend.trend-week { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .history-status { color: var(--ink-2); font-size: 12px; overflow-wrap: anywhere; }
 /* 30-day status collapsed into one expandable meta line (review A1). */
 .history-meta { margin-top: 2px; }

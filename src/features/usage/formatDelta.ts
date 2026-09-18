@@ -31,8 +31,11 @@ export type DeltaKind =
   | "no-usage-yesterday"
   | "none";
 
-/** Which prior day the comparison is against, stated in the label. */
-export type DeltaBasis = "previous-day" | "yesterday-full-day";
+/** Which prior point the comparison is against, stated in the label. The
+ * week basis is used by the 30-day week aggregation (vs previous full week);
+ * a bucket with no prior bucket (or the partial current bucket, passed as no
+ * prior) renders no delta line at all rather than a misleading one. */
+export type DeltaBasis = "previous-day" | "yesterday-full-day" | "previous-week";
 
 export interface DeltaResult {
   kind: DeltaKind;
@@ -58,12 +61,23 @@ export function formatDelta(
   basis: DeltaBasis = "previous-day",
 ): DeltaResult {
   const d = dictFor(lang);
-  const suffix = basis === "yesterday-full-day" ? d.deltaVsYesterdayFullDay : d.deltaVsPreviousDay;
+  const suffix =
+    basis === "yesterday-full-day"
+      ? d.deltaVsYesterdayFullDay
+      : basis === "previous-week"
+        ? d.deltaVsPreviousWeek
+        : d.deltaVsPreviousDay;
 
   if (today == null || !Number.isFinite(today)) {
     return { kind: "none", label: null, percent: null };
   }
   if (yesterday === undefined) {
+    // Week buckets never claim a "no prior data" line: the first bucket has
+    // nothing before the window, and the partial current bucket is passed
+    // with no prior on purpose — both read cleaner without the line.
+    if (basis === "previous-week") {
+      return { kind: "none", label: null, percent: null };
+    }
     return { kind: "no-yesterday", label: d.deltaNoYesterday, percent: null };
   }
   if (yesterday == null || !Number.isFinite(yesterday)) {

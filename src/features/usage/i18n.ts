@@ -150,6 +150,7 @@ const en = {
   // total vs yesterday's FULL day, so they carry the explicit full-day basis.
   deltaVsYesterdayFullDay: "vs yesterday (full day)",
   deltaVsPreviousDay: "vs previous day",
+  deltaVsPreviousWeek: "vs previous week",
   deltaNoYesterday: "— no prior-day data",
   deltaNoUsageYesterday: "— yesterday had no usage",
   ariaTotal: (n: string) => `${n} tokens total.`,
@@ -174,6 +175,16 @@ const en = {
   compCollapse: "Collapse detail",
   compBarLabel: "Today's token composition — activate to toggle the detail rows",
   closeDetail: "Close details",
+  // 30-day week aggregation (review B2) and the cost negative-state demotion
+  // (review A2). The short cost mark keeps the full reason in the tooltip and
+  // the statistics explainer; the three cost states never collapse into one.
+  aggMode: "Aggregation",
+  aggWeek: "By week",
+  aggDay: "By day",
+  scaleAllWeek:
+    "Bar height scales to the busiest week of the window; filtering rescales the chart.",
+  costNa: "Cost n/a ⓘ",
+  selectedWeekAll: "Selected week · token and model details (all agents)",
   closeNoticeTitle: "Still running in the tray",
   closeNoticeBody:
     "Closing the window keeps Coding Agent Monitor running in the system tray. Reopen it from the tray icon, or exit from the tray menu.",
@@ -285,6 +296,7 @@ const zhCN: Dict = {
   costNoUsage: "预估成本不适用 — 无用量",
   deltaVsYesterdayFullDay: "较昨日全天",
   deltaVsPreviousDay: "较前一日",
+  deltaVsPreviousWeek: "较前一周",
   deltaNoYesterday: "— 无前一日数据",
   deltaNoUsageYesterday: "— 昨日无用量",
   ariaTotal: (n: string) => `Token 合计 ${n}。`,
@@ -306,6 +318,14 @@ const zhCN: Dict = {
   compCollapse: "收起明细",
   compBarLabel: "今日 Token 构成，点击展开或收起明细",
   closeDetail: "关闭详情",
+  // 30 天周聚合(review B2)与成本负态降权(review A2)。短标记的完整原因
+  // 保留在 tooltip 与"关于这些数字"中;成本三态语义不塌缩。
+  aggMode: "聚合方式",
+  aggWeek: "按周",
+  aggDay: "按日",
+  scaleAllWeek: "柱高按窗口内最大周缩放；切换筛选会重新缩放。",
+  costNa: "成本 n/a ⓘ",
+  selectedWeekAll: "所选周 · 当周 Token 与模型明细（全部 Agent）",
   closeNoticeTitle: "仍在托盘运行",
   closeNoticeBody:
     "关闭窗口后，Coding Agent Monitor 会继续在系统托盘中运行。可从托盘图标重新打开主界面，或从托盘菜单退出。",

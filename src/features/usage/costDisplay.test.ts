@@ -7,6 +7,7 @@ describe("costDisplay", () => {
     expect(costDisplay(0, null, true, "en")).toEqual({
       kind: "value",
       text: "Est. cost $0.00",
+      short: "Est. cost $0.00",
     });
   });
 
@@ -14,6 +15,7 @@ describe("costDisplay", () => {
     expect(costDisplay(12.004, null, true, "en")).toEqual({
       kind: "value",
       text: "Est. cost $12.00",
+      short: "Est. cost $12.00",
     });
   });
 
@@ -21,10 +23,12 @@ describe("costDisplay", () => {
     expect(costDisplay(null, "missingModelPricing", true, "en")).toEqual({
       kind: "unavailable",
       text: "Est. cost unavailable — missing model prices",
+      short: "Cost n/a ⓘ",
     });
     expect(costDisplay(null, "missingModelPricing", true, "zh-CN")).toEqual({
       kind: "unavailable",
       text: "预估成本不可用 — 缺少模型价格",
+      short: "成本 n/a ⓘ",
     });
   });
 
@@ -32,6 +36,7 @@ describe("costDisplay", () => {
     expect(costDisplay(null, null, true, "en")).toEqual({
       kind: "unavailable",
       text: "Est. cost unavailable",
+      short: "Cost n/a ⓘ",
     });
   });
 
@@ -39,11 +44,23 @@ describe("costDisplay", () => {
     expect(costDisplay(null, null, false, "en")).toEqual({
       kind: "notApplicable",
       text: "Est. cost N/A — no usage",
+      short: "Cost n/a ⓘ",
     });
     expect(costDisplay(null, null, false, "zh-CN")).toEqual({
       kind: "notApplicable",
       text: "预估成本不适用 — 无用量",
+      short: "成本 n/a ⓘ",
     });
+  });
+
+  it("keeps the three states distinct even though the short mark is shared", () => {
+    // A2 demotes the negative states' visual weight; the full copy (and the
+    // statistics explainer) must still distinguish them.
+    const missing = costDisplay(null, "missingModelPricing", true, "en");
+    const noUsage = costDisplay(null, null, false, "en");
+    expect(missing.kind).not.toBe(noUsage.kind);
+    expect(missing.text).not.toBe(noUsage.text);
+    expect(missing.short).toBe(noUsage.short);
   });
 
   it("treats a non-finite cost as unknown, not a value", () => {

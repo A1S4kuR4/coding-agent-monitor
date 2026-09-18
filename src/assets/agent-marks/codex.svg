@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Codex">
+  <!-- 依 Codex CLI 官方启动画面标识重绘:终端提示符 &gt;_ -->
+  <path d="M4 4 L8.5 8 L4 12"/>
+  <path d="M10 12.2 H13.6"/>
+</svg>
