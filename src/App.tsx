@@ -950,6 +950,12 @@ function App() {
           <p className="eyebrow">Coding Agent Monitor</p>
           <h1>{isCurrentScope ? d.today : d.usageFor(snapshot.scope.endDate)}</h1>
           <p className="header-updated">
+            {/* C3: a quiet working dot while any refresh (focus/tray/periodic
+                included) is in flight — the Refresh button carries the
+                accessible "Refreshing…" label; the dot is decorative. */}
+            {collection.refreshing && (
+              <span className="refresh-dot" aria-hidden="true" />
+            )}
             <time dateTime={summary.collectedAt}>
               {new Date(summary.collectedAt).toLocaleString(
                 lang === "zh-CN" ? "zh-CN" : "en-US",
@@ -1386,6 +1392,11 @@ function App() {
             {chartDays.map((chartDay, index) => {
               const item = seriesDays[index];
               const isSelected = selectedKey === item.date;
+              // A4: today's bar — the last day of the current-scope window in a
+              // day-grain view — carries the strongest value label. Week
+              // buckets never claim "today".
+              const isToday =
+                historyIsCurrent && !weekMode && index === seriesDays.length - 1;
               const valueLabel = formatTokens(trendSeries[index]);
               const aria = activeFilter === null
                 ? allDayAriaLabel(
@@ -1412,7 +1423,12 @@ function App() {
               return (
                 <button
                   type="button"
-                  className={isSelected ? "trend-day selected" : "trend-day"}
+                  className={[
+                    isSelected ? "trend-day selected" : "trend-day",
+                    isToday ? "is-today" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                   key={item.date}
                   ref={(el) => {
                     dayEls.current[index] = el;

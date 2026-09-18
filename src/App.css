@@ -213,6 +213,21 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* C3: refresh-presence dot — a barely-there indigo pip beside the timestamp
+   while a refresh (including focus/tray/periodic ones) is in flight. Static
+   by design: reduced motion must never leave animation residue, and the
+   Refresh button already announces the state. */
+.refresh-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--indigo);
+  vertical-align: 1px;
+  opacity: 0.75;
+}
+
 /* Sticky action header: title + Refresh stay in view while the dashboard
    scrolls. Solid paper background hides whatever scrolls beneath it. */
 .app-header {
@@ -593,7 +608,6 @@ button.agent-toggle:hover .chevron {
   filter: brightness(1.08);
 }
 
-.trend-value,
 .trend-date {
   overflow: hidden;
   color: var(--ink-3);
@@ -604,11 +618,25 @@ button.agent-toggle:hover .chevron {
   white-space: nowrap;
 }
 
-/* The per-day value is data and sits one step above the date tick (context);
-   both stay on the same mono track. AA holds on paper and on the selected
-   row's tinted track (the selected value is promoted to full ink below). */
+/* The per-day value is the chart's only absolute number — one step above the
+   date tick in both size and ink (review A4). AA holds on paper and on the
+   selected row's tinted track; the selected and today values promote to full
+   ink below. */
 .trend-value {
+  overflow: hidden;
   color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Today's running total gets the strongest label of the row (review A4):
+   full ink, bold — the eye lands on "where am I now" before history. */
+.trend-day.is-today .trend-value {
+  color: var(--ink);
+  font-weight: 700;
 }
 
 /* Stacked bar track. column-reverse puts the first (canonically-ordered) agent
