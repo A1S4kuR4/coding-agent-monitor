@@ -560,11 +560,12 @@ test.describe("color carry-through", () => {
     const segment = page.locator(".trend-day").nth(5).locator(".bar-segment").nth(1);
     expect(await rgbOf(segment)).toBe(codex);
 
-    // Tooltip legend sigil, once open.
+    // Tooltip legend sigil, once open. Scoped to the hover overlay: the
+    // default-pinned today panel renders the same DayDetailContent.
     await page.locator(".trend-day").nth(5).hover();
     await expect(page.locator(".chart-tooltip")).toBeVisible();
     const tipSigil = page
-      .locator(".tooltip-agents li", { hasText: "Codex" })
+      .locator(".chart-tooltip .tooltip-agents li", { hasText: "Codex" })
       .locator(".sigil");
     expect(await tipSigil.evaluate((el) => getComputedStyle(el).color)).toBe(codex);
     await expect(tipSigil.locator("svg")).toHaveCount(1);
@@ -572,16 +573,18 @@ test.describe("color carry-through", () => {
 
   test("filter tabs carry the identity underline only when active", async ({ page }) => {
     await boot(page, 1400, 900);
+    const codex = await cssColor(page, "--agent-codex");
     const codexTab = page.getByRole("button", { name: "Codex", exact: true });
     // Rest: no underline (a transparent 2px bottom border).
     const restBorder = await codexTab.evaluate((el) =>
       getComputedStyle(el).borderBottomColor,
     );
     expect(restBorder).toBe("rgba(0, 0, 0, 0)");
-    // Active: the underline takes the agent colour.
+    // Active: the underline takes the agent colour. toHaveCSS polls past the
+    // 120ms underline transition instead of sampling it mid-flight.
     await codexTab.click();
     await expect(codexTab).toHaveAttribute("aria-pressed", "true");
-    expect(await codexTab.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(codex);
+    await expect(codexTab).toHaveCSS("border-bottom-color", codex);
   });
 });
 
@@ -1130,7 +1133,9 @@ test.describe("seventeen agents (T04)", () => {
 
   test("the pinned day detail shows the full composition for a grouped day", async ({ page }) => {
     await bootWithState(page, seventeenAgentState(), 1400, 900);
-    await page.locator(".trend-day").nth(6).click();
+    // Today (index 6) is already pinned by default; pin a different grouped
+    // day instead of toggling the default pin off.
+    await page.locator(".trend-day").nth(5).click();
     const detail = page.locator(".day-detail");
     await expect(detail).toContainText("Other agents (14)");
     await expect(detail).toContainText("Team Sync Agent 07");

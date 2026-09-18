@@ -1421,8 +1421,12 @@ button:hover {
    is clipped or hidden with overflow, and details expand naturally below. */
 @media (max-height: 760px) and (min-width: 521px) {
   .app-header {
-    margin-bottom: var(--space-2);
-    padding-top: var(--space-4);
+    margin-bottom: var(--space-1);
+    padding-top: 12px;
+  }
+
+  .eyebrow {
+    margin-bottom: 2px;
   }
 
   .total {
@@ -1430,21 +1434,25 @@ button:hover {
   }
 
   .unit {
-    margin-bottom: var(--space-1);
+    margin-bottom: 2px;
   }
 
   .meta {
-    margin-bottom: var(--space-1);
+    margin-bottom: 2px;
   }
 
   /* The composition strip sits directly under the meta line; keep its bottom
-     breathing room small so the first screen still fits 680x700. */
+     breathing room small so the first screen still fits 680x700 (the strip
+     adds a head row + bar, and the compact budget pays for it here). */
   .comp-wrap {
-    margin-bottom: var(--space-2);
+    margin-bottom: var(--space-1);
+  }
+  .comp-head {
+    margin-bottom: 2px;
   }
 
   .agent-row {
-    min-height: 40px;
+    min-height: 34px;
   }
 
   .model-row {
@@ -1452,16 +1460,16 @@ button:hover {
   }
 
   .agent-list {
-    margin-bottom: var(--space-4);
+    margin-bottom: 4px;
   }
 
   .trend-filter {
-    margin-top: var(--space-2);
+    margin-top: 2px;
   }
 
   .trend {
-    height: 132px;
-    margin-top: var(--space-1);
+    height: 120px;
+    margin-top: 2px;
   }
 
   .trend-day {
@@ -1529,5 +1537,5 @@ button:hover {
 .section-heading .history-controls { margin-block: 0; }
 
 @media (max-height: 760px) and (min-width: 521px) {
-  .history-chart-scroll .trend { margin-top: var(--space-1); }
+  .history-chart-scroll .trend { margin-top: 2px; }
 }
