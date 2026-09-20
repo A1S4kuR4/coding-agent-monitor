@@ -1531,7 +1531,20 @@ button:hover {
 .history-meta summary::marker { color: var(--ink-3); }
 .history-meta p { margin: 4px 0 0; }
 .history-models { margin-block: 12px; overflow-wrap: anywhere; }
-.history-models summary { cursor: pointer; }
+/* Text hierarchy per marks doc §3: the agent row reads as a label (sigil +
+   medium ink), notes demote to quiet small text, and each model line sits
+   one step between them. No cards, no decoration beyond the sigil. */
+.history-models summary { cursor: pointer; font-weight: 500; color: var(--ink); }
+.history-models summary::marker { color: var(--ink-3); }
+.history-models summary .sigil { margin-right: 7px; }
+.history-models > p { margin: 4px 0 0; font-size: 0.72rem; color: var(--ink-3); }
+.history-models > div { padding-left: 14px; }
+.history-models > div > p {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
 
 .section-heading:has(.history-controls) { flex-wrap: wrap; gap: 8px; }
 .section-heading .history-controls { margin-block: 0; }

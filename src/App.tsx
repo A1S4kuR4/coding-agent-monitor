@@ -1540,7 +1540,10 @@ function App() {
                 <p>{weekMode ? d.selectedWeekAll : d.selectedDayAll}</p>
                 <BreakdownList total={selected.totalTokens} breakdown={selected.tokenBreakdown} d={d} />
                 {sortAgents(selected.agents).map(agent => <details key={agent.id} className="history-models">
-                  <summary>{agent.displayName} · {agent.tokens.toLocaleString(lang)} Token</summary>
+                  <summary>
+                    <Sigil id={agent.id} colorVar={agentMeta(agent.id).colorVar} />
+                    {agent.displayName} · {agent.tokens.toLocaleString(lang)} Token
+                  </summary>
                   {agent.reasoningTokens > 0 && <p>{d.includesReasoning(agent.reasoningTokens.toLocaleString(lang))}</p>}
                   {agent.unclassifiedTokens > 0 && <p>{d.includesUnclassified(agent.unclassifiedTokens.toLocaleString(lang))}</p>}
                   {agent.models.map(model => <div key={model.modelName}>
