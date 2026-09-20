@@ -57,11 +57,19 @@
 
 ## 5. 落地指引(App.tsx / App.css)
 
-1. `AgentMark` 组件(App.tsx:154-164)改为渲染对应 SVG(`aria-hidden`),`agents.ts` 的 `agentMeta` 增加 `sigil` 字段;`agentMark()` 字母函数随之退役。注意 `AgentMark` 有四处调用:agent 行、筛选 chips、tooltip 图例、日详情——一并替换,保持"同一 agent 处处同相"。
-2. `.filter-chip` / `.history-controls button` 的 pill 规则替换为 tab 规则(原型 `.filter-tab` / `.view-opt .seg` 可直接移植);"更多 agent" 溢出入口改为文本动作 `更多 (n) ▸`,菜单面板本身不变。
-3. 移除 chip 的 `--chip-soft` 20% 底衬令牌用途(激活态不再有底色);`--agent-*-soft` 令牌可保留观察是否有他用。
-4. 对比度:tab 常规态文字 ink-3(#a8a69c on #191612,约 7:1)满足 AA;12.5px 小字建议用 ink-2 作 hover 后的中间档,勿再降。
-5. 测试:`contrast.test.ts` 涉及 chip 激活底色的断言需要更新;`App.test.tsx` 中断言 chip class 名的用例同步改名。
+> 落地状态(2026-09-20 标注):五步全部完成,主体在 45ba1a2,日详情模型明细的
+> 层级补齐在 0343b19。
+
+1. ✅ `AgentMark` 组件(App.tsx:154-164)改为渲染对应 SVG(`aria-hidden`),`agents.ts` 的 `agentMeta` 增加 `sigil` 字段;`agentMark()` 字母函数随之退役。注意 `AgentMark` 有四处调用:agent 行、筛选 chips、tooltip 图例、日详情——一并替换,保持"同一 agent 处处同相"。
+   → 已落地 45ba1a2。`Sigil` 组件:`src/features/usage/sigils.tsx:40-56`(资源内联 + `--mark-color` 着色);`sigil` 字段:`src/features/usage/agents.ts:20,33,46,54,62,70,101`;印记 SVG:`src/assets/agent-marks/*.svg`;六处调用点:`src/App.tsx:351,362,1117,1311,1331,1361`;日详情内 per-agent 模型明细行补印记:`0343b19`(`src/App.tsx:1542-1544`)。
+2. ✅ `.filter-chip` / `.history-controls button` 的 pill 规则替换为 tab 规则(原型 `.filter-tab` / `.view-opt .seg` 可直接移植);"更多 agent" 溢出入口改为文本动作 `更多 (n) ▸`,菜单面板本身不变。
+   → 已落地 45ba1a2。`.filter-tab`:`src/App.css:1329-1352`(ink-3/hover ink-2/激活全墨 + 2px `--tab-color` 下划线);范围/聚合 kicker tab(`.history-controls`):`src/App.css` mono 大写 + 激活 indigo 下划线(`[aria-pressed="true"]`,约 :1490-1510);"更多 agent" 折叠:`src/App.css:1354` 起。
+3. ✅ 移除 chip 的 `--chip-soft` 20% 底衬令牌用途(激活态不再有底色);`--agent-*-soft` 令牌可保留观察是否有他用。
+   → 已落地 45ba1a2。`--agent-*-soft` 保留且当前无消费者:`src/App.css:59-66`(注释已注明)。
+4. ✅ 对比度:tab 常规态文字 ink-3(#a8a69c on #191612,约 7:1)满足 AA;12.5px 小字建议用 ink-2 作 hover 后的中间档,勿再降。
+   → 已落地 45ba1a2。ink-3 水位注释:`src/App.css:116-117`;断言在 `src/features/usage/contrast.test.ts`,vitest 全绿。
+5. ✅ 测试:`contrast.test.ts` 涉及 chip 激活底色的断言需要更新;`App.test.tsx` 中断言 chip class 名的用例同步改名。
+   → 已落地 45ba1a2(sigil 映射钉住另见 `agents.test.ts`);后续 `0343b19` 通过全部 152 vitest + 47 e2e。
 
 ## 6. 未做之事(明确边界)
 
