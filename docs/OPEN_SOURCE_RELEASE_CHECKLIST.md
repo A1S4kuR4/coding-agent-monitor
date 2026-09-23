@@ -4,10 +4,11 @@ This checklist separates publishing the source repository from distributing a
 Windows installer. The source can be published before every installer gate is
 closed, provided the repository is clearly marked pre-release.
 
-**Current release work:** v0.5.0 was approved for publication on 2026-09-23;
-the frozen installers and disclosed coverage gaps are recorded in
-[the verification record](V0.5_RELEASE_VERIFICATION.md). The last published
-release before this work was [v0.3.0](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.3.0).
+**Current release:** [v0.5.0](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.0),
+published 2026-09-23. The frozen installers, disclosed coverage gaps and
+remote asset verification are recorded in
+[the verification record](V0.5_RELEASE_VERIFICATION.md). The previous public
+release was [v0.3.0](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.3.0).
 The preparation and v0.1/v0.2
 sections below retain dated evidence (including old sidecar packaging and audit
 counts). They are not current setup instructions or fresh security scans. Use
@@ -150,7 +151,7 @@ counts). They are not current setup instructions or fresh security scans. Use
 The 2026-09-06 check inspected Release metadata and the local checksum file. It
 did not rebuild, reinstall, or re-run the historical acceptance/security suite.
 
-## v0.5.0 release record (2026-09-23 decision; upload pending)
+## v0.5.0 release record (published 2026-09-23)
 
 - [x] Freeze the binary build-source commit at `2927799940b9d37e4e84707e0b4837368fe00add`;
   later release-document edits do not affect installer bytes.
@@ -172,5 +173,13 @@ did not rebuild, reinstall, or re-run the historical acceptance/security suite.
   WebKit. The alert remains open for non-Windows maintenance and is not counted
   as a Windows installer vulnerability. Production npm audit on the official
   registry found zero advisories.
-- [ ] Push the release metadata, verify CI, create annotated `v0.5.0`, upload
-  MSI/NSIS/`SHA256SUMS.txt`, and verify remote asset identities.
+- [x] Merge [PR #24](https://github.com/A1S4kuR4/coding-agent-monitor/pull/24)
+  to `main` at `efde53bcd391ae93a647b86bce1dbec9c2a838bc` after its CI
+  passed; the independent `main` push CI also passed. Push annotated `v0.5.0`
+  to that merge commit.
+- [x] Publish the non-draft, non-prerelease
+  [v0.5.0 GitHub Release](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.0)
+  at `2026-09-23T11:49:38Z` with MSI, NSIS and `SHA256SUMS.txt`. All three
+  GitHub asset digests match re-downloaded bytes; the checksum file verifies
+  both installer downloads. Exact names, sizes and hashes are in the
+  [publication result](V0.5_RELEASE_VERIFICATION.md#public-release-result-2026-09-23).
