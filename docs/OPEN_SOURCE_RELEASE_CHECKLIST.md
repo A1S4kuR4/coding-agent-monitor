@@ -167,5 +167,10 @@ did not rebuild, reinstall, or re-run the historical acceptance/security suite.
   NSIS `874f7616531bdbfff1952f0f6f71cab16ba7d2e4f1d58ae5bf45224cdb99d88a`.
   Publication filenames and checksum entries use dots in place of spaces,
   matching the v0.3 GitHub asset convention; binary bytes are unchanged.
+- [x] Review the open moderate `glib` lockfile advisory. The Windows x64 target
+  dependency tree excludes it; the all-target graph reaches it through GTK and
+  WebKit. The alert remains open for non-Windows maintenance and is not counted
+  as a Windows installer vulnerability. Production npm audit on the official
+  registry found zero advisories.
 - [ ] Push the release metadata, verify CI, create annotated `v0.5.0`, upload
   MSI/NSIS/`SHA256SUMS.txt`, and verify remote asset identities.
