@@ -65,7 +65,7 @@ impl Collector for AgentCollector {
 
         let shared = vendor_shared_args(request);
         let outcome = ccusage_adapter_all::daily_report_for_agent(
-            self.agent.id(),
+            self.agent.vendor_agent_id(),
             root_override.as_deref(),
             &shared,
         );
@@ -177,13 +177,15 @@ fn from_vendor_report(
     for row in daily {
         // The per-agent report still emits the unified row shape (agent
         // "all" plus an `agents` breakdown array); find this agent's entry.
+        // The breakdown is keyed by the *vendor* loader that produced it, which
+        // for CAM-owned agents is not `agent.id()`.
         let Some(breakdown) = row
             .get("agents")
             .and_then(Value::as_array)
             .and_then(|agents| {
-                agents
-                    .iter()
-                    .find(|entry| entry.get("agent").and_then(Value::as_str) == Some(agent.id()))
+                agents.iter().find(|entry| {
+                    entry.get("agent").and_then(Value::as_str) == Some(agent.vendor_agent_id())
+                })
             })
         else {
             // This date has no usage for the requested agent.

@@ -1,22 +1,24 @@
 # Implementation Plan
 
-Status legend: `[x]` scaffolded, `[ ]` implementation remains.
+Status legend: `[x]` completed for the stated phase; `[ ]` was outstanding at
+the time of that record. Neither checkbox implies a current release gate PASS.
 
-> **Current status: all phases through Phase 9 are implemented** (ccusage 20.0.20
-> sidecar packaged, real data path, real dashboard, Windows tray, MSI/NSIS
-> installers, the v0.2 Phase 6 unified sidecar snapshot, the Phase 7 dynamic
-> open-string agent contract + display list, the Phase 8 estimated cost /
-> cached-input share / collection time / stale-data recovery, and the Phase 9
-> Reading-Surface + responsive refinement). The per-item checkboxes below are
-> historical implementation records, not an outstanding to-do list. Actual
-> build/install/launch/uninstall outcomes are recorded in
-> [`RELEASE_VERIFICATION.md`](RELEASE_VERIFICATION.md); v0.2 Phase outcomes are
-> recorded in [`V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md`](V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md).
+> **Current status (2026-09-23): v0.5.0 release.** All three product manifests
+> are `0.5.0`. The production path uses vendored ccusage v20.0.20 plus the
+> Antigravity downstream port and Claude Desktop local-agent discovery in the
+> same-EXE worker, covering 18 agents. No external ccusage executable is staged.
+> Official support is Windows 11 x64 only. Installers are unsigned; the
+> developer-tools-free offline host, real logon/reboot and sleep/resume, and
+> full non-ASCII-profile GUI scenarios were not run for v0.5.0. The maintainer
+> directed publication with these gaps disclosed. See the
+> [v0.5 verification](V0.5_RELEASE_VERIFICATION.md) and
+> [release notes](V0.5_RELEASE_NOTES.md); older decisions remain historical.
 >
-> **Phases 6–9 were implemented (2026-08-25). For the v0.1.0 pre-release, the
-> Chinese-profile full-GUI gate (Gate 0) is now explicitly `WAIVED / NOT RUN`:
-> the scenario remains unverified and is not a PASS. Phase 10 retains complete
-> non-ASCII-profile coverage as a future v0.2 release-verification task.**
+> **This file's Phases 1–10 are historical v0.1/v0.2 records.** Phase 10 was
+> executed on 2026-08-28 and v0.2.0 was published on 2026-08-29. References below
+> to sidecar executables, staging, or the initial Claude/Codex UI describe those
+> phases, not current development instructions. v0.1, v0.2, and v0.3 each record
+> the full non-ASCII-profile GUI scenario as **WAIVED / NOT RUN**, never PASS.
 >
 > **Phase 7–9 review fixes (2026-08-25):** the 8 defects found in review — horizontal
 > overflow/clipping at 420×560 & 125%/150% DPI; WCAG AA contrast on the dark primary
@@ -31,6 +33,28 @@ Status legend: `[x]` scaffolded, `[ ]` implementation remains.
 > duplicate-date `totalTokens` ⬄ `agents[]` sums, and a deferred-registration
 > race test for focus/tray listeners — which were fixed, tested, and recorded
 > in `docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md §12.6`.**
+
+> **2026-09-10 historical work:** user assigned T07/T08 grouped commits, save/check
+> fixes, clean validation, native acceptance and local v0.4.0 packaging. Current
+> manifests are `0.4.0`; the published version remains v0.3.0. See the
+> [fresh verification record](V0.4_RELEASE_VERIFICATION.md) and
+> [candidate release notes](V0.4_RELEASE_NOTES.md). T09's product feature and T10
+> remain inactive. Historical no-bump restrictions below describe prior tasks;
+> local packaging is explicitly authorized by this new assignment.
+
+## Current documentation index
+
+| Purpose | Document |
+| --- | --- |
+| Current behavior and setup | [README](../README.md), [CONTRIBUTING](../CONTRIBUTING.md), [AGENTS](../AGENTS.md) |
+| v0.1 verification history | [RELEASE_VERIFICATION](RELEASE_VERIFICATION.md) |
+| v0.2 implementation and verification | [Plan](V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md), [verification](V0.2_RELEASE_VERIFICATION.md) |
+| v0.3 migration decisions and phase mapping | [v0.3 plan](V0.3_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) |
+| v0.3 production architecture | [Phase 4B](V0.3_PHASE4B_PRODUCTION_SWITCH.md), [Phase 5 cleanup and acceptance](V0.3_PHASE5_RELEASE_CANDIDATE.md) |
+| v0.3 final gates, waivers and publication | [Gate decision](V0.3_RELEASE_GATE_DECISION.md), [release checklist](OPEN_SOURCE_RELEASE_CHECKLIST.md), [release notes](V0.3_RELEASE_NOTES.md) |
+| v0.4 development history | [v0.4 development and acceptance plan](V0.4_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) — T00–T06 complete; T07 implemented (2026-09-07; native/performance limitations in §11.8); T08 research completed and revised ([feasibility study R1](QUOTA_MONITOR_FEASIBILITY.md), §11.9); T09–T10 inactive candidates |
+| v0.5 release identity, gates and disclosed limits | [Verification](V0.5_RELEASE_VERIFICATION.md), [release notes](V0.5_RELEASE_NOTES.md), [manual walkthrough](V0.5_MANUAL_WALKTHROUGH_2026-09-18.md) |
+| Documentation audit and remaining maintenance observations | [2026-09-06 audit](DOCUMENTATION_AUDIT_2026-09-06.md) |
 
 ## Phase 1 — Project Scaffold
 
@@ -128,15 +152,16 @@ same `UsageSummary` as React, idle resource use stays low, and Exit leaves no pr
 **Acceptance:** all checks are recorded with actual outcomes; the installer contains
 the target-triple ccusage binary; Task Manager shows no residual child process.
 
-## Post-MVP v0.2 — Implemented internal phases and remaining verification
+## Post-MVP v0.2 — Completed implementation and verification history
 
-Phase 6–9 were internal v0.2 planning labels and have already been implemented,
-even though the application manifest remains `0.1.0` for this pre-release candidate.
+Phase 6–9 were internal v0.2 planning labels implemented while the manifest
+still read `0.1.0`. Phase 10 was subsequently completed and the version bumped
+to `0.2.0` for that release; the current manifest is `0.3.0`.
 The detailed sequence, contract decisions, test matrix, performance baseline,
-visual boundaries, historical outcomes, and remaining release verification live in
+visual boundaries and historical outcomes live in
 [`V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md`](V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md).
 
-Current phase status:
+v0.2 phase outcomes:
 
 1. **Phase 6 — Unified sidecar snapshot:** replace two focused child processes with
    one `daily --json --offline --by-agent` process while keeping the current public
@@ -162,23 +187,28 @@ Current phase status:
    reserved for success, compact height query, `:focus-visible` Indigo ring,
    reduced-motion, natural-scroll at 200% zoom; see `V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md §11`.
 5. **Phase 10 — v0.2 release verification:** repeat automated, real-data, process,
-   viewport, installer, offline, and non-ASCII-profile acceptance.
+   viewport, installer, offline, and non-ASCII-profile acceptance. **EXECUTED
+   (2026-08-28)**; actual results, unrun items, and the non-ASCII-profile waiver
+   are in [V0.2_RELEASE_VERIFICATION.md](V0.2_RELEASE_VERIFICATION.md).
 
-Phases 6–9 are complete historical implementation units. Phase 10 is still a separate
-future v0.2 release-verification task and must record actual results rather than infer
-PASS from earlier phase checks.
+Phases 6–10 are complete historical work units. Completion of a verification
+task does not turn its waived or unrun scenarios into technical passes.
 
 ## Next Executable Task
 
-Phases 6–9 (unified sidecar snapshot, dynamic Agent contract, estimated cost/cache/collection
-time/stale-data recovery, and Reading-Surface refinement) were executed and recorded on
-2026-08-25. The next v0.2 task is **Phase 10**
-(`V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md`):
-v0.2 release verification (repeat full automated, real-data, process, installer, offline and
-non-ASCII acceptance; write a new `docs/V0.2_RELEASE_VERIFICATION.md`, do not overwrite v0.1
-history). That file must not be created until Phase 10 is actually executed.
+The v0.4 planning task T00 and the core implementation tasks T01–T06 are
+complete; their evidence and unrun native scenarios are recorded in the v0.4
+plan §11.2–§11.7. T07 was assigned and implemented on 2026-09-07; see §11.8 and its acceptance
+record for completed checks and unverified native/performance scenarios.
+T08 feasibility research was assigned and completed on 2026-09-07, and revised under T08-R1, with review corrections on 2026-09-08 (see §11.9 and docs/QUOTA_MONITOR_FEASIBILITY.md; research-only, no production code changes or quota productization authorized). T09–T10 remain inactive candidates and never become authorized merely because their dependencies are complete — each starts only when the user sends its standalone Prompt. Core-chain completion is not a v0.4
+release candidate and does not authorize a version bump, tag, or publication.
+See the [v0.4 plan](V0.4_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) for the dependency
+table, semantic boundaries, acceptance matrix and task result locations.
 
-The Chinese-profile full-GUI gate (`RELEASE_VERIFICATION.md §9–§10`, Gate 0) is
-**WAIVED / NOT RUN for the v0.1.0 pre-release**, not technically verified. The same
-scenario remains an explicit Phase 10 coverage requirement before a future v0.2 release
-can be evaluated.
+v0.3 migration and publication remain complete historical work. Do not restart
+v0.2 Phase 10, recreate deleted sidecar setup, or treat historical unchecked
+items as new work.
+
+Windows 10 lifecycle and the full non-ASCII-profile GUI scenario remain coverage
+gaps. Any future validation must record fresh evidence; current waivers do not
+establish technical support for those scenarios.

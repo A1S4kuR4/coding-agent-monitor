@@ -6,6 +6,8 @@
 //! Fault injection uses `CAM_TEST_WORKER_*` env vars that exist only in
 //! debug/test builds.
 
+mod common;
+
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -28,12 +30,11 @@ fn init_product_exe() {
 /// Injection env vars are process-global, so every test that spawns the worker
 /// holds this lock for its whole body. Concurrency inside a test comes from
 /// explicit threads (the 20-caller test), which the lock does not affect.
-static WORKER_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-fn lock_worker_tests() -> std::sync::MutexGuard<'static, ()> {
-    WORKER_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+fn lock_worker_tests() -> common::EnvGuard {
+    // The shared env guard serializes this binary and prevents every worker,
+    // including Environment-source recovery tests, from reading real records.
+    let root = common::fixture_root("worker-isolation");
+    common::isolate_env(&root)
 }
 
 const EXE: &str = env!("CARGO_BIN_EXE_coding-agent-monitor");
@@ -221,12 +222,20 @@ fn worker_rejects_malformed_json_trailing_content_and_non_utf8() {
 }
 
 #[test]
-fn worker_rejects_wrong_version_unknown_agent_and_empty_roots() {
+fn worker_rejects_wrong_version_unknown_agent_and_oversized_roots() {
     let _worker_lock = lock_worker_tests();
     let bad_version = r#"{"version":99,"request_id":"x","agent":"codex","timezone":"UTC","source":{"kind":"environment"}}"#;
     let unknown_agent = r#"{"version":1,"request_id":"x","agent":"nope","timezone":"UTC","source":{"kind":"environment"}}"#;
-    let empty_roots = r#"{"version":1,"request_id":"x","agent":"claude","timezone":"UTC","source":{"kind":"paths","roots":[]}}"#;
-    for payload in [bad_version, unknown_agent, empty_roots] {
+    let roots = vec!["\"/nonexistent\""; coding_agent_monitor_lib::collector::MAX_SOURCE_ROOTS + 1];
+    let too_many_roots = format!(
+        r#"{{"version":1,"request_id":"x","agent":"claude","timezone":"UTC","source":{{"kind":"paths","roots":[{}]}}}}"#,
+        roots.join(",")
+    );
+    for payload in [
+        bad_version.to_string(),
+        unknown_agent.to_string(),
+        too_many_roots,
+    ] {
         let (status, stdout, _) = run_worker(payload.as_bytes(), &[]);
         assert!(status.success());
         let response = parse_response(&stdout);
@@ -418,7 +427,7 @@ fn supervisor_survives_stderr_flood() {
     // of hanging the suite.
     let outcome = supervisor::collect_with_options(
         &request,
-        &NEVER_CANCEL_TEST_FLAG(),
+        NEVER_CANCEL_TEST_FLAG(),
         Duration::from_secs(20),
     );
     assert!(
@@ -440,7 +449,7 @@ fn supervisor_timeout_kills_worker() {
     init_product_exe();
     let _worker_lock = lock_worker_tests();
     let request = CollectorRequestV1::new("sup-timeout", AgentKind::Codex);
-    let _guard = EnvGuard::set("CAM_TEST_WORKER_SLEEP_MS", "60_000");
+    let _guard = EnvGuard::set("CAM_TEST_WORKER_SLEEP_MS", "60000");
     let cancel = AtomicBool::new(false);
     let started = Instant::now();
     let error = supervisor::collect_with_options(&request, &cancel, Duration::from_millis(500))
@@ -461,7 +470,7 @@ fn supervisor_cancel_kills_worker() {
     init_product_exe();
     let _worker_lock = lock_worker_tests();
     let request = CollectorRequestV1::new("sup-cancel", AgentKind::Codex);
-    let _guard = EnvGuard::set("CAM_TEST_WORKER_SLEEP_MS", "60_000");
+    let _guard = EnvGuard::set("CAM_TEST_WORKER_SLEEP_MS", "60000");
     let cancel = std::sync::Arc::new(AtomicBool::new(false));
     // Cancel from a helper thread shortly after the flight starts.
     let cancel_thread = {
@@ -488,7 +497,7 @@ fn supervisor_recovers_after_failures() {
     init_product_exe();
     let _worker_lock = lock_worker_tests();
     // Use an Environment-source codex request: the assertion is about the
-    // flight recovering, not about the data volume (which varies by machine).
+    // flight recovering, with an empty isolated source on every machine.
     let request = CollectorRequestV1::new("sup-recover", AgentKind::Codex);
     {
         let _guard = EnvGuard::set("CAM_TEST_WORKER_EXIT", "1");
@@ -732,7 +741,11 @@ fn batch_panic_recovery_next_refresh_succeeds() {
             Duration::from_secs(60),
         )
         .expect("recovery batch must succeed");
-        assert_eq!(response.agents.len(), 17, "all 17 agents must report");
+        assert_eq!(
+            response.agents.len(),
+            AgentKind::ALL.len(),
+            "every registered agent must report"
+        );
         std::fs::remove_dir_all(&scratch).ok();
     }
 }

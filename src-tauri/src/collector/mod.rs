@@ -44,6 +44,7 @@ use std::{fmt, path::PathBuf};
 use chrono::NaiveDate;
 
 pub mod ccusage;
+pub mod claude_desktop;
 pub mod protocol;
 pub mod snapshot_protocol;
 pub mod supervisor;
@@ -60,6 +61,14 @@ pub use error::CollectorError;
 /// (`BUILT_IN_AGENT_NAMES`, 17 entries incl. the Antigravity downstream port)
 /// crossed with the product's supported scope. Never construct lists by hand
 /// elsewhere — derive from this enum.
+///
+/// [`AgentKind::ClaudeDesktop`] is the one **CAM-owned** entry: the vendor has
+/// no such agent. Claude Desktop's local agent mode writes transcripts in the
+/// Claude Code JSONL shape, so this agent reuses the vendor's `claude` loader
+/// (see [`AgentKind::vendor_agent_id`]) pointed at Claude Desktop's own session
+/// roots instead of `~/.claude`. Keeping it a separate kind is what lets the
+/// product show Desktop usage as its own row rather than merging it into
+/// Claude Code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum AgentKind {
     Claude,
@@ -79,11 +88,13 @@ pub enum AgentKind {
     Qwen,
     Grok,
     Antigravity,
+    ClaudeDesktop,
 }
 
 impl AgentKind {
-    /// Every registered agent, in vendor registry order.
-    pub const ALL: [AgentKind; 17] = [
+    /// Every registered agent, in vendor registry order with the CAM-owned
+    /// [`AgentKind::ClaudeDesktop`] last.
+    pub const ALL: [AgentKind; 18] = [
         AgentKind::Claude,
         AgentKind::Codex,
         AgentKind::OpenCode,
@@ -101,6 +112,7 @@ impl AgentKind {
         AgentKind::Qwen,
         AgentKind::Grok,
         AgentKind::Antigravity,
+        AgentKind::ClaudeDesktop,
     ];
 
     /// The agent identifier used by the vendored unified report.
@@ -123,6 +135,23 @@ impl AgentKind {
             AgentKind::Qwen => "qwen",
             AgentKind::Grok => "grok",
             AgentKind::Antigravity => "antigravity",
+            AgentKind::ClaudeDesktop => "claude-desktop",
+        }
+    }
+
+    /// The agent whose *vendored loader* reads this agent's data.
+    ///
+    /// Differs from [`AgentKind::id`] only for CAM-owned agents that reuse a
+    /// vendor loader: `claude-desktop` reads transcripts in the Claude Code
+    /// JSONL shape, so the vendor loads them through its `claude` spec and
+    /// reports them under the `claude` breakdown key. This is the id to pass to
+    /// the vendor entry point and the key to look up in a vendor report — never
+    /// for protocol, storage or display identity, which always use
+    /// [`AgentKind::id`].
+    pub fn vendor_agent_id(self) -> &'static str {
+        match self {
+            AgentKind::ClaudeDesktop => "claude",
+            other => other.id(),
         }
     }
 
@@ -146,6 +175,7 @@ impl AgentKind {
             AgentKind::Qwen => "Qwen",
             AgentKind::Grok => "Grok",
             AgentKind::Antigravity => "Antigravity",
+            AgentKind::ClaudeDesktop => "Claude Desktop",
         }
     }
 
@@ -285,11 +315,11 @@ impl CollectRequest {
         match &self.source {
             DataSource::Environment => Ok(()),
             DataSource::Paths(roots) => {
-                if roots.is_empty() {
-                    return Err(CollectorError::InvalidRequest {
-                        details: "explicit data roots must not be empty".to_string(),
-                    });
-                }
+                // An empty list is a valid, intentional state: the agent has no
+                // data sources on this machine (e.g. Claude Desktop is not
+                // installed). The vendor load then reads no files and returns an
+                // empty *successful* report — never an error — so an absent
+                // agent cannot fail the whole refresh.
                 if roots.len() > MAX_SOURCE_ROOTS {
                     return Err(CollectorError::InvalidRequest {
                         details: format!(
@@ -316,7 +346,15 @@ impl CollectRequest {
 
 /// Input bounds for collector requests (worker stdin hardening in Phase 2
 /// builds on these).
-pub const MAX_SOURCE_ROOTS: usize = 16;
+///
+/// `MAX_SOURCE_ROOTS` is generous because a single agent may legitimately need
+/// many roots: Claude Desktop keeps one independent `projects/` root per local
+/// agent session, so the discovered count grows with use (~40 after a few
+/// months of regular use). The bound still caps the work a malformed request
+/// can ask for. Note the consequence if it is ever reached: an over-long root
+/// list is an `InvalidRequest`, which the refresh treats as a fatal agent
+/// error — so this ceiling must stay far above any realistic session count.
+pub const MAX_SOURCE_ROOTS: usize = 1024;
 pub const MAX_ROOT_PATH_LEN: usize = 4096;
 pub const MAX_REQUEST_ID_LEN: usize = 128;
 pub const MAX_TIMEZONE_LEN: usize = 64;

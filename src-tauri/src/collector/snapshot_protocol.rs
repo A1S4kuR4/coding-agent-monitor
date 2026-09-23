@@ -14,7 +14,7 @@ use super::{AgentKind, CollectRequest, CollectResult, CollectorError, DataSource
 /// protocol so the two can evolve without touching each other).
 pub const SNAPSHOT_PROTOCOL_VERSION: u32 = 1;
 
-/// Hard cap on agents per snapshot request: the registry has 17 agents; the
+/// Hard cap on agents per snapshot request: the registry has 18 agents; the
 /// cap leaves headroom while bounding a malicious/buggy request's work.
 pub const MAX_SNAPSHOT_AGENTS: usize = 32;
 
@@ -83,6 +83,8 @@ pub struct CollectorSnapshotResponseV1 {
     #[serde(default)]
     pub agents: Vec<AgentSnapshotV1>,
 }
+
+pub type AgentDomainResult = (AgentKind, Result<CollectResult, CollectorError>);
 
 impl CollectorSnapshotResponseV1 {
     /// Builds a whole-batch fatal error response (no partial agent results).
@@ -371,9 +373,7 @@ impl CollectorSnapshotResponseV1 {
 
     /// Converts the snapshot response into per-agent domain results, preserving
     /// registry order and per-agent errors.
-    pub fn into_domain_results(
-        self,
-    ) -> Result<Vec<(AgentKind, Result<CollectResult, CollectorError>)>, CollectorError> {
+    pub fn into_domain_results(self) -> Result<Vec<AgentDomainResult>, CollectorError> {
         // Whole-batch fatal error: no per-agent results exist.
         if let Some(fatal) = &self.fatal_error {
             return Err(CollectorError::Internal {

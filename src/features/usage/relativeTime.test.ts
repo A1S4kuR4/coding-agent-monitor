@@ -3,13 +3,14 @@ import { describe, expect, it } from "vitest";
 import { relativeTime } from "./relativeTime";
 
 const base = "2026-08-25T10:00:00Z";
-const at = (offsetSeconds: number) =>
-  relativeTime(base, new Date(Date.parse(base) + offsetSeconds * 1000));
+const at = (offsetSeconds: number, lang: "en" | "zh-CN" = "en") =>
+  relativeTime(base, new Date(Date.parse(base) + offsetSeconds * 1000), lang);
 
 describe("relativeTime", () => {
   it("shows just now for zero and sub-minute ages", () => {
     expect(at(0)).toBe("just now");
     expect(at(59)).toBe("just now");
+    expect(at(0, "zh-CN")).toBe("刚刚");
   });
 
   it("switches to minutes at the 60s boundary", () => {
@@ -29,8 +30,14 @@ describe("relativeTime", () => {
     expect(at(3600 * 24 * 3 + 61)).toBe("3d ago");
   });
 
+  it("renders the same ages in Chinese", () => {
+    expect(at(120, "zh-CN")).toBe("2 分钟前");
+    expect(at(3600, "zh-CN")).toBe("1 小时前");
+    expect(at(3600 * 24 * 3 + 61, "zh-CN")).toBe("3 天前");
+  });
+
   it("treats a future or unparseable timestamp as just now", () => {
     expect(at(-5)).toBe("just now");
-    expect(relativeTime("not-a-date", new Date())).toBe("just now");
+    expect(relativeTime("not-a-date", new Date(), "en")).toBe("just now");
   });
 });

@@ -4,7 +4,10 @@
 //! harness gives every one of the 17 agents at least one real record that
 //! BOTH the pinned v0.2 sidecar pair and the v0.3 batch worker actually
 //! parse, so per-agent parser parity is proven rather than assumed from
-//! "both sides agree on empty".
+//! "both sides agree on empty". The 17 are the agents the v0.2 sidecar pair
+//! also knew; the registry's CAM-only agents (`claude-desktop`) have no
+//! sidecar counterpart to be compared against and are SKIPPED in the
+//! per-agent parity matrix.
 //!
 //! Fixture basis: the audited golden fixtures under `tests/golden/` are
 //! copied verbatim except for DATE NORMALIZATION to the shadow window
@@ -261,7 +264,11 @@ fn build_shadow17_fixture_anchored(name: &str, day_a_epoch: i64) -> PathBuf {
         604,
         "resp-1",
     );
-    common::write_antigravity_db(&agent_dir("antigravity"), "conv-1.db", &[blob.clone()]);
+    common::write_antigravity_db(
+        &agent_dir("antigravity"),
+        "conv-1.db",
+        std::slice::from_ref(&blob),
+    );
     common::write_antigravity_db(&agent_dir("antigravity"), "conv-2.db", &[blob]);
 
     // Golden-copied agents with date normalization into the shadow window.
@@ -998,6 +1005,16 @@ fn shadow17_full_matrix_sidecar_vs_worker() {
     eprintln!("| --- | --- | --- | --- | --- |");
     let mut failures = Vec::new();
     for agent in AgentKind::ALL {
+        // No v0.2 sidecar counterpart exists for a CAM-only agent, so there is
+        // nothing to compare against: reporting a PASS here would be "both
+        // sides agree on empty", which this harness exists to exclude.
+        if agent == AgentKind::ClaudeDesktop {
+            eprintln!(
+                "| {} | n/a | n/a | no v0.2 sidecar counterpart (CAM-only agent) | SKIP |",
+                agent.id()
+            );
+            continue;
+        }
         let diffs = diff_agent_usage(agent, &sidecar_summary, &worker_summary);
         let sidecar_days: Vec<&str> = sidecar_summary
             .last7_days
@@ -1606,7 +1623,8 @@ fn percentile<F: Fn(&BenchRecord) -> f64>(runs: &[BenchRecord], p: f64, f: F) ->
 
 fn print_bench_report(label: &str, runs: &[BenchRecord]) {
     let warm = &runs[1..];
-    let fields: Vec<(&str, Box<dyn Fn(&BenchRecord) -> f64>)> = vec![
+    type BenchField = (&'static str, Box<dyn Fn(&BenchRecord) -> f64>);
+    let fields: Vec<BenchField> = vec![
         ("totalWallMs", Box::new(|r: &BenchRecord| r.total_wall_ms)),
         ("spawnWallMs", Box::new(|r: &BenchRecord| r.spawn_wall_ms)),
         ("normalizeMs", Box::new(|r: &BenchRecord| r.normalize_ms)),
@@ -1626,7 +1644,7 @@ fn print_bench_report(label: &str, runs: &[BenchRecord]) {
     ];
     for (field_name, field) in &fields {
         let first = field(&runs[0]);
-        let warm_values: Vec<f64> = warm.iter().map(|r| field(r)).collect();
+        let warm_values: Vec<f64> = warm.iter().map(field).collect();
         let min = warm_values.iter().cloned().fold(f64::INFINITY, f64::min);
         let max = warm_values
             .iter()

@@ -205,25 +205,29 @@ fn run_worker_snapshot(
 }
 
 fn env_key_for(agent: AgentKind) -> Option<&'static str> {
-    Some(match agent {
-        AgentKind::Claude => "CLAUDE_CONFIG_DIR",
-        AgentKind::Codex => "CODEX_HOME",
-        AgentKind::OpenCode => "OPENCODE_DATA_DIR",
-        AgentKind::Amp => "AMP_DATA_DIR",
-        AgentKind::Droid => "DROID_SESSIONS_DIR",
-        AgentKind::Codebuff => "CODEBUFF_DATA_DIR",
-        AgentKind::Hermes => "HERMES_HOME",
-        AgentKind::Pi => "PI_AGENT_DIR",
-        AgentKind::Goose => "GOOSE_PATH_ROOT",
-        AgentKind::OpenClaw => "OPENCLAW_DIR",
-        AgentKind::Kilo => "KILO_DATA_DIR",
-        AgentKind::Copilot => "COPILOT_OTEL_FILE_EXPORTER_PATH",
-        AgentKind::Gemini => "GEMINI_DATA_DIR",
-        AgentKind::Kimi => "KIMI_DATA_DIR",
-        AgentKind::Qwen => "QWEN_DATA_DIR",
-        AgentKind::Grok => "GROK_HOME",
-        AgentKind::Antigravity => "ANTIGRAVITY_DATA_DIR",
-    })
+    match agent {
+        AgentKind::Claude => Some("CLAUDE_CONFIG_DIR"),
+        AgentKind::Codex => Some("CODEX_HOME"),
+        AgentKind::OpenCode => Some("OPENCODE_DATA_DIR"),
+        AgentKind::Amp => Some("AMP_DATA_DIR"),
+        AgentKind::Droid => Some("DROID_SESSIONS_DIR"),
+        AgentKind::Codebuff => Some("CODEBUFF_DATA_DIR"),
+        AgentKind::Hermes => Some("HERMES_HOME"),
+        AgentKind::Pi => Some("PI_AGENT_DIR"),
+        AgentKind::Goose => Some("GOOSE_PATH_ROOT"),
+        AgentKind::OpenClaw => Some("OPENCLAW_DIR"),
+        AgentKind::Kilo => Some("KILO_DATA_DIR"),
+        AgentKind::Copilot => Some("COPILOT_OTEL_FILE_EXPORTER_PATH"),
+        AgentKind::Gemini => Some("GEMINI_DATA_DIR"),
+        AgentKind::Kimi => Some("KIMI_DATA_DIR"),
+        AgentKind::Qwen => Some("QWEN_DATA_DIR"),
+        AgentKind::Grok => Some("GROK_HOME"),
+        AgentKind::Antigravity => Some("ANTIGRAVITY_DATA_DIR"),
+        // CAM-only agent: the v0.2 sidecar this harness shadows had no Claude
+        // Desktop collector and there is no data-root environment variable for
+        // it, so it contributes no fixture data (empty roots, empty success).
+        AgentKind::ClaudeDesktop => None,
+    }
 }
 
 /// Converts the snapshot response into a UsageSummary through the CAM adapter.
@@ -542,18 +546,20 @@ fn snapshot_twenty_concurrent_calls_share_one_worker() {
     );
     std::env::set_var("CAM_TEST_WORKER_SLEEP_MS", "2000");
 
+    let root = build_shadow_fixture("single-flight");
+    let request = snapshot_request_for_fixture(&root);
+
     // Staggered start: the first thread claims the flight; the remaining 19
     // start after short delays so they join the still-active flight (the
     // 2000 ms worker sleep keeps it alive long enough for all callers).
     let handles: Vec<_> = (0..20)
         .map(|i| {
+            let request = request.clone();
             std::thread::spawn(move || {
                 if i > 0 {
                     std::thread::sleep(std::time::Duration::from_millis(50 * i as u64));
                 }
-                coding_agent_monitor_lib::collector::worker_runner::collect_snapshot(
-                    &CollectorSnapshotRequestV1::new("sf-snapshot", &AgentKind::ALL),
-                )
+                coding_agent_monitor_lib::collector::worker_runner::collect_snapshot(&request)
             })
         })
         .collect();
@@ -562,7 +568,7 @@ fn snapshot_twenty_concurrent_calls_share_one_worker() {
         results.push(handle.join().expect("caller thread"));
     }
     // All 20 callers share the same outcome (success or failure — both are
-    // valid since the worker reads the real environment).
+    // valid for the isolated fixture, including deliberately empty roots).
     let first = &results[0];
     for result in &results[1..] {
         match (first, result) {

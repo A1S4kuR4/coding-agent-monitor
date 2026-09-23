@@ -447,20 +447,22 @@ fn antigravity_records_keep_deterministic_order_across_databases() {
 
 // --- Input bounds (worker stdin hardening groundwork) -----------------------
 
+/// An empty root list is a valid, intentional state — the agent has no data
+/// sources on this machine (Claude Desktop not installed, or never run in
+/// local agent mode). It must load nothing and succeed, because a refresh
+/// treats any structured agent error as fatal for the WHOLE refresh: an absent
+/// agent must never be able to break the summary.
 #[test]
-fn empty_paths_source_is_rejected_safely() {
+fn empty_paths_source_loads_nothing_and_succeeds() {
     let root = fixture_root("bounds-empty");
     let _env = isolate_env(&root);
     let request = CollectRequest::new(AgentKind::Claude).with_source(
         coding_agent_monitor_lib::collector::DataSource::Paths(vec![]),
     );
-    let error = AgentCollector::new(AgentKind::Claude)
+    let result = AgentCollector::new(AgentKind::Claude)
         .collect(&request)
-        .expect_err("empty roots must be rejected");
-    assert!(matches!(
-        error,
-        coding_agent_monitor_lib::collector::CollectorError::InvalidRequest { .. }
-    ));
+        .expect("empty roots are an empty success, not an error");
+    assert!(result.records.is_empty());
 }
 
 #[test]
@@ -470,7 +472,7 @@ fn oversized_inputs_are_rejected_without_panicking() {
     let collector = AgentCollector::new(AgentKind::Claude);
 
     // Too many roots.
-    let many = vec![root.clone(); 17];
+    let many = vec![root.clone(); coding_agent_monitor_lib::collector::MAX_SOURCE_ROOTS + 1];
     let error = collector
         .collect(
             &CollectRequest::new(AgentKind::Claude)
@@ -573,4 +575,107 @@ fn diagnostics_never_leak_absolute_paths() {
         !json.contains(MARKER),
         "serialized response must not contain the absolute path marker"
     );
+}
+
+// --- Claude Desktop session discovery ---------------------------------------
+//
+// Desktop keeps one isolated Claude config directory per local agent-mode
+// session, so the product discovers roots rather than reading one fixed path.
+// Discovery failing is invisible in the worst way: it degrades to "Claude
+// Desktop has no data", which is the bug these tests were written against.
+
+/// Writes a Claude transcript into a Desktop session config directory at
+/// `<store>/<account>/<workspace>/<session>/.claude/projects/cam/`.
+fn write_desktop_session(store: &std::path::Path, session: &str) {
+    let dir = store.join(format!("account/workspace/{session}/.claude/projects/cam"));
+    fs::create_dir_all(&dir).expect("create desktop session dir");
+    fs::write(dir.join("session.jsonl"), "").expect("write desktop transcript");
+}
+
+fn session_roots() -> Vec<String> {
+    coding_agent_monitor_lib::collector::claude_desktop::session_roots()
+        .iter()
+        .map(|root| root.to_string_lossy().into_owned())
+        .collect()
+}
+
+#[test]
+fn desktop_discovery_finds_every_session_config_directory() {
+    let root = fixture_root("desktop-discovery");
+    let mut env = isolate_env(&root);
+
+    // Desktop's own directory name varies by build, so both a plain `Claude`
+    // and a channel build are discovered — in either application-data
+    // location.
+    for (var, app_dir) in [("LOCALAPPDATA", "Claude-3p"), ("APPDATA", "Claude")] {
+        let store = root
+            .join("app-data")
+            .join(app_dir)
+            .join("local-agent-mode-sessions");
+        write_desktop_session(&store, "local_one");
+        write_desktop_session(&store, "local_two");
+        env.set(var, &root.join("app-data"));
+    }
+
+    // Decoys that must contribute nothing: a `Claude`-prefixed directory with
+    // no session store, the CLI cache that differs only in case, and a session
+    // config directory that holds no transcripts.
+    fs::create_dir_all(root.join("app-data/Claude-diagnostics")).expect("mkdir decoy");
+    let cli_cache = root.join("app-data/claude-cli-nodejs/local-agent-mode-sessions");
+    write_desktop_session(&cli_cache, "local_three");
+    let store = root.join("app-data/Claude-3p/local-agent-mode-sessions");
+    fs::create_dir_all(store.join("account/workspace/local_empty/.claude")).expect("mkdir empty");
+
+    let roots = session_roots();
+    assert_eq!(
+        roots.len(),
+        4,
+        "two sessions in each application-data location: {roots:?}"
+    );
+    // One root per session per application-data directory that holds it, and
+    // no duplicates even though both variables resolve to this fixture.
+    for session in ["local_one", "local_two"] {
+        assert_eq!(
+            roots.iter().filter(|root| root.contains(session)).count(),
+            2,
+            "both Desktop directories must contribute {session}: {roots:?}"
+        );
+    }
+    assert!(
+        !roots.iter().any(|root| root.contains("local_three")),
+        "the lowercase CLI cache is not a Desktop session: {roots:?}"
+    );
+    assert!(
+        !roots.iter().any(|root| root.contains("local_empty")),
+        "a session config directory without transcripts is not a data root: {roots:?}"
+    );
+    // Deduplicated: both application-data variables resolve to this fixture,
+    // so every session is discovered twice and must still appear once.
+    let unique: std::collections::HashSet<&String> = roots.iter().collect();
+    assert_eq!(unique.len(), roots.len(), "no duplicate roots: {roots:?}");
+}
+
+#[test]
+fn desktop_discovery_reports_nothing_when_desktop_is_absent() {
+    let root = fixture_root("desktop-absent");
+    let _env = isolate_env(&root);
+
+    assert!(
+        session_roots().is_empty(),
+        "no application data means no sessions, and this is not a failure"
+    );
+}
+
+#[test]
+fn desktop_discovery_finds_msix_packaged_sessions() {
+    let root = fixture_root("desktop-msix");
+    let mut env = isolate_env(&root);
+    let msix_store = root
+        .join("local-app-data/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude/local-agent-mode-sessions");
+    write_desktop_session(&msix_store, "local_msix");
+    env.set("LOCALAPPDATA", &root.join("local-app-data"));
+
+    let roots = session_roots();
+    assert_eq!(roots.len(), 1, "finds msix packaged session: {roots:?}");
+    assert!(roots[0].contains("local_msix"));
 }

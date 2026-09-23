@@ -1,17 +1,27 @@
+import type { Language } from "./i18n";
+import { dictFor } from "./i18n";
+
 /**
  * Day-over-day token delta formatting for the header and chart tooltips.
- * Percentages keep 1 decimal. The label always carries an arrow, a sign, and the
- * number so the direction is conveyed redundantly (never by colour alone).
+ * Percentages keep 1 decimal. Direction is expressed NEUTRALLY: an arrow plus
+ * a signed number, in ordinary ink colour — a rise or fall is never judged
+ * good/bad by colour or wording (no budget rule has been agreed that would
+ * justify that).
  *
- * Boundary rules (from the acceptance plan):
- *   - delta >= +1%            -> "▲ +66.2% vs 昨日"  (up, --delta-up)
- *   - delta <= -1%            -> "▼ -12.4% vs 昨日"  (down, --delta-down)
- *   - |delta| < 1%            -> "• +0.6% vs 昨日"   (flat, --delta-flat)
- *   - yesterday=0, today>0    -> "— 昨日无使用"
+ * Time basis: today's running total compared with yesterday's FULL day is
+ * labelled explicitly (`yesterday-full-day`); any other day pair uses
+ * `previous-day`. There is no hourly data, so no same-period comparison is
+ * ever claimed.
+ *
+ * Boundary rules:
+ *   - delta >= +1%            -> "▲ +66.2% vs yesterday (full day)"  (neutral ink)
+ *   - delta <= -1%            -> "▼ -12.4% vs yesterday (full day)"
+ *   - |delta| < 1%            -> "• +0.6% vs previous day"
+ *   - yesterday=0, today>0    -> "— yesterday had no usage"
  *   - today=0, yesterday=0    -> hidden (null label)
- *   - today=0, yesterday>0    -> "▼ -100.0% vs 昨日"
+ *   - today=0, yesterday>0    -> "▼ -100.0% vs previous day"
  *   - missing / non-finite    -> null (never NaN/Infinity)
- *   - `yesterday === undefined` (no prior point) -> "— 无前一日数据"
+ *   - `yesterday === undefined` (no prior point) -> "— no prior-day data"
  */
 export type DeltaKind =
   | "up"
@@ -21,6 +31,12 @@ export type DeltaKind =
   | "no-usage-yesterday"
   | "none";
 
+/** Which prior point the comparison is against, stated in the label. The
+ * week basis is used by the 30-day week aggregation (vs previous full week);
+ * a bucket with no prior bucket (or the partial current bucket, passed as no
+ * prior) renders no delta line at all rather than a misleading one. */
+export type DeltaBasis = "previous-day" | "yesterday-full-day" | "previous-week";
+
 export interface DeltaResult {
   kind: DeltaKind;
   /** Full display label, or `null` when the delta should be hidden. */
@@ -29,9 +45,6 @@ export interface DeltaResult {
   percent: string | null;
 }
 
-const VS = " vs 昨日";
-const NO_YESTERDAY = "— 无前一日数据";
-const NO_USAGE_YESTERDAY = "— 昨日无使用";
 /** Switch threshold: |delta| >= 1% is a real up/down move. */
 const THRESHOLD = 0.01;
 
@@ -44,12 +57,28 @@ function percentLabel(delta: number): string {
 export function formatDelta(
   today: number | null | undefined,
   yesterday: number | null | undefined,
+  lang: Language,
+  basis: DeltaBasis = "previous-day",
 ): DeltaResult {
+  const d = dictFor(lang);
+  const suffix =
+    basis === "yesterday-full-day"
+      ? d.deltaVsYesterdayFullDay
+      : basis === "previous-week"
+        ? d.deltaVsPreviousWeek
+        : d.deltaVsPreviousDay;
+
   if (today == null || !Number.isFinite(today)) {
     return { kind: "none", label: null, percent: null };
   }
   if (yesterday === undefined) {
-    return { kind: "no-yesterday", label: NO_YESTERDAY, percent: null };
+    // Week buckets never claim a "no prior data" line: the first bucket has
+    // nothing before the window, and the partial current bucket is passed
+    // with no prior on purpose — both read cleaner without the line.
+    if (basis === "previous-week") {
+      return { kind: "none", label: null, percent: null };
+    }
+    return { kind: "no-yesterday", label: d.deltaNoYesterday, percent: null };
   }
   if (yesterday == null || !Number.isFinite(yesterday)) {
     return { kind: "none", label: null, percent: null };
@@ -57,16 +86,16 @@ export function formatDelta(
 
   if (yesterday === 0) {
     if (today === 0) return { kind: "none", label: null, percent: null };
-    return { kind: "no-usage-yesterday", label: NO_USAGE_YESTERDAY, percent: null };
+    return { kind: "no-usage-yesterday", label: d.deltaNoUsageYesterday, percent: null };
   }
   if (today === 0) {
     const pct = "-100.0%";
-    return { kind: "down", label: `▼ ${pct}${VS}`, percent: pct };
+    return { kind: "down", label: `▼ ${pct} ${suffix}`, percent: pct };
   }
 
   const delta = (today - yesterday) / yesterday;
   const pct = percentLabel(delta);
-  if (delta >= THRESHOLD) return { kind: "up", label: `▲ ${pct}${VS}`, percent: pct };
-  if (delta <= -THRESHOLD) return { kind: "down", label: `▼ ${pct}${VS}`, percent: pct };
-  return { kind: "flat", label: `• ${pct}${VS}`, percent: pct };
+  if (delta >= THRESHOLD) return { kind: "up", label: `▲ ${pct} ${suffix}`, percent: pct };
+  if (delta <= -THRESHOLD) return { kind: "down", label: `▼ ${pct} ${suffix}`, percent: pct };
+  return { kind: "flat", label: `• ${pct} ${suffix}`, percent: pct };
 }

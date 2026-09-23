@@ -21,6 +21,7 @@
 use std::io::{Read, Write};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(any(debug_assertions, test))]
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 

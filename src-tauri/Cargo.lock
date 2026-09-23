@@ -593,7 +593,7 @@ dependencies = [
 
 [[package]]
 name = "coding-agent-monitor"
-version = "0.3.0"
+version = "0.5.0"
 dependencies = [
  "ccusage-adapter-all",
  "ccusage-cli",
@@ -606,6 +606,7 @@ dependencies = [
  "sqlite",
  "tauri",
  "tauri-build",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

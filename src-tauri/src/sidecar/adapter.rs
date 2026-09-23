@@ -4,8 +4,12 @@ use chrono::{Duration, NaiveDate};
 use serde::Deserialize;
 
 use crate::{
+    collector::snapshot_protocol::{AgentSnapshotOutcomeV1, CollectorSnapshotResponseV1},
     error::AppError,
-    usage::{AgentUsage, DailyUsage, ModelUsage, TokenBreakdown, UsageSummary},
+    usage::{
+        AgentUsage, CostUnknownReason, CoverageInfo, CoverageStatus, DailyUsage, ModelUsage,
+        SourceDiagnostic, SourceDiagnosticKind, TokenBreakdown, UsageSummary,
+    },
 };
 
 /// `Number.MAX_SAFE_INTEGER` (2^53 - 1). ccusage reports tokens as `u64`, but
@@ -156,6 +160,10 @@ struct AgentTotals {
     /// complete total. Starts true because an empty aggregate has no unknown
     /// price yet.
     cost_known: bool,
+    /// True when at least one contributing row was missing a model price —
+    /// the concrete, evidence-backed reason behind `cost_known == false` that
+    /// the UI can surface as "cannot fully estimate".
+    missing_pricing: bool,
     /// raw model name -> per-model aggregates across every row for this agent.
     models: BTreeMap<String, ModelTotals>,
 }
@@ -171,6 +179,7 @@ impl Default for AgentTotals {
             reasoning: 0,
             cost_sum: 0.0,
             cost_known: true,
+            missing_pricing: false,
             models: BTreeMap::new(),
         }
     }
@@ -190,7 +199,12 @@ impl AgentTotals {
             .saturating_add(agent.supplemental_reasoning_tokens);
         match agent.total_cost {
             Some(cost) if cost.is_finite() => self.cost_sum += cost,
-            _ => self.cost_known = false,
+            _ => {
+                self.cost_known = false;
+                // The vendor leaves totalCost unknown exactly when a price is
+                // missing, so this arm carries the missing-pricing evidence.
+                self.missing_pricing = true;
+            }
         }
         for model in agent.model_breakdowns {
             // Copy the (Copy) component fields before moving `model_name` into
@@ -347,6 +361,9 @@ pub fn normalize_reports(
         collected_at: collected_at.to_string(),
         today: today_summary,
         last7_days,
+        // The v0.2 JSON path carries no per-record diagnostics, so its output
+        // is coverage-complete by construction.
+        coverage: CoverageInfo::complete(),
     })
 }
 
@@ -372,9 +389,43 @@ pub fn normalize_snapshot(
     today: &str,
     collected_at: &str,
 ) -> Result<UsageSummary, AppError> {
+    let end = NaiveDate::parse_from_str(today, "%Y-%m-%d")
+        .map_err(|e| AppError::invalid_date(e.to_string()))?;
+    let scope = crate::usage::UsageScope {
+        start_date: (end - Duration::days(6)).to_string(),
+        end_date: today.to_string(),
+        time_zone: "UTC".to_string(),
+    };
+    let history = normalize_history(snapshot, &scope, collected_at)?;
+    Ok(UsageSummary {
+        collected_at: history.collected_at,
+        today: history.days.last().expect("seven days").clone(),
+        last7_days: history.days,
+        coverage: history.coverage,
+    })
+}
+
+pub fn normalize_history(
+    snapshot: &CollectorSnapshotResponseV1,
+    scope: &crate::usage::UsageScope,
+    collected_at: &str,
+) -> Result<crate::usage::HistoryUsage, AppError> {
+    if snapshot.fatal_error.is_some() {
+        return Err(AppError::invalid_ccusage(
+            "history",
+            "snapshot failed".into(),
+        ));
+    }
+    let today = scope.end_date.as_str();
     let today = NaiveDate::parse_from_str(today, "%Y-%m-%d")
         .map_err(|error| AppError::invalid_date(error.to_string()))?;
 
+    let start = NaiveDate::parse_from_str(&scope.start_date, "%Y-%m-%d")
+        .map_err(|e| AppError::invalid_date(e.to_string()))?;
+    let count = (today - start).num_days() + 1;
+    if count != 7 && count != 30 {
+        return Err(AppError::invalid_date("expected 7 or 30 days".into()));
+    }
     let mut by_date = BTreeMap::<String, BTreeMap<String, AgentTotals>>::new();
     for agent_snapshot in &snapshot.agents {
         let report = match &agent_snapshot.outcome {
@@ -430,7 +481,15 @@ pub fn normalize_snapshot(
                 .saturating_add(record.reasoning_tokens);
             match total_cost {
                 Some(cost) if cost.is_finite() => agent_totals.cost_sum += cost,
-                _ => agent_totals.cost_known = false,
+                _ => {
+                    agent_totals.cost_known = false;
+                    // In the snapshot path a record cost is unknown exactly
+                    // when a contributing model is missing pricing, so this
+                    // arm carries that evidence for the day-level reason.
+                    if !record_cost_known {
+                        agent_totals.missing_pricing = true;
+                    }
+                }
             }
             for breakdown in &record.model_breakdowns {
                 let entry = agent_totals
@@ -453,17 +512,75 @@ pub fn normalize_snapshot(
         }
     }
 
-    let last7_days = summarize_days(&by_date, today)?;
-    let today_summary = last7_days
-        .last()
-        .cloned()
-        .expect("a seven-day range always contains today");
-
-    Ok(UsageSummary {
+    let days = summarize_range(&by_date, today, count)?;
+    let active: Vec<_> = days.iter().filter(|day| day.total_tokens > 0).collect();
+    let estimated_cost_usd =
+        if active.is_empty() || active.iter().any(|day| day.estimated_cost_usd.is_none()) {
+            None
+        } else {
+            let sum: f64 = active.iter().filter_map(|day| day.estimated_cost_usd).sum();
+            sum.is_finite().then_some(sum)
+        };
+    Ok(crate::usage::HistoryUsage {
+        scope: scope.clone(),
         collected_at: collected_at.to_string(),
-        today: today_summary,
-        last7_days,
+        days,
+        estimated_cost_usd,
+        coverage: coverage_from_snapshot(snapshot),
     })
+}
+
+/// Aggregates a snapshot's per-agent recoverable diagnostics into the sanitized
+/// public coverage projection: stable kinds, agent display names and counts
+/// only. The wire diagnostic's file name and detail text are deliberately
+/// dropped here — they may embed paths or loader internals that must never
+/// reach the frontend. Any diagnostic means records/files were skipped while
+/// the agent still succeeded, so coverage is only "possibly incomplete".
+fn coverage_from_snapshot(snapshot: &CollectorSnapshotResponseV1) -> CoverageInfo {
+    let mut counts = BTreeMap::<(String, SourceDiagnosticKind), u32>::new();
+    for agent_snapshot in &snapshot.agents {
+        if let AgentSnapshotOutcomeV1::Ok { report } = &agent_snapshot.outcome {
+            for diag in &report.diagnostics {
+                let Some(kind) = source_diagnostic_kind(&diag.kind) else {
+                    // Protocol validation rejects unknown kinds upstream; skip
+                    // defensively rather than inventing a category.
+                    continue;
+                };
+                *counts
+                    .entry((agent_snapshot.agent.clone(), kind))
+                    .or_insert(0) += 1;
+            }
+        }
+    }
+    if counts.is_empty() {
+        return CoverageInfo::complete();
+    }
+    CoverageInfo {
+        status: CoverageStatus::PossiblyIncomplete,
+        diagnostics: counts
+            .into_iter()
+            .map(|((agent_id, kind), count)| SourceDiagnostic {
+                agent_display_name: display_name(&agent_id),
+                kind,
+                agent_id,
+                count,
+            })
+            .collect(),
+    }
+}
+
+/// Maps a wire diagnostic kind to the public sanitized category. Mirrors the
+/// collector protocol's kind strings; unknown strings map to `None`.
+fn source_diagnostic_kind(wire: &str) -> Option<SourceDiagnosticKind> {
+    match wire {
+        "corrupt_file" => Some(SourceDiagnosticKind::CorruptFile),
+        "corrupt_record" => Some(SourceDiagnosticKind::CorruptRecord),
+        "database_error" => Some(SourceDiagnosticKind::DatabaseError),
+        "source_unreadable" => Some(SourceDiagnosticKind::SourceUnreadable),
+        "source_changed" => Some(SourceDiagnosticKind::SourceChanged),
+        "invariant_violation" => Some(SourceDiagnosticKind::InvariantViolation),
+        _ => None,
+    }
 }
 
 /// Shared seven-day summarization over per-day agent aggregates. Both the
@@ -474,18 +591,27 @@ fn summarize_days(
     by_date: &BTreeMap<String, BTreeMap<String, AgentTotals>>,
     today: chrono::NaiveDate,
 ) -> Result<Vec<DailyUsage>, AppError> {
-    let mut last7_days = Vec::with_capacity(7);
-    for days_ago in (0..7).rev() {
+    summarize_range(by_date, today, 7)
+}
+
+fn summarize_range(
+    by_date: &BTreeMap<String, BTreeMap<String, AgentTotals>>,
+    today: chrono::NaiveDate,
+    count: i64,
+) -> Result<Vec<DailyUsage>, AppError> {
+    let mut last7_days = Vec::with_capacity(count as usize);
+    for days_ago in (0..count).rev() {
         let date = today - Duration::days(days_ago);
         let date_key = date.format("%Y-%m-%d").to_string();
-        let (agents, estimated_cost_usd, cache_read_share) = match by_date.get(&date_key) {
-            Some(day) => {
-                let agents = build_agents(day);
-                let (cost, share) = day_metrics(day);
-                (agents, cost, share)
-            }
-            None => (Vec::new(), None, None),
-        };
+        let (agents, estimated_cost_usd, cache_read_share, cost_unknown_reason) =
+            match by_date.get(&date_key) {
+                Some(day) => {
+                    let agents = build_agents(day);
+                    let (cost, share, reason) = day_metrics(day);
+                    (agents, cost, share, reason)
+                }
+                None => (Vec::new(), None, None, None),
+            };
         let total_tokens = emit_day_total(&agents)?;
         // Component totals come from the aggregated day rows; `other` absorbs the
         // residual so the five counts always sum to `total_tokens`.
@@ -498,6 +624,7 @@ fn summarize_days(
             total_tokens,
             token_breakdown,
             estimated_cost_usd,
+            cost_unknown_reason,
             cache_read_share,
             agents,
         });
@@ -505,13 +632,20 @@ fn summarize_days(
     Ok(last7_days)
 }
 
-/// Computes the day's estimated cost and cache-input share from its active
+/// Computes the day's estimated cost, cache-input share and — when the cost is
+/// unknown despite usage — its evidence-backed reason, from the day's active
 /// (tokens > 0) agents. Cost is only a complete total when every active agent
 /// has a known cost; the cache share is `cacheRead / (input + cacheRead +
 /// cacheCreation)` and is unavailable (`None`) when the denominator is zero.
-fn day_metrics(day: &BTreeMap<String, AgentTotals>) -> (Option<f64>, Option<f64>) {
+/// The only unknown-cost cause currently produced by either collection path is
+/// a missing model price; a hypothetical other cause would yield `None` reason
+/// and stay a plain "cannot estimate" rather than a mislabelled reason.
+fn day_metrics(
+    day: &BTreeMap<String, AgentTotals>,
+) -> (Option<f64>, Option<f64>, Option<CostUnknownReason>) {
     let mut cost_sum = 0.0f64;
     let mut cost_known = true;
+    let mut missing_pricing = false;
     let mut any_active = false;
     let mut input = 0u64;
     let mut cache_read = 0u64;
@@ -524,6 +658,7 @@ fn day_metrics(day: &BTreeMap<String, AgentTotals>) -> (Option<f64>, Option<f64>
         } else {
             cost_known = false;
         }
+        missing_pricing |= totals.missing_pricing;
         input = input.saturating_add(totals.input);
         cache_read = cache_read.saturating_add(totals.cache_read);
         cache_creation = cache_creation.saturating_add(totals.cache_creation);
@@ -531,6 +666,11 @@ fn day_metrics(day: &BTreeMap<String, AgentTotals>) -> (Option<f64>, Option<f64>
 
     let cost = if any_active && cost_known && cost_sum.is_finite() && cost_sum >= 0.0 {
         Some(cost_sum)
+    } else {
+        None
+    };
+    let cost_unknown_reason = if cost.is_none() && any_active && missing_pricing {
+        Some(CostUnknownReason::MissingModelPricing)
     } else {
         None
     };
@@ -544,7 +684,7 @@ fn day_metrics(day: &BTreeMap<String, AgentTotals>) -> (Option<f64>, Option<f64>
         None
     };
 
-    (cost, share)
+    (cost, share, cost_unknown_reason)
 }
 
 /// Sums a day's common components and source-confirmed additive reasoning.
@@ -1447,6 +1587,282 @@ mod tests {
         let error = normalize_unified("not-json", "2026-08-24", COLLECTED_AT).unwrap_err();
         assert_eq!(error.code, "invalid_ccusage_output");
         assert!(error.message.contains("ccusage"));
+    }
+
+    // --- T02: cost-unknown reasons and sanitized coverage -------------------
+
+    use crate::collector::protocol::{DiagnosticV1, ModelBreakdownV1, ReportV1, UsageRecordV1};
+    use crate::collector::snapshot_protocol::{
+        AgentSnapshotOutcomeV1, AgentSnapshotV1, CollectorSnapshotResponseV1,
+        SNAPSHOT_PROTOCOL_VERSION,
+    };
+    use crate::usage::{CostUnknownReason, CoverageStatus, SourceDiagnosticKind};
+
+    /// A wire record builder for snapshot-path tests. `missing` decides whether
+    /// the record's only model lacks pricing.
+    fn wire_record(
+        agent: &str,
+        date: &str,
+        input: u64,
+        missing: bool,
+        cost_nano: Option<&str>,
+    ) -> UsageRecordV1 {
+        UsageRecordV1 {
+            date: date.to_string(),
+            agent: agent.to_string(),
+            input_tokens: input.to_string(),
+            output_tokens: "0".to_string(),
+            cache_creation_tokens: "0".to_string(),
+            cache_read_tokens: "0".to_string(),
+            reasoning_tokens: "0".to_string(),
+            unclassified_tokens: "0".to_string(),
+            total_tokens: input.to_string(),
+            cost_nano_usd: cost_nano.map(str::to_string),
+            models_used: vec!["m".to_string()],
+            model_breakdowns: vec![ModelBreakdownV1 {
+                model: "m".to_string(),
+                input_tokens: input.to_string(),
+                output_tokens: "0".to_string(),
+                cache_creation_tokens: "0".to_string(),
+                cache_read_tokens: "0".to_string(),
+                reasoning_tokens: "0".to_string(),
+                missing_pricing: missing,
+                cost_nano_usd: None,
+            }],
+            models_missing_pricing: if missing {
+                vec!["m".to_string()]
+            } else {
+                vec![]
+            },
+        }
+    }
+
+    fn snapshot_response(agents: Vec<(&str, ReportV1)>) -> CollectorSnapshotResponseV1 {
+        CollectorSnapshotResponseV1 {
+            version: SNAPSHOT_PROTOCOL_VERSION,
+            request_id: "test".to_string(),
+            fatal_error: None,
+            agents: agents
+                .into_iter()
+                .map(|(agent, report)| AgentSnapshotV1 {
+                    agent: agent.to_string(),
+                    outcome: AgentSnapshotOutcomeV1::Ok { report },
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_priced_zero_is_a_real_zero_but_a_missing_price_stays_unknown_with_a_reason() {
+        // Real zero: every model priced, computed cost exactly 0 → `$0.00` is
+        // honest, and no unknown reason is attached.
+        let priced_zero = snapshot_response(vec![(
+            "claude",
+            ReportV1 {
+                records: vec![wire_record("claude", "2026-08-24", 500, false, Some("0"))],
+                diagnostics: vec![],
+            },
+        )]);
+        let summary =
+            normalize_snapshot(&priced_zero, "2026-08-24", COLLECTED_AT).expect("normalize");
+        assert_eq!(summary.today.estimated_cost_usd, Some(0.0));
+        assert_eq!(summary.today.cost_unknown_reason, None);
+        assert_eq!(summary.today.total_tokens, 500);
+
+        // Full missing price: usage exists, cost must stay None and carry the
+        // concrete reason instead of faking `$0.00`.
+        let unpriced = snapshot_response(vec![(
+            "claude",
+            ReportV1 {
+                records: vec![wire_record("claude", "2026-08-24", 500, true, Some("0"))],
+                diagnostics: vec![],
+            },
+        )]);
+        let summary = normalize_snapshot(&unpriced, "2026-08-24", COLLECTED_AT).expect("normalize");
+        assert_eq!(summary.today.estimated_cost_usd, None);
+        assert_eq!(
+            summary.today.cost_unknown_reason,
+            Some(CostUnknownReason::MissingModelPricing)
+        );
+
+        // No usage at all: cost is not applicable, not "unknown why".
+        let empty = snapshot_response(vec![(
+            "claude",
+            ReportV1 {
+                records: vec![wire_record("claude", "2026-08-24", 0, true, Some("0"))],
+                diagnostics: vec![],
+            },
+        )]);
+        let summary = normalize_snapshot(&empty, "2026-08-24", COLLECTED_AT).expect("normalize");
+        assert_eq!(summary.today.estimated_cost_usd, None);
+        assert_eq!(summary.today.cost_unknown_reason, None);
+    }
+
+    #[test]
+    fn the_unified_path_carries_the_same_missing_price_reason() {
+        let json = r#"{
+            "daily": [
+                { "period": "2026-08-24",
+                  "agents": [
+                    { "agent": "claude", "totalTokens": 500, "totalCost": 0.0 },
+                    { "agent": "codex",  "totalTokens": 700, "totalCost": null }
+                  ] }
+            ]
+        }"#;
+        let summary = summarize(json);
+        // Mixed priced/unpriced: the day total is unknown with the concrete
+        // missing-pricing reason (never a partial claude-only sum).
+        assert_eq!(summary.today.estimated_cost_usd, None);
+        assert_eq!(
+            summary.today.cost_unknown_reason,
+            Some(CostUnknownReason::MissingModelPricing)
+        );
+
+        let priced_only = r#"{
+            "daily": [
+                { "period": "2026-08-24",
+                  "agents": [ { "agent": "claude", "totalTokens": 500, "totalCost": 0.0 } ] }
+            ]
+        }"#;
+        let summary = summarize(priced_only);
+        assert_eq!(summary.today.estimated_cost_usd, Some(0.0));
+        assert_eq!(summary.today.cost_unknown_reason, None);
+
+        let no_usage = summarize(r#"{"daily":[]}"#);
+        assert_eq!(no_usage.today.estimated_cost_usd, None);
+        assert_eq!(no_usage.today.cost_unknown_reason, None);
+    }
+
+    #[test]
+    fn snapshot_diagnostics_surface_as_sanitized_coverage() {
+        // Two agents succeed, but each skipped records: claude hit two corrupt
+        // records and one unreadable file, codex one database error. The wire
+        // diagnostics deliberately embed a path and detail text that must be
+        // stripped before anything becomes public.
+        let response = snapshot_response(vec![
+            (
+                "claude",
+                ReportV1 {
+                    records: vec![wire_record("claude", "2026-08-24", 100, false, Some("0"))],
+                    diagnostics: vec![
+                        DiagnosticV1 {
+                            kind: "corrupt_record".to_string(),
+                            file: Some("C:\\Users\\whoami\\.claude\\projects\\x.jsonl".to_string()),
+                            details: "secret detail text".to_string(),
+                        },
+                        DiagnosticV1 {
+                            kind: "corrupt_record".to_string(),
+                            file: Some("C:\\Users\\whoami\\.claude\\projects\\y.jsonl".to_string()),
+                            details: "another secret".to_string(),
+                        },
+                        DiagnosticV1 {
+                            kind: "source_unreadable".to_string(),
+                            file: Some("C:\\Users\\whoami\\.claude\\db".to_string()),
+                            details: "unreadable".to_string(),
+                        },
+                    ],
+                },
+            ),
+            (
+                "codex",
+                ReportV1 {
+                    records: vec![wire_record("codex", "2026-08-24", 200, false, Some("0"))],
+                    diagnostics: vec![DiagnosticV1 {
+                        kind: "database_error".to_string(),
+                        file: None,
+                        details: "db down".to_string(),
+                    }],
+                },
+            ),
+        ]);
+        let summary = normalize_snapshot(&response, "2026-08-24", COLLECTED_AT).expect("normalize");
+
+        // Accepted records still count — coverage is a label, not a rejection.
+        assert_eq!(summary.today.total_tokens, 300);
+        assert_eq!(summary.coverage.status, CoverageStatus::PossiblyIncomplete);
+        assert_eq!(summary.coverage.diagnostics.len(), 3);
+        assert!(summary
+            .coverage
+            .diagnostics
+            .contains(&crate::usage::SourceDiagnostic {
+                kind: SourceDiagnosticKind::CorruptRecord,
+                agent_id: "claude".to_string(),
+                agent_display_name: "Claude Code".to_string(),
+                count: 2,
+            }));
+        assert!(summary
+            .coverage
+            .diagnostics
+            .contains(&crate::usage::SourceDiagnostic {
+                kind: SourceDiagnosticKind::SourceUnreadable,
+                agent_id: "claude".to_string(),
+                agent_display_name: "Claude Code".to_string(),
+                count: 1,
+            }));
+        assert!(summary
+            .coverage
+            .diagnostics
+            .contains(&crate::usage::SourceDiagnostic {
+                kind: SourceDiagnosticKind::DatabaseError,
+                agent_id: "codex".to_string(),
+                agent_display_name: "Codex".to_string(),
+                count: 1,
+            }));
+
+        // The public projection carries no paths, detail text, or file names.
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(!json.contains("secret"));
+        assert!(!json.contains("whoami"));
+        assert!(!json.contains("C:\\\\"));
+        assert!(!json.contains("details"));
+        assert!(!json.contains("file"));
+        assert!(json.contains("possiblyIncomplete"));
+        assert!(json.contains("agentDisplayName"));
+    }
+
+    #[test]
+    fn a_snapshot_without_diagnostics_reports_complete_coverage() {
+        let response = snapshot_response(vec![(
+            "claude",
+            ReportV1 {
+                records: vec![wire_record("claude", "2026-08-24", 100, false, Some("0"))],
+                diagnostics: vec![],
+            },
+        )]);
+        let summary = normalize_snapshot(&response, "2026-08-24", COLLECTED_AT).expect("normalize");
+        assert_eq!(summary.coverage, CoverageInfo::complete());
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("\"coverage\":{\"status\":\"complete\",\"diagnostics\":[]}"));
+    }
+
+    #[test]
+    fn an_agent_error_snapshot_never_reaches_a_coverage_label() {
+        // Structured agent errors stay fatal for the whole refresh (policy
+        // unchanged); no partial summary with coverage is produced.
+        let response = CollectorSnapshotResponseV1 {
+            version: SNAPSHOT_PROTOCOL_VERSION,
+            request_id: "test".to_string(),
+            fatal_error: None,
+            agents: vec![AgentSnapshotV1 {
+                agent: "claude".to_string(),
+                outcome: AgentSnapshotOutcomeV1::Error {
+                    error: crate::collector::protocol::ErrorV1 {
+                        code: crate::collector::protocol::ErrorCodeV1::SourceUnavailable,
+                        message: "no valid directories".to_string(),
+                        agent: Some("claude".to_string()),
+                        vendor: None,
+                    },
+                },
+            }],
+        };
+        let error = normalize_snapshot(&response, "2026-08-24", COLLECTED_AT).unwrap_err();
+        assert_eq!(error.code, "invalid_ccusage_output");
+    }
+
+    #[test]
+    fn unified_path_reports_complete_coverage() {
+        let summary = summarize(UNIFIED);
+        assert_eq!(summary.coverage, CoverageInfo::complete());
     }
 
     #[test]

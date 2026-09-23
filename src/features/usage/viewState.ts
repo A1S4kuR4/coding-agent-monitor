@@ -1,62 +1,82 @@
-import type { UsageSummary } from "../../types/usage";
+import type { UsageCollectionState } from "../../types/usage";
 
-/** The dashboard view machine. `ready` holds the last good summary plus the
- * current refresh and staleness flags; `error` shows for a failed first load. */
+/** Stable failure category for the first-failure error page. The English/Chinese
+ * copy is chosen by the App from the language dictionary — the reducer never
+ * stores user-facing text. */
+export type ViewStateErrorReason = "timedOut" | "cancelled" | "failed" | "transport";
+
 export type ViewState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | {
-      status: "ready";
-      summary: UsageSummary;
-      refreshing: boolean;
-      stale: boolean;
-    };
+  | { status: "loading"; collection: UsageCollectionState | null }
+  | { status: "error"; reason: ViewStateErrorReason; collection: UsageCollectionState | null }
+  | { status: "ready"; collection: UsageCollectionState };
 
 export type ViewAction =
-  | { type: "load-started" }
-  | { type: "refresh-started" }
-  | { type: "load-succeeded"; summary: UsageSummary }
-  | { type: "load-failed"; keepExisting: boolean; message: string }
-  | { type: "event-received"; summary: UsageSummary };
+  | { type: "state-received"; state: UsageCollectionState }
+  | { type: "transport-failed" };
 
-/** Pure state transitions for the dashboard. Kept in a reducer so the Phase 8
- * state machine (first-error, refresh success, stale degradation) is unit-tested
- * without a DOM, and so `App` effects never call setState synchronously. */
+export const initialViewState: ViewState = {
+  status: "loading",
+  collection: null,
+};
+
+function failureReason(state: UsageCollectionState): ViewStateErrorReason {
+  switch (state.lastAttempt?.failure) {
+    case "timedOut":
+      return "timedOut";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "failed";
+  }
+}
+
+function project(state: UsageCollectionState): ViewState {
+  if (state.snapshot) return { status: "ready", collection: state };
+  if (state.refreshing || state.lastAttempt?.outcome === "inProgress") {
+    return { status: "loading", collection: state };
+  }
+  if (state.lastAttempt?.outcome === "failed") {
+    return {
+      status: "error",
+      reason: failureReason(state),
+      collection: state,
+    };
+  }
+  return { status: "loading", collection: state };
+}
+
+function shouldApply(
+  current: UsageCollectionState | null,
+  incoming: UsageCollectionState,
+): boolean {
+  if (!current) return true;
+  if (incoming.revision !== current.revision) {
+    return incoming.revision > current.revision;
+  }
+  // A read can re-evaluate freshness without changing the transition revision.
+  return incoming.freshness.checkedAt >= current.freshness.checkedAt;
+}
+
+/** Applies the one Rust-owned state envelope. Revisions make event/command
+ * ordering harmless: a late initialization read or refresh response cannot
+ * replace a newer success, failure, or in-progress transition. */
 export function viewReducer(state: ViewState, action: ViewAction): ViewState {
   switch (action.type) {
-    case "load-started":
-      // Full-page retry from the error state.
-      return { status: "loading" };
-
-    case "refresh-started":
-      // A background refresh only marks an already-ready dashboard as busy so
-      // the header button disables; other states are untouched.
-      return state.status === "ready"
-        ? { ...state, refreshing: true }
+    case "state-received":
+      return shouldApply(state.collection, action.state)
+        ? project(action.state)
         : state;
-
-    case "load-succeeded":
-      return {
-        status: "ready",
-        summary: action.summary,
-        refreshing: false,
-        stale: false,
-      };
-
-    case "load-failed":
-      // With `keepExisting` a failure keeps the last good snapshot and marks it
-      // stale; the first-ever load keeps false so it lands on the error page.
-      return state.status === "ready" && action.keepExisting
-        ? { ...state, refreshing: false, stale: true }
-        : { status: "error", message: action.message };
-
-    case "event-received":
-      // A tray refresh emitted the same snapshot; apply it directly.
-      return {
-        status: "ready",
-        summary: action.summary,
-        refreshing: false,
-        stale: false,
-      };
+    case "transport-failed":
+      return state.status === "ready"
+        ? state
+        : {
+            status: "error",
+            reason: "transport",
+            collection: state.collection,
+          };
   }
+}
+
+export function needsRefresh(state: UsageCollectionState): boolean {
+  return !state.refreshing && (!state.snapshot || state.freshness.status !== "fresh");
 }

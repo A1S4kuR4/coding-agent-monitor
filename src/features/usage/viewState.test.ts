@@ -1,90 +1,166 @@
 import { describe, expect, it } from "vitest";
 
-import type { UsageSummary } from "../../types/usage";
-import { viewReducer, type ViewAction, type ViewState } from "./viewState";
+import type { UsageCollectionState, UsageSummary } from "../../types/usage";
+import {
+  initialViewState,
+  needsRefresh,
+  viewReducer,
+  type ViewState,
+} from "./viewState";
 
-function summary(over: Partial<UsageSummary> = {}): UsageSummary {
-  return {
-    collectedAt: "2026-08-24T12:00:00Z",
-    today: {
-      date: "2026-08-24",
-      totalTokens: 13_590_000,
-      tokenBreakdown: {
-        inputTokens: 4_077_000,
-        outputTokens: 1_359_000,
-        cacheReadTokens: 8_154_000,
-        cacheCreationTokens: 0,
-        reasoningTokens: 0,
-        unclassifiedTokens: 0,
-      },
-      estimatedCostUsd: 12.0,
-      cacheReadShare: 0.7,
-      agents: [
-        { id: "claude", displayName: "Claude Code", tokens: 8_420_000, reasoningTokens: 0, unclassifiedTokens: 0, models: [] },
-        { id: "codex", displayName: "Codex", tokens: 5_170_000, reasoningTokens: 0, unclassifiedTokens: 0, models: [] },
-      ],
+const summary: UsageSummary = {
+  collectedAt: "2026-09-06T04:00:00Z",
+  today: {
+    date: "2026-09-06",
+    totalTokens: 10,
+    tokenBreakdown: {
+      inputTokens: 10,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      reasoningTokens: 0,
+      unclassifiedTokens: 0,
     },
-    last7Days: [],
-    ...over,
+    estimatedCostUsd: null,
+    costUnknownReason: null,
+    cacheReadShare: null,
+    agents: [],
+  },
+  last7Days: [],
+  coverage: { status: "complete", diagnostics: [] },
+};
+
+function state(
+  revision: number,
+  options: {
+    snapshot?: UsageSummary | null;
+    refreshing?: boolean;
+    outcome?: "inProgress" | "succeeded" | "failed";
+    freshness?: "fresh" | "stale" | "unknown";
+    checkedAt?: string;
+  } = {},
+): UsageCollectionState {
+  const scope = {
+    startDate: "2026-08-31",
+    endDate: "2026-09-06",
+    timeZone: "Asia/Shanghai",
+  };
+  const snapshot = options.snapshot === undefined ? summary : options.snapshot;
+  const outcome = options.outcome ?? "succeeded";
+  return {
+    revision,
+    refreshing: options.refreshing ?? false,
+    snapshot: snapshot ? { scope, summary: snapshot } : null,
+    lastAttempt: {
+      id: 1,
+      trigger: "manual",
+      scope,
+      startedAt: "2026-09-06T03:59:59Z",
+      finishedAt: outcome === "inProgress" ? null : "2026-09-06T04:00:00Z",
+      outcome,
+      failure: outcome === "failed" ? "failed" : null,
+    },
+    freshness: {
+      status: options.freshness ?? (snapshot ? "fresh" : "unknown"),
+      reason: snapshot ? "current" : "noSnapshot",
+      checkedAt: options.checkedAt ?? "2026-09-06T04:00:00Z",
+      currentDate: "2026-09-06",
+      currentTimeZone: "Asia/Shanghai",
+      staleAfterSeconds: 600,
+    },
   };
 }
 
-const start = (state: ViewState, action: ViewAction): ViewState =>
-  viewReducer(state, action);
+const reduce = (view: ViewState, incoming: UsageCollectionState) =>
+  viewReducer(view, { type: "state-received", state: incoming });
 
 describe("viewReducer", () => {
-  it("first load success lands on ready, not stale", () => {
-    const next = start({ status: "loading" }, { type: "load-succeeded", summary: summary() });
-    expect(next).toEqual({ status: "ready", summary: summary(), refreshing: false, stale: false });
+  it("projects first success and first failure without inventing data", () => {
+    expect(reduce(initialViewState, state(2))).toMatchObject({ status: "ready" });
+    expect(
+      reduce(
+        initialViewState,
+        state(2, { snapshot: null, outcome: "failed", freshness: "unknown" }),
+      ),
+    ).toMatchObject({ status: "error", reason: "failed" });
   });
 
-  it("first-load failure lands on the error page (no existing data)", () => {
-    const next = start(
-      { status: "loading" },
-      { type: "load-failed", keepExisting: false, message: "boom" },
-    );
-    expect(next).toEqual({ status: "error", message: "boom" });
-    // keepExisting is irrelevant when there is nothing to keep.
-    const nextKeep = start(
-      { status: "loading" },
-      { type: "load-failed", keepExisting: true, message: "boom" },
-    );
-    expect(nextKeep).toEqual({ status: "error", message: "boom" });
+  it("maps failure categories to stable reasons without raw details", () => {
+    const timedOut = state(2, {
+      snapshot: null,
+      outcome: "failed",
+      freshness: "unknown",
+    });
+    timedOut.lastAttempt = { ...timedOut.lastAttempt!, failure: "timedOut" };
+    expect(reduce(initialViewState, timedOut)).toMatchObject({
+      status: "error",
+      reason: "timedOut",
+    });
+    const cancelled = state(2, {
+      snapshot: null,
+      outcome: "failed",
+      freshness: "unknown",
+    });
+    cancelled.lastAttempt = { ...cancelled.lastAttempt!, failure: "cancelled" };
+    expect(reduce(initialViewState, cancelled)).toMatchObject({
+      status: "error",
+      reason: "cancelled",
+    });
   });
 
-  it("refresh-started marks a ready view refreshing without dropping data", () => {
-    const ready: ViewState = { status: "ready", summary: summary(), refreshing: false, stale: false };
-    const next = start(ready, { type: "refresh-started" });
-    expect(next).toMatchObject({ status: "ready", refreshing: true, stale: false });
-    expect(next.status === "ready" && next.summary).toEqual(ready.status === "ready" && ready.summary);
-  });
-
-  it("refresh failure keeps last data and marks it stale (graceful degradation)", () => {
-    const ready: ViewState = { status: "ready", summary: summary(), refreshing: false, stale: false };
-    const next = start(
+  it("keeps a snapshot while refresh is running or failed", () => {
+    const ready = reduce(initialViewState, state(2));
+    const running = reduce(
       ready,
-      { type: "load-failed", keepExisting: true, message: "offline" },
+      state(3, { refreshing: true, outcome: "inProgress" }),
     );
-    expect(next).toMatchObject({ status: "ready", refreshing: false, stale: true });
-    if (next.status !== "ready") throw new Error("expected ready");
-    expect(next.summary).toEqual(summary());
+    expect(running).toMatchObject({
+      status: "ready",
+      collection: { refreshing: true, snapshot: { summary } },
+    });
+    const failed = reduce(running, state(4, { outcome: "failed" }));
+    expect(failed).toMatchObject({
+      status: "ready",
+      collection: { refreshing: false, snapshot: { summary } },
+    });
   });
 
-  it("refresh failure with no existing data still lands on the error page", () => {
-    const ready: ViewState = { status: "ready", summary: summary(), refreshing: false, stale: false };
-    const next = start(ready, { type: "load-failed", keepExisting: false, message: "hard" });
-    expect(next).toEqual({ status: "error", message: "hard" });
+  it("rejects late reads, events and responses by revision", () => {
+    const newestSummary = {
+      ...summary,
+      today: { ...summary.today, totalTokens: 99 },
+    };
+    const newest = reduce(
+      initialViewState,
+      state(6, { snapshot: newestSummary, outcome: "succeeded" }),
+    );
+    const lateFailure = reduce(
+      newest,
+      state(4, { outcome: "failed", freshness: "stale" }),
+    );
+    expect(lateFailure).toBe(newest);
+    const lateSuccess = reduce(newest, state(5));
+    expect(lateSuccess).toBe(newest);
   });
 
-  it("retry (load-started) drops back to loading from the error page", () => {
-    const next = start({ status: "error", message: "hard" }, { type: "load-started" });
-    expect(next).toEqual({ status: "loading" });
+  it("accepts a newer freshness evaluation at the same revision", () => {
+    const ready = reduce(initialViewState, state(2));
+    const stale = state(2, {
+      freshness: "stale",
+      checkedAt: "2026-09-06T04:11:00Z",
+    });
+    expect(reduce(ready, stale)).toMatchObject({
+      status: "ready",
+      collection: { freshness: { status: "stale" } },
+    });
   });
 
-  it("a tray event applies a fresh snapshot and clears staleness", () => {
-    const staleReady: ViewState = { status: "ready", summary: summary(), refreshing: false, stale: true };
-    const fresh = summary({ collectedAt: "2026-08-24T13:00:00Z" });
-    const next = start(staleReady, { type: "event-received", summary: fresh });
-    expect(next).toEqual({ status: "ready", summary: fresh, refreshing: false, stale: false });
+  it("refreshes only absent or non-fresh idle state", () => {
+    expect(needsRefresh(state(0, { snapshot: null, outcome: "failed" }))).toBe(true);
+    expect(needsRefresh(state(2, { freshness: "stale" }))).toBe(true);
+    expect(needsRefresh(state(2))).toBe(false);
+    expect(
+      needsRefresh(state(3, { refreshing: true, outcome: "inProgress" })),
+    ).toBe(false);
   });
 });

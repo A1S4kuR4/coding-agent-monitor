@@ -1,58 +1,120 @@
 use std::{
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        RwLock,
+    },
     thread,
     time::Duration,
 };
 
+use chrono::{DateTime, Local};
 use tauri::{
     menu::{Menu, MenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager,
+    AppHandle, Manager,
 };
 
-/// Event name for a successful tray refresh; the payload is the same
-/// `UsageSummary` the window renders, so a long-open window updates without
-/// starting a second collector child.
-const USAGE_UPDATED_EVENT: &str = "usage-updated";
+use crate::{
+    commands::usage::refresh_and_publish,
+    lang::{system_language, Language},
+    usage::{FreshnessStatus, RefreshOutcome, RefreshTrigger, UsageCollectionState, UsageSnapshot},
+};
 
-use crate::collector::worker_runner;
-
-/// How many of today's top agents to fold into the tray summary. The adapter
-/// sorts agents by tokens descending, so taking the first few gives the biggest
-/// contributors without letting an endless agent list overflow the menu.
 const TRAY_AGENT_LIMIT: usize = 2;
-
 const TRAY_ID: &str = "main-tray";
 const SUMMARY_MENU_ID: &str = "today-summary";
+const REFRESH_MENU_ID: &str = "refresh-now";
 const SHOW_MENU_ID: &str = "show-dashboard";
 const QUIT_MENU_ID: &str = "quit";
-/// Fallback text shown until the first collection succeeds.
-const SUMMARY_PLACEHOLDER: &str = "Today: —";
-/// Low-frequency summary refresh so the tray stays current without churn.
+/// Recorded refresh policy: five minutes. The shared state uses a ten-minute
+/// stale threshold, leaving room for one delayed/failed cycle.
 const REFRESH_INTERVAL: Duration = Duration::from_secs(300);
 
-/// Runtime flag so the periodic refresher stops once the app begins to exit.
 static REFRESHER_STOPPED: AtomicBool = AtomicBool::new(false);
-/// Single-flight guard: only one tray refresh runs at a time. A refresh that
-/// lands while one is already in flight is dropped, so fast clicks or the
-/// periodic timer can never pile up collection runs or refresher threads.
-static REFRESH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+static TRAY_REFRESH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+/// The tray language is seeded once at startup from the persisted preference
+/// (`system` resolves through the Windows UI language) so the tray and the
+/// main window speak one language for the whole session; an explicit
+/// preference change updates it (see `commands::preferences`).
+static TRAY_LANGUAGE: RwLock<Option<Language>> = RwLock::new(None);
 
-struct RefreshGuard;
+/// Seeds the tray language for this session.
+pub(crate) fn set_language(lang: Language) {
+    *TRAY_LANGUAGE
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(lang);
+}
 
-impl Drop for RefreshGuard {
+fn language() -> Language {
+    TRAY_LANGUAGE
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(system_language)
+}
+
+/// Bounded, localized tray strings. Never carries errors, paths or diagnostics.
+struct TrayText {
+    unavailable: &'static str,
+    refreshing: &'static str,
+    refresh_failed: &'static str,
+    waiting: &'static str,
+    today: &'static str,
+    last_success: &'static str,
+    stale: &'static str,
+    refresh_now: &'static str,
+    open_dashboard: &'static str,
+    exit: &'static str,
+    unknown_time: &'static str,
+}
+
+fn tray_text(lang: Language) -> TrayText {
+    match lang {
+        Language::En => TrayText {
+            unavailable: "Usage unavailable",
+            refreshing: "Refreshing…",
+            refresh_failed: "Refresh failed",
+            waiting: "Waiting to refresh",
+            today: "Today",
+            last_success: "Last success",
+            stale: "Stale",
+            refresh_now: "Refresh now",
+            open_dashboard: "Open dashboard",
+            exit: "Exit",
+            unknown_time: "unknown",
+        },
+        Language::ZhCn => TrayText {
+            unavailable: "无法获取用量",
+            refreshing: "刷新中…",
+            refresh_failed: "刷新失败",
+            waiting: "等待刷新",
+            today: "今日",
+            last_success: "最近成功",
+            stale: "旧数据",
+            refresh_now: "立即刷新",
+            open_dashboard: "打开主界面",
+            exit: "退出",
+            unknown_time: "未知",
+        },
+    }
+}
+
+struct TrayRefreshGuard;
+
+impl Drop for TrayRefreshGuard {
     fn drop(&mut self) {
-        REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
+        TRAY_REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
     }
 }
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
-    let menu = build_menu(app, SUMMARY_PLACEHOLDER)?;
+    let text = tray_text(language());
+    let menu = build_menu(app, text.unavailable, &text)?;
     let mut tray = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("Coding Agent Monitor")
+        .tooltip(format!("Coding Agent Monitor — {}", text.unavailable))
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
+            REFRESH_MENU_ID => request_refresh(app, RefreshTrigger::Tray),
             SHOW_MENU_ID => show_dashboard(app),
             QUIT_MENU_ID => app.exit(0),
             _ => {}
@@ -64,10 +126,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                 ..
             } = event
             {
-                // `show_dashboard` performs the refresh; no separate call here
-                // so a click triggers exactly one refresh, not two.
-                let handle = tray.app_handle();
-                show_dashboard(handle);
+                show_dashboard(tray.app_handle());
             }
         });
 
@@ -76,74 +135,32 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     }
     tray.build(app)?;
 
-    refresh(app);
+    request_refresh(app, RefreshTrigger::Startup);
     spawn_periodic_refresher(app);
-
     Ok(())
 }
 
-/// Applies current usage to the tray menu text and tooltip. Work runs on a
-/// background thread so opening the tray or a refresh never blocks the window.
-fn refresh(app: &AppHandle) {
+fn request_refresh(app: &AppHandle, trigger: RefreshTrigger) {
     if REFRESHER_STOPPED.load(Ordering::Relaxed) {
         return;
     }
-    // Single-flight: if a refresh already is running, drop this one entirely.
-    // Prevents unbounded refresher threads / collection runs on rapid clicks.
-    if REFRESH_IN_PROGRESS.swap(true, Ordering::SeqCst) {
+    // Bound native click/timer pressure before spawning a waiter thread. The
+    // coordinator remains the process-wide single-flight shared with commands.
+    if TRAY_REFRESH_IN_PROGRESS.swap(true, Ordering::SeqCst) {
         return;
     }
     let handle = app.clone();
     let spawned = thread::Builder::new()
         .name("tray-refresh".into())
         .spawn(move || {
-            let _guard = RefreshGuard;
-            let summary = match worker_runner::collect_usage() {
-                Ok(summary) => summary,
-                // Keep the last-known text; a transient collection failure should
-                // not turn the tray into an error banner.
-                Err(_) => return,
-            };
-            // Show today's total plus the top contributors, bounded so an
-            // unusually long agent list can never overflow the menu. The
-            // adapter already sorts agents by tokens descending.
-            let mut menu_text = format!("Today: {}", format_tokens(summary.today.total_tokens));
-            let mut tooltip = format!(
-                "Coding Agent Monitor — Today {}",
-                format_tokens(summary.today.total_tokens)
-            );
-            for agent in summary.today.agents.iter().take(TRAY_AGENT_LIMIT) {
-                menu_text.push_str(&format!(
-                    " · {} {}",
-                    agent.display_name,
-                    format_tokens(agent.tokens)
-                ));
-                tooltip.push_str(&format!(
-                    " ({} {})",
-                    agent.display_name,
-                    format_tokens(agent.tokens)
-                ));
-            }
-
-            let menu = match build_menu(&handle, &menu_text) {
-                Ok(menu) => menu,
-                Err(_) => return,
-            };
-            if let Some(tray) = handle.tray_by_id(TRAY_ID) {
-                let _ = tray.set_menu(Some(menu));
-                let _ = tray.set_tooltip(Some(tooltip));
-            }
-            // Push the same successful snapshot to any open window so it stays
-            // current without a competing frontend fetch.
-            let _ = handle.emit(USAGE_UPDATED_EVENT, &summary);
+            let _guard = TrayRefreshGuard;
+            refresh_and_publish(&handle, trigger);
         });
     if spawned.is_err() {
-        REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
+        TRAY_REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
     }
 }
 
-/// A single, low-frequency loop keeps the tray text current even when the user
-/// never interacts. It exits cleanly once the app starts shutting down.
 fn spawn_periodic_refresher(app: &AppHandle) {
     let handle = app.clone();
     let _ = thread::Builder::new()
@@ -153,21 +170,29 @@ fn spawn_periodic_refresher(app: &AppHandle) {
             if REFRESHER_STOPPED.load(Ordering::Relaxed) {
                 return;
             }
-            refresh(&handle);
+            request_refresh(&handle, RefreshTrigger::Periodic);
         });
 }
 
-fn build_menu(app: &AppHandle, summary_text: &str) -> tauri::Result<Menu<tauri::Wry>> {
+fn build_menu(
+    app: &AppHandle,
+    summary_text: &str,
+    text: &TrayText,
+) -> tauri::Result<Menu<tauri::Wry>> {
     MenuBuilder::new(app)
         .text(SUMMARY_MENU_ID, summary_text)
         .separator()
-        .text(SHOW_MENU_ID, "Open dashboard")
-        .text(QUIT_MENU_ID, "Exit")
+        .text(REFRESH_MENU_ID, text.refresh_now)
+        .text(SHOW_MENU_ID, text.open_dashboard)
+        .text(QUIT_MENU_ID, text.exit)
         .build()
 }
 
-fn show_dashboard(app: &AppHandle) {
-    refresh(app);
+/// Shows and focuses the main window (tray menu, tray click, and the
+/// single-instance activation listener all land here) and triggers a tray
+/// refresh so the numbers on screen are current.
+pub(crate) fn show_dashboard(app: &AppHandle) {
+    request_refresh(app, RefreshTrigger::Tray);
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
@@ -175,13 +200,110 @@ fn show_dashboard(app: &AppHandle) {
     }
 }
 
-/// Stops the periodic refresher on exit. Called from the app run loop.
+/// Projects shared state into bounded, sanitized tray text. Menu/tooltip
+/// failures never suppress the state event published by the caller.
+pub(crate) fn apply_collection_state(app: &AppHandle, state: &UsageCollectionState) {
+    let text = tray_text(language());
+    let (menu_text, tooltip) = tray_strings(state, &text);
+    if let Ok(menu) = build_menu(app, &menu_text, &text) {
+        if let Some(tray) = app.tray_by_id(TRAY_ID) {
+            let _ = tray.set_menu(Some(menu));
+            let _ = tray.set_tooltip(Some(tooltip));
+        }
+    }
+}
+
+fn tray_strings(state: &UsageCollectionState, text: &TrayText) -> (String, String) {
+    let Some(snapshot) = state.snapshot.as_ref() else {
+        let status = if state.refreshing {
+            text.refreshing
+        } else if last_attempt_failed(state) {
+            text.refresh_failed
+        } else {
+            text.waiting
+        };
+        return (
+            format!("{} · {status}", text.unavailable),
+            format!("Coding Agent Monitor — {} — {status}", text.unavailable),
+        );
+    };
+
+    let date_label = if snapshot.scope.end_date == state.freshness.current_date
+        && snapshot.scope.time_zone == state.freshness.current_time_zone
+    {
+        text.today.to_string()
+    } else {
+        snapshot.scope.end_date.clone()
+    };
+    let success = successful_time(snapshot, text.unknown_time);
+    let mut menu = format!(
+        "{date_label}: {} · {} {success}",
+        format_tokens(snapshot.summary.today.total_tokens),
+        text.last_success
+    );
+    for agent in snapshot.summary.today.agents.iter().take(TRAY_AGENT_LIMIT) {
+        menu.push_str(&format!(
+            " · {} {}",
+            agent.display_name,
+            format_tokens(agent.tokens)
+        ));
+    }
+
+    let mut statuses = Vec::new();
+    if state.refreshing {
+        statuses.push(text.refreshing);
+    } else if last_attempt_failed(state) {
+        statuses.push(text.refresh_failed);
+    }
+    if state.freshness.status != FreshnessStatus::Fresh {
+        statuses.push(text.stale);
+    }
+    if !statuses.is_empty() {
+        menu.push_str(" · ");
+        menu.push_str(&statuses.join(" · "));
+    }
+
+    let tooltip = format!(
+        "Coding Agent Monitor — {date_label} {} — {} {success}{}",
+        format_tokens(snapshot.summary.today.total_tokens),
+        text.last_success,
+        if statuses.is_empty() {
+            String::new()
+        } else {
+            format!(" — {}", statuses.join(" — "))
+        }
+    );
+    (menu, tooltip)
+}
+
+fn last_attempt_failed(state: &UsageCollectionState) -> bool {
+    state
+        .last_attempt
+        .as_ref()
+        .is_some_and(|attempt| attempt.outcome == RefreshOutcome::Failed)
+}
+
+fn successful_time(snapshot: &UsageSnapshot, unknown_label: &str) -> String {
+    DateTime::parse_from_rfc3339(&snapshot.summary.collected_at)
+        .map(|value| {
+            value
+                .with_timezone(&Local)
+                .format(
+                    if snapshot.scope.end_date == Local::now().format("%Y-%m-%d").to_string() {
+                        "%H:%M"
+                    } else {
+                        "%Y-%m-%d %H:%M"
+                    },
+                )
+                .to_string()
+        })
+        .unwrap_or_else(|_| unknown_label.to_string())
+}
+
 pub fn stop_refresher() {
     REFRESHER_STOPPED.store(true, Ordering::Relaxed);
 }
 
-/// Mirrors the frontend `formatTokens` so tray text and the dashboard show the
-/// same token strings for the same numbers.
 fn format_tokens(tokens: u64) -> String {
     if tokens >= 1_000_000_000 {
         compact(tokens, 1_000_000_000, "B")
@@ -214,6 +336,72 @@ fn compact(tokens: u64, divisor: u64, suffix: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::usage::{
+        DailyUsage, FreshnessInfo, FreshnessReason, RefreshAttempt, RefreshFailureKind,
+        TokenBreakdown, UsageScope, UsageSnapshot, UsageSummary,
+    };
+
+    fn state(date: &str, current_date: &str) -> UsageCollectionState {
+        let day = DailyUsage {
+            date: date.to_string(),
+            total_tokens: 1_234,
+            token_breakdown: TokenBreakdown {
+                input_tokens: 1_234,
+                output_tokens: 0,
+                cache_read_tokens: 0,
+                cache_creation_tokens: 0,
+                reasoning_tokens: 0,
+                unclassified_tokens: 0,
+            },
+            estimated_cost_usd: None,
+            cost_unknown_reason: None,
+            cache_read_share: None,
+            agents: vec![],
+        };
+        let scope = UsageScope {
+            start_date: date.to_string(),
+            end_date: date.to_string(),
+            time_zone: "UTC".to_string(),
+        };
+        UsageCollectionState {
+            revision: 2,
+            refreshing: false,
+            snapshot: Some(UsageSnapshot {
+                scope: scope.clone(),
+                summary: UsageSummary {
+                    collected_at: format!("{date}T12:00:00Z"),
+                    today: day.clone(),
+                    last7_days: vec![day],
+                    coverage: crate::usage::CoverageInfo::complete(),
+                },
+            }),
+            last_attempt: Some(RefreshAttempt {
+                id: 1,
+                trigger: RefreshTrigger::Manual,
+                scope,
+                started_at: format!("{date}T11:59:59Z"),
+                finished_at: Some(format!("{date}T12:00:00Z")),
+                outcome: RefreshOutcome::Succeeded,
+                failure: None,
+            }),
+            freshness: FreshnessInfo {
+                status: if date == current_date {
+                    FreshnessStatus::Fresh
+                } else {
+                    FreshnessStatus::Stale
+                },
+                reason: if date == current_date {
+                    FreshnessReason::Current
+                } else {
+                    FreshnessReason::DateChanged
+                },
+                checked_at: format!("{current_date}T12:00:00Z"),
+                current_date: current_date.to_string(),
+                current_time_zone: "UTC".to_string(),
+                stale_after_seconds: 600,
+            },
+        }
+    }
 
     #[test]
     fn formats_tokens_like_the_frontend() {
@@ -221,9 +409,81 @@ mod tests {
         assert_eq!(format_tokens(999), "999");
         assert_eq!(format_tokens(1_234), "1.23K");
         assert_eq!(format_tokens(5_000_000), "5M");
-        assert_eq!(format_tokens(18_449_180), "18.45M");
-        assert_eq!(format_tokens(13_863_680), "13.86M");
-        assert_eq!(format_tokens(32_312_860), "32.31M");
         assert_eq!(format_tokens(1_000_000_000), "1B");
+    }
+
+    #[test]
+    fn old_day_uses_its_date_and_failure_is_sanitized() {
+        let mut state = state("2026-09-05", "2026-09-06");
+        let attempt = state.last_attempt.as_mut().unwrap();
+        attempt.outcome = RefreshOutcome::Failed;
+        attempt.failure = Some(RefreshFailureKind::Failed);
+        let (menu, tooltip) = tray_strings(&state, &tray_text(Language::En));
+        assert!(menu.starts_with("2026-09-05: 1.23K"));
+        assert!(menu.contains("Refresh failed"));
+        assert!(menu.contains("Stale"));
+        assert!(tooltip.contains("2026-09-05"));
+        assert!(!format!("{menu}{tooltip}").contains("secret"));
+    }
+
+    #[test]
+    fn recent_failure_and_staleness_are_independent() {
+        let mut state = state("2026-09-06", "2026-09-06");
+        state.last_attempt.as_mut().unwrap().outcome = RefreshOutcome::Failed;
+        let (menu, _) = tray_strings(&state, &tray_text(Language::En));
+        assert!(menu.contains("Refresh failed"));
+        assert!(!menu.contains("Stale"));
+    }
+
+    #[test]
+    fn chinese_strings_stay_bounded_and_sanitized() {
+        let mut state = state("2026-09-05", "2026-09-06");
+        let attempt = state.last_attempt.as_mut().unwrap();
+        attempt.outcome = RefreshOutcome::Failed;
+        attempt.failure = Some(RefreshFailureKind::Failed);
+        let (menu, tooltip) = tray_strings(&state, &tray_text(Language::ZhCn));
+        assert!(menu.starts_with("2026-09-05: 1.23K"));
+        assert!(menu.contains("刷新失败"));
+        assert!(menu.contains("旧数据"));
+        assert!(tooltip.contains("2026-09-05"));
+        // No raw error or path ever enters the tray text in either language.
+        assert!(!format!("{menu}{tooltip}").contains("secret"));
+        assert!(!format!("{menu}{tooltip}").contains("C:\\"));
+    }
+
+    #[test]
+    fn every_language_carries_the_full_bounded_menu_vocabulary() {
+        for lang in [Language::En, Language::ZhCn] {
+            let text = tray_text(lang);
+            for value in [
+                text.unavailable,
+                text.refreshing,
+                text.refresh_failed,
+                text.waiting,
+                text.today,
+                text.last_success,
+                text.stale,
+                text.refresh_now,
+                text.open_dashboard,
+                text.exit,
+                text.unknown_time,
+            ] {
+                assert!(!value.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn no_snapshot_states_use_the_resolved_language() {
+        let mut state = state("2026-09-06", "2026-09-06");
+        state.snapshot = None;
+        let (menu, tooltip) = tray_strings(&state, &tray_text(Language::En));
+        assert!(menu.contains("Usage unavailable"));
+        assert!(menu.contains("Waiting to refresh"));
+        assert!(tooltip.contains("Usage unavailable"));
+        let (menu_zh, tooltip_zh) = tray_strings(&state, &tray_text(Language::ZhCn));
+        assert!(menu_zh.contains("无法获取用量"));
+        assert!(menu_zh.contains("等待刷新"));
+        assert!(tooltip_zh.contains("无法获取用量"));
     }
 }

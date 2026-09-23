@@ -1,5 +1,5 @@
-//! Phase 4B production-path verification: the public `get_usage_summary`
-//! chain (`worker_runner::collect_usage`) after the sidecar → batch-worker
+//! Phase 4B production-path verification: the worker-backed collection chain
+//! (`worker_runner::collect_usage`) after the sidecar → batch-worker
 //! switch.
 //!
 //! Coverage (see docs/V0.3_PHASE4B_PRODUCTION_SWITCH.md §3 for the policy
@@ -117,6 +117,14 @@ fn scrub_to_uninstalled(root: &Path) -> EnvGuard {
         std::fs::create_dir_all(&empty).expect("mkdir empty home");
         env.set(key, &empty);
     }
+    // Agent discovery reads the platform application-data directories too, so
+    // "nothing is installed" must cover them: an empty directory has no
+    // `Claude*` entry and therefore discovers no Claude Desktop sessions.
+    let app_data = root.join("empty-app-data");
+    std::fs::create_dir_all(&app_data).expect("mkdir empty app data");
+    for key in common::PLATFORM_DATA_KEYS {
+        env.set(key, &app_data);
+    }
     env
 }
 
@@ -156,18 +164,40 @@ fn write_codex_fixture(root: &Path, timestamp: &str) {
 // --- Request shape -----------------------------------------------------------
 
 #[test]
-fn production_request_covers_full_registry_with_environment_sources() {
+fn production_request_covers_full_registry_with_per_agent_sources() {
+    let _lock = lock_tests();
+    let root = unique_dir("request-shape");
+    let _env = scrub_to_uninstalled(&root);
+
     let request = production_snapshot_request();
     assert_eq!(request.version, 1);
     assert!(request.request_id.starts_with("prod-"));
     assert_eq!(request.agents.len(), AgentKind::ALL.len());
     for (spec, agent) in request.agents.iter().zip(AgentKind::ALL.iter()) {
         assert_eq!(spec.agent, agent.id());
-        assert_eq!(
-            spec.source,
-            coding_agent_monitor_lib::collector::protocol::DataSourceV1::Environment
-        );
+        if *agent == AgentKind::ClaudeDesktop {
+            // Discovered locally rather than read from the environment; the
+            // sandboxed application-data dirs yield no sessions, so the roots
+            // are empty — which the load reports as an empty success.
+            assert_eq!(
+                spec.source,
+                coding_agent_monitor_lib::collector::protocol::DataSourceV1::Paths {
+                    roots: Vec::new()
+                }
+            );
+        } else {
+            assert_eq!(
+                spec.source,
+                coding_agent_monitor_lib::collector::protocol::DataSourceV1::Environment
+            );
+        }
     }
+    // The production shape must stay a valid request even with no agent data
+    // at all — an invalid one fails the whole refresh as `InvalidRequest`.
+    request
+        .clone()
+        .into_domain()
+        .expect("production request must validate");
     let window = request.window.expect("production window");
     let today = chrono::Local::now().date_naive();
     assert_eq!(window.end_inclusive, today.format("%Y-%m-%d").to_string());
@@ -235,6 +265,101 @@ fn production_refresh_with_single_agent_installed_reports_only_that_agent() {
             .any(|d| d.date == day && d.total_tokens == 160),
         "claude's record must land in its local-day bucket: {summary:?}"
     );
+    std::fs::remove_dir_all(&root).ok();
+}
+
+/// Claude Desktop's local agent-mode sessions are Claude-shaped transcripts in
+/// per-session config directories that no vendor loader looks in. This is the
+/// scenario the fix exists for: the tokens were on disk and invisible to the
+/// app, because only the Claude Code CLI root was read.
+#[test]
+fn production_refresh_reports_claude_desktop_local_agent_sessions() {
+    let _lock = lock_tests();
+    worker_override();
+    let root = unique_dir("claude-desktop");
+    let mut env = scrub_to_uninstalled(&root);
+    let (day, timestamp) = local_noon(1);
+
+    let claude_line = |request_id: &str, input: u64, output: u64, cache_read: u64| {
+        format!(
+            r#"{{"timestamp":"{timestamp}","sessionId":"s","requestId":"{request_id}","cost":0.01,"costUSD":0.01,"message":{{"usage":{{"input_tokens":{input},"output_tokens":{output},"cache_creation_input_tokens":0,"cache_read_input_tokens":{cache_read}}},"model":"claude-sonnet-4-20250514","id":"m-{request_id}"}}}}"#
+        )
+    };
+
+    // The Claude Code CLI, so the two Claude-shaped sources can be told apart.
+    let cli_projects = root.join("claude-config/projects/cam");
+    std::fs::create_dir_all(&cli_projects).expect("mkdir claude fixture");
+    std::fs::write(
+        cli_projects.join("session-a.jsonl"),
+        claude_line("cli-1", 100, 50, 10),
+    )
+    .expect("write claude fixture");
+    env.set("CLAUDE_CONFIG_DIR", &root.join("claude-config"));
+
+    // Claude Desktop: one local agent-mode session in the application-data
+    // location Desktop actually writes to.
+    let desktop_projects = root
+        .join("app-data/Claude-3p/local-agent-mode-sessions/account/workspace/local_abc")
+        .join(".claude/projects/cam");
+    std::fs::create_dir_all(&desktop_projects).expect("mkdir desktop fixture");
+    std::fs::write(
+        desktop_projects.join("session-b.jsonl"),
+        claude_line("desktop-1", 200, 30, 40),
+    )
+    .expect("write desktop fixture");
+
+    // Decoys discovery must not count as sessions: a `Claude`-prefixed
+    // application-data directory with no session store, and Claude Code's own
+    // CLI cache — same parent as Desktop, differing only in case.
+    let decoy_projects = root.join("app-data/claude-cli-nodejs/projects/cam");
+    std::fs::create_dir_all(&decoy_projects).expect("mkdir decoy fixture");
+    std::fs::write(
+        decoy_projects.join("session-c.jsonl"),
+        claude_line("decoy-1", 999, 999, 999),
+    )
+    .expect("write decoy fixture");
+    std::fs::create_dir_all(root.join("app-data/Claude")).expect("mkdir decoy dir");
+    env.set("LOCALAPPDATA", &root.join("app-data"));
+
+    let summary = collect_usage().expect("desktop refresh must succeed");
+
+    let day_usage = summary
+        .last7_days
+        .iter()
+        .find(|candidate| candidate.date == day)
+        .expect("the fixture day must be in the window");
+    let day_agent = |id: &str| {
+        day_usage
+            .agents
+            .iter()
+            .find(|agent| agent.id == id)
+            .unwrap_or_else(|| panic!("{id} must be reported for {day}: {day_usage:?}"))
+    };
+
+    // Its own agent, not folded into Claude Code: the two are separate products
+    // with separate data, and merging them would misattribute the spend.
+    let desktop = day_agent("claude-desktop");
+    assert_eq!(
+        desktop.tokens, 270,
+        "desktop session tokens, counted exactly once"
+    );
+    assert_eq!(desktop.display_name, "Claude Desktop");
+    assert_eq!(
+        day_agent("claude").tokens,
+        160,
+        "the CLI's own data must be unaffected by the desktop load"
+    );
+    let agent_ids: HashSet<&str> = summary
+        .last7_days
+        .iter()
+        .flat_map(|d| d.agents.iter().map(|a| a.id.as_str()))
+        .collect();
+    assert_eq!(
+        agent_ids,
+        HashSet::from(["claude", "claude-desktop"]),
+        "the decoy transcripts must not appear under any agent"
+    );
+
     std::fs::remove_dir_all(&root).ok();
 }
 
@@ -768,4 +893,41 @@ fn supervisor_timeout_kills_only_the_supervised_worker() {
     let _ = decoy.kill();
     let _ = decoy.wait();
     std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn history_cache_keeps_collection_time_and_does_not_replace_tray_scope() {
+    let _lock = lock_tests();
+    worker_override();
+    let root = unique_dir("history-cache-time");
+    let mut env = scrub_to_uninstalled(&root);
+    let marker = root.join("history-marker.txt");
+    env.set_text("CAM_TEST_WORKER_SPAWN_MARKER", &marker.to_string_lossy());
+    let request = production_snapshot_request();
+    let end = request.window.unwrap().end_inclusive;
+    let date = chrono::NaiveDate::parse_from_str(&end, "%Y-%m-%d").unwrap();
+    let scope = coding_agent_monitor_lib::usage::UsageScope {
+        start_date: (date - chrono::Duration::days(29)).to_string(),
+        end_date: end,
+        time_zone: request.timezone,
+    };
+    let first =
+        coding_agent_monitor_lib::collector::worker_runner::collect_history_for_scope(&scope)
+            .unwrap();
+    std::thread::sleep(Duration::from_millis(1100));
+    let cached =
+        coding_agent_monitor_lib::collector::worker_runner::collect_history_for_scope(&scope)
+            .unwrap();
+    assert_eq!(
+        first, cached,
+        "cache read must keep original collection time"
+    );
+    assert_eq!(cached.days.len(), 30);
+    assert_eq!(collect_usage().unwrap().last7_days.len(), 7);
+    assert_eq!(
+        std::fs::read_to_string(marker).unwrap().lines().count(),
+        2,
+        "one history worker and one seven-day tray worker; cached history does no work"
+    );
+    std::fs::remove_dir_all(root).unwrap();
 }
