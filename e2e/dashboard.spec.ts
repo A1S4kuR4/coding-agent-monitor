@@ -733,6 +733,7 @@ test.describe("statistics transparency (T02)", () => {
     );
     await expect(about).toContainText("reference estimate");
     await expect(about).toContainText("not a bill, subscription charge, or account credit");
+    await expect(about).toContainText("no usage, cost is N/A");
   });
 });
 

@@ -95,7 +95,7 @@ const en = {
     " = cache read ÷ (input + cache read + cache creation). Output tokens are not part of this denominator.",
   aboutCost: "Estimated cost",
   aboutCostBody:
-    " is a reference estimate computed from token counts using the offline price table bundled with the app. It is not a bill, subscription charge, or account credit or limit. When a contributing model has no price, the cost shows as unavailable instead of a partial sum or a fake $0.00.",
+    " is a reference estimate computed from token counts using the offline price table bundled with the app. It is not a bill, subscription charge, or account credit or limit. When a contributing model has no price, the cost shows as unavailable instead of a partial sum or a fake $0.00. When there is no usage, cost is N/A; $0.00 is reserved for usage with a complete zero-cost estimate.",
   last7Days: "Last 7 Days",
   total: (n: string) => `Total ${n}`,
   filterByAgent: "Filter by agent",
@@ -256,7 +256,7 @@ const zhCN: Dict = {
   aboutCacheBody: " = 缓存读取 ÷（输入 + 缓存读取 + 缓存创建）。输出 Token 不在该分母中。",
   aboutCost: "预估成本",
   aboutCostBody:
-    "是基于 Token 数量、使用应用内置离线价格表计算的参考估算，不是账单、订阅费用，也不是账户额度或限额。当任一贡献模型缺少价格时，成本显示为不可用，而不是部分合计或伪造的 $0.00。",
+    "是基于 Token 数量、使用应用内置离线价格表计算的参考估算，不是账单、订阅费用，也不是账户额度或限额。当任一贡献模型缺少价格时，成本显示为不可用，而不是部分合计或伪造的 $0.00。没有用量时，成本标为不适用；仅当有用量且完整估算为零时才显示 $0.00。",
   last7Days: "最近 7 天",
   total: (n: string) => `合计 ${n}`,
   filterByAgent: "按 Agent 筛选",
