@@ -310,8 +310,14 @@ pub fn collect_usage_for_scope(scope: &UsageScope) -> Result<UsageSummary, AppEr
 }
 
 /// The production batch request: every registered agent (deterministic
-/// registry order) through its own environment-resolved data source, over the
-/// seven-day window, bucketed in the system time zone.
+/// registry order) through its own data source, over the seven-day window,
+/// bucketed in the system time zone.
+///
+/// Every agent resolves its roots from the environment like the vendored CLI,
+/// except [`AgentKind::ClaudeDesktop`], which the vendor knows nothing about:
+/// its roots are discovered locally and passed explicitly (empty when Claude
+/// Desktop has no local agent sessions, which the load reports as an empty
+/// success).
 ///
 /// Public for the production-path verification suite (request shape audit and
 /// single-flight tests); it is a pure builder with no side effects.
@@ -328,6 +334,7 @@ pub fn production_snapshot_request() -> CollectorSnapshotRequestV1 {
 }
 
 pub fn production_snapshot_request_for_scope(scope: &UsageScope) -> CollectorSnapshotRequestV1 {
+    let desktop_roots = super::claude_desktop::session_roots();
     CollectorSnapshotRequestV1 {
         version: SNAPSHOT_PROTOCOL_VERSION,
         request_id: format!("prod-{}", chrono::Utc::now().timestamp_millis()),
@@ -335,7 +342,16 @@ pub fn production_snapshot_request_for_scope(scope: &UsageScope) -> CollectorSna
             .iter()
             .map(|agent| AgentSpecV1 {
                 agent: agent.id().to_string(),
-                source: DataSourceV1::Environment,
+                source: if *agent == AgentKind::ClaudeDesktop {
+                    DataSourceV1::Paths {
+                        roots: desktop_roots
+                            .iter()
+                            .map(|root| root.to_string_lossy().into_owned())
+                            .collect(),
+                    }
+                } else {
+                    DataSourceV1::Environment
+                },
             })
             .collect(),
         window: Some(DateWindowV1 {

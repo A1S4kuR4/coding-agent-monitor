@@ -4,7 +4,10 @@
 //! harness gives every one of the 17 agents at least one real record that
 //! BOTH the pinned v0.2 sidecar pair and the v0.3 batch worker actually
 //! parse, so per-agent parser parity is proven rather than assumed from
-//! "both sides agree on empty".
+//! "both sides agree on empty". The 17 are the agents the v0.2 sidecar pair
+//! also knew; the registry's CAM-only agents (`claude-desktop`) have no
+//! sidecar counterpart to be compared against and are SKIPPED in the
+//! per-agent parity matrix.
 //!
 //! Fixture basis: the audited golden fixtures under `tests/golden/` are
 //! copied verbatim except for DATE NORMALIZATION to the shadow window
@@ -1002,6 +1005,16 @@ fn shadow17_full_matrix_sidecar_vs_worker() {
     eprintln!("| --- | --- | --- | --- | --- |");
     let mut failures = Vec::new();
     for agent in AgentKind::ALL {
+        // No v0.2 sidecar counterpart exists for a CAM-only agent, so there is
+        // nothing to compare against: reporting a PASS here would be "both
+        // sides agree on empty", which this harness exists to exclude.
+        if agent == AgentKind::ClaudeDesktop {
+            eprintln!(
+                "| {} | n/a | n/a | no v0.2 sidecar counterpart (CAM-only agent) | SKIP |",
+                agent.id()
+            );
+            continue;
+        }
         let diffs = diff_agent_usage(agent, &sidecar_summary, &worker_summary);
         let sidecar_days: Vec<&str> = sidecar_summary
             .last7_days

@@ -14,7 +14,7 @@ use super::{AgentKind, CollectRequest, CollectResult, CollectorError, DataSource
 /// protocol so the two can evolve without touching each other).
 pub const SNAPSHOT_PROTOCOL_VERSION: u32 = 1;
 
-/// Hard cap on agents per snapshot request: the registry has 17 agents; the
+/// Hard cap on agents per snapshot request: the registry has 18 agents; the
 /// cap leaves headroom while bounding a malicious/buggy request's work.
 pub const MAX_SNAPSHOT_AGENTS: usize = 32;
 

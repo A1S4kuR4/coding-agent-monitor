@@ -222,12 +222,20 @@ fn worker_rejects_malformed_json_trailing_content_and_non_utf8() {
 }
 
 #[test]
-fn worker_rejects_wrong_version_unknown_agent_and_empty_roots() {
+fn worker_rejects_wrong_version_unknown_agent_and_oversized_roots() {
     let _worker_lock = lock_worker_tests();
     let bad_version = r#"{"version":99,"request_id":"x","agent":"codex","timezone":"UTC","source":{"kind":"environment"}}"#;
     let unknown_agent = r#"{"version":1,"request_id":"x","agent":"nope","timezone":"UTC","source":{"kind":"environment"}}"#;
-    let empty_roots = r#"{"version":1,"request_id":"x","agent":"claude","timezone":"UTC","source":{"kind":"paths","roots":[]}}"#;
-    for payload in [bad_version, unknown_agent, empty_roots] {
+    let roots = vec!["\"/nonexistent\""; coding_agent_monitor_lib::collector::MAX_SOURCE_ROOTS + 1];
+    let too_many_roots = format!(
+        r#"{{"version":1,"request_id":"x","agent":"claude","timezone":"UTC","source":{{"kind":"paths","roots":[{}]}}}}"#,
+        roots.join(",")
+    );
+    for payload in [
+        bad_version.to_string(),
+        unknown_agent.to_string(),
+        too_many_roots,
+    ] {
         let (status, stdout, _) = run_worker(payload.as_bytes(), &[]);
         assert!(status.success());
         let response = parse_response(&stdout);
@@ -733,7 +741,11 @@ fn batch_panic_recovery_next_refresh_succeeds() {
             Duration::from_secs(60),
         )
         .expect("recovery batch must succeed");
-        assert_eq!(response.agents.len(), 17, "all 17 agents must report");
+        assert_eq!(
+            response.agents.len(),
+            AgentKind::ALL.len(),
+            "every registered agent must report"
+        );
         std::fs::remove_dir_all(&scratch).ok();
     }
 }

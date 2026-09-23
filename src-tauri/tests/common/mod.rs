@@ -39,6 +39,15 @@ pub const AGENT_ENV_KEYS: [&str; 17] = [
     "ANTIGRAVITY_DATA_DIR",
 ];
 
+/// Platform application-data directories that agent *discovery* reads.
+///
+/// These are not agent root variables: Claude Desktop is found by enumerating
+/// `Claude*` entries under them rather than by a configurable root, so the
+/// production request builder reads whatever the developer's machine happens to
+/// have. Sandboxing them alongside the root variables keeps a real Desktop
+/// installation from leaking data into a fixture-based test.
+pub const PLATFORM_DATA_KEYS: [&str; 2] = ["LOCALAPPDATA", "APPDATA"];
+
 /// Saves each var's previous value and restores it exactly on drop.
 pub struct EnvGuard {
     _serial: MutexGuard<'static, ()>,
@@ -106,6 +115,13 @@ pub fn isolate_env(root: &Path) -> EnvGuard {
         let home = root.join("empty-home");
         fs::create_dir_all(&home).expect("create empty home");
         env.set(key, &home);
+    }
+    // An existing but empty application-data directory: discovery finds no
+    // `Claude*` entry, so no agent data roots are discovered here either.
+    let app_data = root.join("empty-app-data");
+    fs::create_dir_all(&app_data).expect("create empty app data dir");
+    for key in PLATFORM_DATA_KEYS {
+        env.set(key, &app_data);
     }
     env
 }
