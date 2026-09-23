@@ -4,24 +4,23 @@
 
 基于 **Tauri 2 + React + TypeScript + Rust + SQLite + vendored ccusage** 构建：ccusage
 v20.0.20 的采集源码与 Antigravity 的 downstream 移植直接编译进产品 EXE，并在同一 EXE
-的隔离 worker 进程中采集全部 17 个 Coding Agent 的用量，不再依赖任何外部 ccusage 可执行文件。
+的隔离 worker 进程中采集 17 个 ccusage Agent；Claude Desktop 本地 Agent 会话使当前
+范围达到 18 个 Agent。不依赖任何外部 ccusage 可执行文件。
 
 目标很简单：
 
 > 不打开命令行，也能随时查看本机 Coding Agent 今天用了多少 Token。
 
-> **当前状态：v0.3.0 已于 2026-09-01 正式发布**，可从
-> [GitHub Release](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.3.0)
-> 下载 MSI / NSIS 安装包。仅官方支持 Windows 11 x64；安装包未签名，
-> 非 ASCII 用户目录完整 GUI 场景未验证。发布验收与三项已批准 waiver 见
-> [`docs/V0.3_RELEASE_GATE_DECISION.md`](docs/V0.3_RELEASE_GATE_DECISION.md)；
-> 过程记录见 [`docs/V0.3_PHASE5_RELEASE_CANDIDATE.md`](docs/V0.3_PHASE5_RELEASE_CANDIDATE.md)。
-> v0.2.0 已发布（[验证记录](docs/V0.2_RELEASE_VERIFICATION.md)）。
-> 非 ASCII Windows 用户目录的完整人工 GUI Gate 历史上为 **WAIVED / NOT RUN**；
-> 发布安装包未经 Authenticode 签名，安装时可能出现 SmartScreen/未知发布者提示，
-> 请核对 Release 附带的 SHA-256 校验值。
+> **当前版本：v0.5.0**。从
+> [GitHub Release](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.0)
+> 下载 MSI / NSIS 安装包；仅官方支持 Windows 11 x64。安装包未签名，可能出现
+> SmartScreen/未知发布者提示，请核对 Release 附带的 SHA-256 校验值。
+> 干净离线主机、真实登录/重启与睡眠/唤醒、完整非 ASCII 用户目录 GUI 场景
+> **未运行**；维护者决定在披露这些覆盖缺口后发布。详见
+> [v0.5 验证记录](docs/V0.5_RELEASE_VERIFICATION.md)与
+> [发行说明](docs/V0.5_RELEASE_NOTES.md)。
 
-## v0.4.0 本地候选包
+## v0.4.0 本地候选包（历史记录）
 
 v0.4.0 已进入本轮干净构建与原生验收；它尚未作为正式 Release 发布。
 新功能包括统一新鲜度/覆盖说明、中英偏好、托盘启动行为、跨重启恢复和按需 30 日历史。
@@ -51,8 +50,8 @@ Codex          5.17M Tokens
 今日合计      13.59M Tokens
 ```
 
-当前用户可见支持范围（17 个 Agent，开放字符串 ID + Rust `displayName`，未知 Agent
-可安全显示）：Claude Code、OpenAI Codex、OpenCode、Amp、Droid、Codebuff、Hermes、
+当前用户可见支持范围（18 个 Agent，开放字符串 ID + Rust `displayName`，未知 Agent
+可安全显示）：Claude Code、Claude Desktop、OpenAI Codex、OpenCode、Amp、Droid、Codebuff、Hermes、
 Pi、Goose、OpenClaw、Kilo、GitHub Copilot、Gemini CLI、Kimi、Qwen Code、Grok CLI，
 以及 **Antigravity（CAM 维护的 downstream 移植，非 ccusage 官方支持）**。
 
@@ -170,7 +169,7 @@ Coding Agent Monitor 不是：
 # 技术方案
 
 ```text
-Local Agent Records (17 agents, read-only)
+Local Agent Records (18 agents, read-only)
         │
         ▼
   product EXE worker（同一 EXE 的隐藏 worker 模式）
@@ -234,8 +233,9 @@ Rust 采集源码 vendored 进本仓库（含可审计的补丁与定价快照�
 
 # 项目状态
 
-> v0.3.0 是已发布版本；当前三份 manifest 为候选构建 `0.4.0`。历史发布资产与校验记录见
-> [发布清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md)。
+> 当前三份 manifest 为 `0.5.0`。历史发布资产与校验记录见
+> [发布清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md)；当前验收见
+> [v0.5 验证记录](docs/V0.5_RELEASE_VERIFICATION.md)。
 
 v0.3 的主要变化：采集从外部 ccusage sidecar 切换为 vendored 源码 + 单 EXE 隔离
 worker，并对 17 个 Agent 完成非空 fixture 对照；reasoning 分类精度提升；缺价成本语义修正为

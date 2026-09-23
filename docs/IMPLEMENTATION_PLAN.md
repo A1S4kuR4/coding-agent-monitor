@@ -3,14 +3,16 @@
 Status legend: `[x]` completed for the stated phase; `[ ]` was outstanding at
 the time of that record. Neither checkbox implies a current release gate PASS.
 
-> **Current status (checked 2026-09-06): v0.3.0 was published on 2026-09-01.**
-> All three product manifests are `0.3.0`. The production path is vendored
-> ccusage v20.0.20 plus the Antigravity downstream port inside a same-EXE worker,
-> covering 17 agents. No external ccusage executable is staged or required.
-> Official release support is Windows 11 x64 only; unsigned distribution and
-> the unverified non-ASCII-profile GUI scenario have explicit maintainer waivers.
-> See the [release decision](V0.3_RELEASE_GATE_DECISION.md) and
-> [publication record](OPEN_SOURCE_RELEASE_CHECKLIST.md).
+> **Current status (2026-09-23): v0.5.0 release.** All three product manifests
+> are `0.5.0`. The production path uses vendored ccusage v20.0.20 plus the
+> Antigravity downstream port and Claude Desktop local-agent discovery in the
+> same-EXE worker, covering 18 agents. No external ccusage executable is staged.
+> Official support is Windows 11 x64 only. Installers are unsigned; the
+> developer-tools-free offline host, real logon/reboot and sleep/resume, and
+> full non-ASCII-profile GUI scenarios were not run for v0.5.0. The maintainer
+> directed publication with these gaps disclosed. See the
+> [v0.5 verification](V0.5_RELEASE_VERIFICATION.md) and
+> [release notes](V0.5_RELEASE_NOTES.md); older decisions remain historical.
 >
 > **This file's Phases 1–10 are historical v0.1/v0.2 records.** Phase 10 was
 > executed on 2026-08-28 and v0.2.0 was published on 2026-08-29. References below
@@ -32,7 +34,7 @@ the time of that record. Neither checkbox implies a current release gate PASS.
 > race test for focus/tray listeners — which were fixed, tested, and recorded
 > in `docs/V0.2_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md §12.6`.**
 
-> **2026-09-10 current work:** user assigned T07/T08 grouped commits, save/check
+> **2026-09-10 historical work:** user assigned T07/T08 grouped commits, save/check
 > fixes, clean validation, native acceptance and local v0.4.0 packaging. Current
 > manifests are `0.4.0`; the published version remains v0.3.0. See the
 > [fresh verification record](V0.4_RELEASE_VERIFICATION.md) and
@@ -50,7 +52,8 @@ the time of that record. Neither checkbox implies a current release gate PASS.
 | v0.3 migration decisions and phase mapping | [v0.3 plan](V0.3_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) |
 | v0.3 production architecture | [Phase 4B](V0.3_PHASE4B_PRODUCTION_SWITCH.md), [Phase 5 cleanup and acceptance](V0.3_PHASE5_RELEASE_CANDIDATE.md) |
 | v0.3 final gates, waivers and publication | [Gate decision](V0.3_RELEASE_GATE_DECISION.md), [release checklist](OPEN_SOURCE_RELEASE_CHECKLIST.md), [release notes](V0.3_RELEASE_NOTES.md) |
-| v0.4 current development entry | [v0.4 development and acceptance plan](V0.4_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) — T00–T06 complete; T07 implemented (2026-09-07; native/performance limitations in §11.8); T08 research completed and revised ([feasibility study R1](QUOTA_MONITOR_FEASIBILITY.md), §11.9); T09–T10 inactive candidates |
+| v0.4 development history | [v0.4 development and acceptance plan](V0.4_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) — T00–T06 complete; T07 implemented (2026-09-07; native/performance limitations in §11.8); T08 research completed and revised ([feasibility study R1](QUOTA_MONITOR_FEASIBILITY.md), §11.9); T09–T10 inactive candidates |
+| v0.5 release identity, gates and disclosed limits | [Verification](V0.5_RELEASE_VERIFICATION.md), [release notes](V0.5_RELEASE_NOTES.md), [manual walkthrough](V0.5_MANUAL_WALKTHROUGH_2026-09-18.md) |
 | Documentation audit and remaining maintenance observations | [2026-09-06 audit](DOCUMENTATION_AUDIT_2026-09-06.md) |
 
 ## Phase 1 — Project Scaffold

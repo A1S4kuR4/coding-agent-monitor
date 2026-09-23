@@ -4,8 +4,11 @@ This checklist separates publishing the source repository from distributing a
 Windows installer. The source can be published before every installer gate is
 closed, provided the repository is clearly marked pre-release.
 
-**Current release:** [v0.3.0](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.3.0),
-published 2026-09-01; checked read-only on 2026-09-06. The preparation and v0.1/v0.2
+**Current release work:** v0.5.0 was approved for publication on 2026-09-23;
+the frozen installers and disclosed coverage gaps are recorded in
+[the verification record](V0.5_RELEASE_VERIFICATION.md). The last published
+release before this work was [v0.3.0](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.3.0).
+The preparation and v0.1/v0.2
 sections below retain dated evidence (including old sidecar packaging and audit
 counts). They are not current setup instructions or fresh security scans. Use
 [CONTRIBUTING.md](../CONTRIBUTING.md) for development and the
@@ -146,3 +149,23 @@ counts). They are not current setup instructions or fresh security scans. Use
 
 The 2026-09-06 check inspected Release metadata and the local checksum file. It
 did not rebuild, reinstall, or re-run the historical acceptance/security suite.
+
+## v0.5.0 release record (2026-09-23 decision; upload pending)
+
+- [x] Freeze the binary build-source commit at `2927799940b9d37e4e84707e0b4837368fe00add`;
+  later release-document edits do not affect installer bytes.
+- [x] Pass current-host frontend, Cargo, vendored-source, native display and
+  installed-package lifecycle checks, including the final NSIS tray menu and
+  preference-failure paths. Keep first-attempt failures and proxy limits in
+  [the verification record](V0.5_RELEASE_VERIFICATION.md).
+- [x] Record the maintainer's instruction to skip the developer-tools-free
+  offline clean host and real logon/reboot plus sleep/resume checks. The full
+  non-ASCII-profile GUI scenario also remains unrun. Release notes disclose
+  these gaps and the unsigned package status; none is labeled PASS.
+- [x] Freeze installer SHA-256 values: MSI
+  `f2f9751069053cefd679046e2d99576217f2c2de327c4b348e8e72b4e394c333`,
+  NSIS `874f7616531bdbfff1952f0f6f71cab16ba7d2e4f1d58ae5bf45224cdb99d88a`.
+  Publication filenames and checksum entries use dots in place of spaces,
+  matching the v0.3 GitHub asset convention; binary bytes are unchanged.
+- [ ] Push the release metadata, verify CI, create annotated `v0.5.0`, upload
+  MSI/NSIS/`SHA256SUMS.txt`, and verify remote asset identities.
