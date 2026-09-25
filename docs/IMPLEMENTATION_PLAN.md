@@ -13,9 +13,10 @@ the time of that record. Neither checkbox implies a current release gate PASS.
 > historical. See the [v0.5.1 plan](V0.5.1_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md),
 > [draft notes](V0.5.1_RELEASE_NOTES.md) and [open verification ledger](V0.5.1_RELEASE_VERIFICATION.md).
 > Build source `cd3f5313004fc4da6370091b1087dd7908b9c697` passed automated
-> gates and some NSIS acceptance, but two MSI isolated-install attempts
-> failed on 2026-09-25. Several native and external-host checks remain unrun.
-> The release gate is open and v0.5.1 has not been published.
+> gates. The exercised NSIS and MSI install/upgrade/uninstall lifecycles passed;
+> an additional MSI test found that remembered-path search overrode an explicit
+> test `INSTALLDIR` twice. Native tray actions and several external-host checks
+> remain unrun. The release decision is open; v0.5.1 has not been published.
 >
 > **v0.5.0 released baseline (2026-09-23).** The production path uses vendored ccusage v20.0.20 plus the
 > Antigravity downstream port and Claude Desktop local-agent discovery in the
