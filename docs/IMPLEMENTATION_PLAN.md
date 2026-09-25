@@ -12,7 +12,10 @@ the time of that record. Neither checkbox implies a current release gate PASS.
 > This is a new v0.5.1 product decision; older v0.4/v0.5 acceptance remains
 > historical. See the [v0.5.1 plan](V0.5.1_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md),
 > [draft notes](V0.5.1_RELEASE_NOTES.md) and [open verification ledger](V0.5.1_RELEASE_VERIFICATION.md).
-> No v0.5.1 release or acceptance PASS is claimed here.
+> Build source `cd3f5313004fc4da6370091b1087dd7908b9c697` passed automated
+> gates and some NSIS acceptance, but the MSI isolated per-user install gate
+> failed on 2026-09-25. Several native and external-host checks remain unrun.
+> The release gate is open and v0.5.1 has not been published.
 >
 > **v0.5.0 released baseline (2026-09-23).** The production path uses vendored ccusage v20.0.20 plus the
 > Antigravity downstream port and Claude Desktop local-agent discovery in the
@@ -209,8 +212,8 @@ task does not turn its waived or unrun scenarios into technical passes.
 
 Review the local candidate against the [v0.5.1 plan](V0.5.1_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md)
 and enter fresh outcomes in the [verification ledger](V0.5.1_RELEASE_VERIFICATION.md).
-The published version remains v0.5.0 until packaging and publication evidence
-for v0.5.1 is complete. Prior-version unrun checks and waivers do not become
+The published version remains v0.5.0 until v0.5.1 release gates and publication
+evidence are complete. Prior-version unrun checks and waivers do not become
 current passes.
 
 ## Historical v0.4 task queue
