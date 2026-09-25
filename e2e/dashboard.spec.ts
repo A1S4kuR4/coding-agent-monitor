@@ -833,6 +833,58 @@ test.describe("Chinese UI (zh-CN system locale)", () => {
     expect(body).not.toContain("覆盖可能不完整");
     expect(body).not.toContain("C:\\");
   });
+
+  test("recoverable skips stay hidden in Chinese across 7- and 30-day views", async ({ page }) => {
+    const state = structuredClone(e2eFixture);
+    state.snapshot!.summary.coverage = {
+      status: "possiblyIncomplete",
+      diagnostics: [{
+        kind: "corruptRecord",
+        agentId: "claude",
+        agentDisplayName: "Claude Code",
+        count: 2,
+      }],
+    };
+    const summary = state.snapshot!.summary;
+    const days = Array.from({ length: 30 }, (_, index) => ({
+      ...summary.last7Days[index < 23 ? 0 : index - 23],
+      date: new Date(Date.UTC(2026, 6, 27 + index)).toISOString().slice(0, 10),
+    }));
+    await page.addInitScript((history) => {
+      (window as unknown as { __E2E_HISTORY__: unknown }).__E2E_HISTORY__ = history;
+    }, {
+      scope: { startDate: days[0].date, endDate: days[29].date, timeZone: "UTC" },
+      collectedAt: summary.collectedAt,
+      days,
+      coverage: summary.coverage,
+      estimatedCostUsd: days.reduce((total, day) => total + (day.estimatedCostUsd ?? 0), 0),
+    });
+
+    await bootWithState(page, state);
+    await expect(page.locator(".total")).toContainText("93.89M");
+    await expect(page.locator(".coverage-banner")).toHaveCount(0);
+    await page.locator(".trend-day").nth(5).click();
+    await expect(page.locator(".day-detail")).toBeVisible();
+    await expect(page.locator(".day-detail")).not.toContainText("覆盖可能不完整");
+
+    await page.getByRole("button", { name: "30 天", exact: true }).click();
+    await expect(page.locator(".trend-day")).toHaveCount(5);
+    const historyMeta = page.locator(".history-meta");
+    await historyMeta.locator("summary").click();
+    await expect(historyMeta).not.toContainText("覆盖可能不完整");
+    await page.locator(".trend-day").nth(3).click();
+    await expect(page.locator(".day-detail")).toBeVisible();
+    await expect(page.locator(".day-detail")).not.toContainText("覆盖可能不完整");
+
+    await page.getByRole("button", { name: "按日", exact: true }).click();
+    await expect(page.locator(".trend-day")).toHaveCount(30);
+    await page.locator(".trend-day").nth(28).click();
+    await expect(page.locator(".day-detail")).toBeVisible();
+    await expect(page.locator(".day-detail")).not.toContainText("覆盖可能不完整");
+    const body = await page.evaluate(() => document.body.textContent ?? "");
+    expect(body).not.toContain("覆盖可能不完整");
+    expect(body).not.toContain("Coverage may be incomplete");
+  });
 });
 
 // ---------------------------------------------------------------------------
