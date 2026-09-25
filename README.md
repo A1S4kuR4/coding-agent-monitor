@@ -11,20 +11,16 @@ v20.0.20 的采集源码与 Antigravity 的 downstream 移植直接编译进产�
 
 > 不打开命令行，也能随时查看本机 Coding Agent 今天用了多少 Token。
 
-> **当前版本：v0.5.0**。从
-> [GitHub Release](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.0)
+> **当前版本：v0.5.1**。从
+> [GitHub Release](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.1)
 > 下载 MSI / NSIS 安装包；仅官方支持 Windows 11 x64。安装包未签名，可能出现
 > SmartScreen/未知发布者提示，请核对 Release 附带的 SHA-256 校验值。
-> 干净离线主机、真实登录/重启与睡眠/唤醒、完整非 ASCII 用户目录 GUI 场景
-> **未运行**；维护者决定在披露这些覆盖缺口后发布。详见
-> [v0.5 验证记录](docs/V0.5_RELEASE_VERIFICATION.md)与
-> [发行说明](docs/V0.5_RELEASE_NOTES.md)。
-
-**v0.5.1 正在本地验收，尚未发布。** 候选改动包括成功采集时隐藏可恢复跳过记录的
-前端覆盖提示，以及扩充随安装包固定的离线参考价格表。范围与验收口径见
-[v0.5.1 计划](docs/V0.5.1_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md)，实际结果以
-[v0.5.1 验证记录](docs/V0.5.1_RELEASE_VERIFICATION.md)为准；当前可下载的正式版本
-仍为 v0.5.0。
+> v0.5.1 隐藏成功采集时可恢复跳过记录的界面覆盖提示，并扩充随安装包固定的
+> 离线参考价格表；有跳过记录时，用量可能低于完整本地记录。MSI 两次指定安装
+> 目录测试失败；托盘菜单操作、原生 DPI/文本/主题/动态效果、干净离线主机、
+> 真实登录/重启与睡眠/唤醒、完整非 ASCII 用户目录 GUI 场景 **未运行**。
+> 详见 [v0.5.1 验证记录](docs/V0.5.1_RELEASE_VERIFICATION.md)与
+> [发行说明](docs/V0.5.1_RELEASE_NOTES.md)。
 
 ## v0.4.0 本地候选包（历史记录）
 
@@ -240,9 +236,8 @@ Rust 采集源码 vendored 进本仓库（含可审计的补丁与定价快照�
 
 # 项目状态
 
-> 已发布版本为 `0.5.0`；本地 v0.5.1 候选的三份 manifest 为 `0.5.1`，尚未完成
-> 本轮发布验收。历史发布资产与校验记录见
-> [发布清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md)；本轮状态见
+> 已发布版本为 `0.5.1`。发布资产与校验记录见
+> [发布清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md)；本轮实际结果见
 > [v0.5.1 验证记录](docs/V0.5.1_RELEASE_VERIFICATION.md)。
 
 v0.3 的主要变化：采集从外部 ccusage sidecar 切换为 vendored 源码 + 单 EXE 隔离

@@ -4,11 +4,11 @@ This checklist separates publishing the source repository from distributing a
 Windows installer. The source can be published before every installer gate is
 closed, provided the repository is clearly marked pre-release.
 
-**Current release:** [v0.5.0](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.0),
-published 2026-09-23. The frozen installers, disclosed coverage gaps and
+**Current release:** [v0.5.1](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.1),
+published 2026-09-25. The frozen installers, disclosed coverage limits and
 remote asset verification are recorded in
-[the verification record](V0.5_RELEASE_VERIFICATION.md). The previous public
-release was [v0.3.0](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.3.0).
+[the verification record](V0.5.1_RELEASE_VERIFICATION.md). The previous public
+release was [v0.5.0](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.0).
 The preparation and v0.1/v0.2
 sections below retain dated evidence (including old sidecar packaging and audit
 counts). They are not current setup instructions or fresh security scans. Use
@@ -183,3 +183,31 @@ did not rebuild, reinstall, or re-run the historical acceptance/security suite.
   GitHub asset digests match re-downloaded bytes; the checksum file verifies
   both installer downloads. Exact names, sizes and hashes are in the
   [publication result](V0.5_RELEASE_VERIFICATION.md#public-release-result-2026-09-23).
+
+## v0.5.1 release record (published 2026-09-25)
+
+- [x] Freeze installer build source at `cd3f5313004fc4da6370091b1087dd7908b9c697`.
+  Later test and documentation edits did not change package bytes. The version
+  manifests read 0.5.1; Windows 11 x64 remains the official support target.
+- [x] Verify the frontend text decision and expanded pinned offline pricing.
+  Synthetic browser coverage passed in English and Chinese (48/48 full suite),
+  and the product/vendor tests and `pnpm vendor:verify` passed. Costs remain
+  reference estimates and model coverage remains incomplete. A cross-version
+  packaged-worker replay of the same old log was not run.
+- [x] Record the exercised NSIS/MSI install, upgrade and uninstall lifecycles
+  as passed. Retain two failed additional MSI explicit-directory assertions,
+  unrun native tray actions, and unrun native/external-host scenarios in the
+  [verification record](V0.5.1_RELEASE_VERIFICATION.md). The maintainer directed
+  publication with these limits and unsigned installers disclosed.
+- [x] Merge [PR #27](https://github.com/A1S4kuR4/coding-agent-monitor/pull/27)
+  at `eaae7128c380b5b47bd468d00774bcf4d06810b7` after
+  [PR CI](https://github.com/A1S4kuR4/coding-agent-monitor/actions/runs/36113533216)
+  passed; independent
+  [main CI](https://github.com/A1S4kuR4/coding-agent-monitor/actions/runs/36114376011)
+  passed. Annotated tag `v0.5.1` points to that merge commit.
+- [x] Publish the non-draft, non-prerelease
+  [v0.5.1 GitHub Release](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.1)
+  at `2026-09-25T08:53:53Z` with MSI, NSIS and `SHA256SUMS.txt`. GitHub asset
+  digests and authenticated re-downloaded bytes match; the downloaded checksum
+  file verifies both installers. Exact sizes and SHA-256 values are in the
+  [publication result](V0.5.1_RELEASE_VERIFICATION.md#public-release-result-2026-09-25).

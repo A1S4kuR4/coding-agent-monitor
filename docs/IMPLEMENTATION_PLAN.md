@@ -3,21 +3,21 @@
 Status legend: `[x]` completed for the stated phase; `[ ]` was outstanding at
 the time of that record. Neither checkbox implies a current release gate PASS.
 
-> **Current status (2026-09-25): v0.5.0 is published; v0.5.1 is an in-progress
-> local candidate.** Remote `main` at `6f86eb1` records the v0.5.0 publication;
-> the three local candidate manifests read `0.5.1`. This candidate refines
-> frontend text and refreshes bundled offline pricing. The user has explicitly
-> chosen to hide all on-screen coverage notices for recoverable skipped records
-> in successful collections while retaining Rust/TypeScript summary diagnostics.
+> **Current status (2026-09-25): v0.5.1 is published for Windows 11 x64.**
+> This release refines frontend text and refreshes bundled offline pricing.
+> The user explicitly chose to hide all on-screen coverage notices for
+> recoverable skipped records in successful collections while retaining
+> Rust/TypeScript summary diagnostics.
 > This is a new v0.5.1 product decision; older v0.4/v0.5 acceptance remains
 > historical. See the [v0.5.1 plan](V0.5.1_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md),
-> [draft notes](V0.5.1_RELEASE_NOTES.md) and [open verification ledger](V0.5.1_RELEASE_VERIFICATION.md).
+> [release notes](V0.5.1_RELEASE_NOTES.md) and [verification record](V0.5.1_RELEASE_VERIFICATION.md).
 > Build source `cd3f5313004fc4da6370091b1087dd7908b9c697` passed automated
 > gates. The exercised NSIS and MSI install/upgrade/uninstall lifecycles passed;
 > an additional MSI test found that remembered-path search overrode an explicit
 > test `INSTALLDIR` twice. Native tray actions and several external-host checks
 > remain unrun. After these limits were disclosed, the maintainer directed
-> publication to continue. v0.5.1 has not yet been published.
+> publication to continue. See the
+> [public Release](https://github.com/A1S4kuR4/coding-agent-monitor/releases/tag/v0.5.1).
 >
 > **v0.5.0 released baseline (2026-09-23).** The production path uses vendored ccusage v20.0.20 plus the
 > Antigravity downstream port and Claude Desktop local-agent discovery in the
@@ -69,7 +69,7 @@ the time of that record. Neither checkbox implies a current release gate PASS.
 | v0.3 final gates, waivers and publication | [Gate decision](V0.3_RELEASE_GATE_DECISION.md), [release checklist](OPEN_SOURCE_RELEASE_CHECKLIST.md), [release notes](V0.3_RELEASE_NOTES.md) |
 | v0.4 development history | [v0.4 development and acceptance plan](V0.4_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) — T00–T06 complete; T07 implemented (2026-09-07; native/performance limitations in §11.8); T08 research completed and revised ([feasibility study R1](QUOTA_MONITOR_FEASIBILITY.md), §11.9); T09–T10 inactive candidates |
 | v0.5 release identity, gates and disclosed limits | [Verification](V0.5_RELEASE_VERIFICATION.md), [release notes](V0.5_RELEASE_NOTES.md), [manual walkthrough](V0.5_MANUAL_WALKTHROUGH_2026-09-18.md) |
-| v0.5.1 local candidate scope and current gates | [Development and acceptance plan](V0.5.1_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md), [draft release notes](V0.5.1_RELEASE_NOTES.md), [open verification](V0.5.1_RELEASE_VERIFICATION.md), [pricing maintenance](PRICING_MAINTENANCE.md) |
+| v0.5.1 release scope, gates and public assets | [Development and acceptance plan](V0.5.1_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md), [release notes](V0.5.1_RELEASE_NOTES.md), [verification](V0.5.1_RELEASE_VERIFICATION.md), [pricing maintenance](PRICING_MAINTENANCE.md) |
 | Documentation audit and remaining maintenance observations | [2026-09-06 audit](DOCUMENTATION_AUDIT_2026-09-06.md) |
 
 ## Phase 1 — Project Scaffold
@@ -210,13 +210,12 @@ v0.2 phase outcomes:
 Phases 6–10 are complete historical work units. Completion of a verification
 task does not turn its waived or unrun scenarios into technical passes.
 
-## Current v0.5.1 work
+## v0.5.1 release record
 
-Review the local candidate against the [v0.5.1 plan](V0.5.1_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md)
-and enter fresh outcomes in the [verification ledger](V0.5.1_RELEASE_VERIFICATION.md).
-The published version remains v0.5.0 until v0.5.1 release gates and publication
-evidence are complete. Prior-version unrun checks and waivers do not become
-current passes.
+The [v0.5.1 plan](V0.5.1_DEVELOPMENT_AND_ACCEPTANCE_PLAN.md) defines the scope;
+the [verification record](V0.5.1_RELEASE_VERIFICATION.md) contains current
+test results, retained failures and unrun scenarios, plus public asset checks.
+Prior-version unrun checks and waivers do not become current passes.
 
 ## Historical v0.4 task queue
 
