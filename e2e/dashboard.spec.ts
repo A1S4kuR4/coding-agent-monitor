@@ -684,7 +684,7 @@ test.describe("statistics transparency (T02)", () => {
     await expect(page.locator(".empty-help")).not.toContainText(/not installed/i);
   });
 
-  test("skipped-record diagnostics surface as a coverage banner without paths", async ({ page }) => {
+  test("recoverable skipped records keep the totals visible without a warning banner", async ({ page }) => {
     const state = structuredClone(e2eFixture);
     state.snapshot!.summary.coverage = {
       status: "possiblyIncomplete",
@@ -703,17 +703,43 @@ test.describe("statistics transparency (T02)", () => {
         },
       ],
     };
+    const summary = state.snapshot!.summary;
+    const days = Array.from({ length: 30 }, (_, index) => ({
+      ...summary.last7Days[index < 23 ? 0 : index - 23],
+      date: new Date(Date.UTC(2026, 6, 27 + index)).toISOString().slice(0, 10),
+    }));
+    await page.addInitScript((history) => {
+      (window as unknown as { __E2E_HISTORY__: unknown }).__E2E_HISTORY__ = history;
+    }, {
+      scope: { startDate: days[0].date, endDate: days[29].date, timeZone: "UTC" },
+      collectedAt: summary.collectedAt,
+      days,
+      coverage: summary.coverage,
+      estimatedCostUsd: days.reduce((total, day) => total + (day.estimatedCostUsd ?? 0), 0),
+    });
     await bootWithState(page, state);
-    const banner = page.locator(".coverage-banner");
-    await expect(banner).toContainText("Coverage may be incomplete");
-    await expect(banner).toContainText(
-      "Claude Code: 2 records were malformed and skipped",
-    );
-    await expect(banner).toContainText("Codex: 1 database read failed");
-    // Accepted totals stay visible alongside the coverage warning.
+    await expect(page.locator(".coverage-banner")).toHaveCount(0);
     await expect(page.locator(".total")).toContainText("93.89M");
-    // Sanitized payload: no paths anywhere in the rendered document.
+    await expect(page.locator(".day-detail")).not.toContainText("Coverage may be incomplete");
+
+    await page.getByRole("button", { name: "30 days", exact: true }).click();
+    await expect(page.locator(".trend-day")).toHaveCount(5);
+    const historyMeta = page.locator(".history-meta");
+    await expect(historyMeta).toContainText("2026-07-27 – 2026-08-25");
+    await historyMeta.locator("summary").click();
+    await expect(historyMeta).not.toContainText("Coverage may be incomplete");
+    await page.locator(".trend-day").nth(3).click();
+    await expect(page.locator(".day-detail")).not.toContainText("Coverage may be incomplete");
+    await expect(page.locator(".total")).toContainText("93.89M");
+
+    await page.getByRole("button", { name: "By day", exact: true }).click();
+    await expect(page.locator(".trend-day")).toHaveCount(30);
+    await page.locator(".trend-day").nth(28).click();
+    const detail = page.locator(".day-detail");
+    await expect(detail).toContainText("56.49M");
+    await expect(detail).not.toContainText("Coverage may be incomplete");
     const body = await page.evaluate(() => document.body.textContent ?? "");
+    expect(body).not.toContain("Coverage may be incomplete");
     expect(body).not.toContain("C:\\");
     expect(body).not.toContain("/Users/");
   });
@@ -782,7 +808,7 @@ test.describe("Chinese UI (zh-CN system locale)", () => {
     await expect(page.getByRole("button", { name: "重试" })).toBeVisible();
   });
 
-  test("missing-price cost and coverage banner render in Chinese without paths", async ({ page }) => {
+  test("missing-price cost remains clear in Chinese without coverage warnings", async ({ page }) => {
     const state = structuredClone(e2eFixture);
     state.snapshot!.summary.today.estimatedCostUsd = null;
     state.snapshot!.summary.today.costUnknownReason = "missingModelPricing";
@@ -802,10 +828,9 @@ test.describe("Chinese UI (zh-CN system locale)", () => {
     const mark = page.locator(".meta-cost");
     await expect(mark).toHaveText("成本 n/a ⓘ");
     await expect(mark).toHaveAttribute("title", "预估成本不可用 — 缺少模型价格");
-    const banner = page.locator(".coverage-banner");
-    await expect(banner).toContainText("覆盖可能不完整");
-    await expect(banner).toContainText("Claude Code: 2 条记录格式错误已跳过");
+    await expect(page.locator(".coverage-banner")).toHaveCount(0);
     const body = await page.evaluate(() => document.body.textContent ?? "");
+    expect(body).not.toContain("覆盖可能不完整");
     expect(body).not.toContain("C:\\");
   });
 });

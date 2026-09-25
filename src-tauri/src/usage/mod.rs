@@ -161,8 +161,9 @@ pub struct UsageSummary {
     pub today: DailyUsage,
     pub last7_days: Vec<DailyUsage>,
     /// Whether the successful collection covered every source record or some
-    /// were skipped. Success with skips is NOT a failure: totals stay, but the
-    /// UI must label coverage as possibly incomplete.
+    /// were skipped. Success with skips is not a failure: totals stay and the
+    /// diagnostics remain available for troubleshooting without interrupting
+    /// the normal dashboard.
     pub coverage: CoverageInfo,
 }
 
