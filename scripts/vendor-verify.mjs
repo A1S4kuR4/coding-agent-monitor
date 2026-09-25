@@ -10,8 +10,8 @@
 //   3. downstream patch state — the CAM patch files exist and the applied
 //      markers (antigravity registration, in-process PoC seam, additive
 //      models.dev entry) are present in the vendored sources;
-//   4. pricing — LiteLLM snapshot SHA-256 and the models.dev snapshot SHA-256 /
-//      entry count / additive entry match the recorded manifests;
+//   4. pricing — merged LiteLLM / models.dev snapshots and catalog rules
+//      match the separately pinned refresh sources and manifests;
 //   5. offline pricing — the vendored-pricing build.rs fallback is present and
 //      the network fetch feature (`fetch-litellm-pricing`) is not enabled for
 //      the product build (minreq absent from the dependency graph);
@@ -44,11 +44,16 @@ const EXPECTED = {
 		baseCommit: "739e88fa67b9e584dfa9722c8207fa8b09b62802",
 	},
 	litellm: {
-		commit: "1a183efaa1a2108aed7e1bed8d445d93bd1aa60d",
-		sha256: "a74538d2edc13e1eb4f67870fbc2ee05035326e6eaed0dc5bce11d372cff6e60",
+		commit: "2dccc0dc79143043889bfaf2a9ecb315e5b197e8",
+		sha256: "218f5897320879a2518cdcba185aa5c36929efd2ad04361bf83706fb37d0ae2a",
+		sourceSha256: "29906a2b1e9eca5b591bc6b30013fb57e298677cf5c77f29144a7846928dc46d",
 	},
 	modelsDev: {
-		entries: 2275,
+		commit: "60377f71a96b185be209ef8ad1d7725944a6486a",
+		entries: 3164,
+		sha256: "5a3c440b63b40abbee02d2cc4ef0a48950aa4407569bab21ea6c97d38596eea5",
+		sourceSha256: "37ea6f07834a43a88873bc22835f13b3fe53cd1c6fd51f383e0545a025d56173",
+		rulesSha256: "57dff8900c025ae3b2e3583247b0f7babba47ba73536af6a643bf0cd0bc81365",
 		// pristine v20.0.20 blob; the vendored snapshot adds one additive entry
 		sha256_upstream_pristine: "be347bd498cb046c2045e018e068aa228a76b34485613e2254f21a48b889eecd",
 	},
@@ -116,11 +121,14 @@ function main() {
 			patch?.tree === EXPECTED.antigravityPatch.tree &&
 			patch?.base_commit === EXPECTED.antigravityPatch.baseCommit,
 	);
-	check("litellm pin matches", litellm?.sha256 === EXPECTED.litellm.sha256 && litellm?.commit === EXPECTED.litellm.commit);
+	check("litellm pin matches", litellm?.sha256 === EXPECTED.litellm.sha256 && litellm?.commit === EXPECTED.litellm.commit && litellm?.source_sha256 === EXPECTED.litellm.sourceSha256);
 	check(
-		"models.dev pin matches (pristine digest + entries)",
+		"models.dev pin matches (baseline and refresh)",
 		modelsDevToml?.sha256_upstream_pristine === EXPECTED.modelsDev.sha256_upstream_pristine &&
-			Number(modelsDevToml?.entries) === EXPECTED.modelsDev.entries,
+			Number(modelsDevToml?.entries) === EXPECTED.modelsDev.entries &&
+			modelsDevToml?.commit === EXPECTED.modelsDev.commit &&
+			modelsDevToml?.source_sha256 === EXPECTED.modelsDev.sourceSha256 &&
+			modelsDevToml?.rules_sha256 === EXPECTED.modelsDev.rulesSha256,
 	);
 
 	// --- 2. vendor manifest ---------------------------------------------------
@@ -165,9 +173,10 @@ function main() {
 
 	// --- 3. downstream patch state -------------------------------------------
 	check(
-		"patch files present (0001 reference, 0002 CAM)",
+		"patch files present (0001 reference, 0002 CAM, 0003 pricing tests)",
 		manifest.has("patches/0001-antigravity-c58c1b3.patch") &&
-			manifest.has("patches/0002-cam-downstream-v20.0.20.patch"),
+			manifest.has("patches/0002-cam-downstream-v20.0.20.patch") &&
+			manifest.has("patches/0003-pricing-refresh-test.patch"),
 	);
 	const coreLib = tracked.get("rust/crates/ccusage-core/src/lib.rs")?.toString("utf8") ?? "";
 	check(
@@ -194,11 +203,17 @@ function main() {
 	check("antigravity adapter crate present", antigravityLoader !== undefined);
 
 	// --- 4. pricing -----------------------------------------------------------
+	const pricingManifest = JSON.parse(tracked.get("pricing/pricing-manifest.json")?.toString("utf8") ?? "{}");
 	const litellmBuffer = tracked.get("pricing/litellm-pricing.json");
 	check(
 		"LiteLLM snapshot SHA-256 matches pin",
-		litellmBuffer !== undefined && sha256(litellmBuffer) === EXPECTED.litellm.sha256,
+		litellmBuffer !== undefined && sha256(litellmBuffer) === EXPECTED.litellm.sha256 &&
+			pricingManifest.litellm?.sha256 === EXPECTED.litellm.sha256 &&
+			pricingManifest.litellm?.commit === EXPECTED.litellm.commit &&
+			pricingManifest.litellm?.sourceSha256 === EXPECTED.litellm.sourceSha256,
 	);
+	const rulesBuffer = tracked.get("rust/crates/ccusage-core/src/models-dev-catalog-rules.json");
+	check("models.dev catalog rules match refresh", rulesBuffer !== undefined && sha256(rulesBuffer) === EXPECTED.modelsDev.rulesSha256 && pricingManifest.modelsDev?.rulesSha256 === EXPECTED.modelsDev.rulesSha256);
 	const modelsDevBuffer = tracked.get("rust/crates/ccusage-core/src/models-dev-pricing.json");
 	check("models.dev snapshot present", modelsDevBuffer !== undefined);
 	if (modelsDevBuffer) {
@@ -206,10 +221,15 @@ function main() {
 		const entry = snapshot[EXPECTED.additiveEntry.name];
 		check(
 			"models.dev snapshot digest matches UPSTREAM.toml/manifest pin",
-			modelsDevToml?.sha256 === sha256(modelsDevBuffer) && manifest.get("rust/crates/ccusage-core/src/models-dev-pricing.json") === sha256(modelsDevBuffer),
+			modelsDevToml?.sha256 === sha256(modelsDevBuffer) &&
+			sha256(modelsDevBuffer) === EXPECTED.modelsDev.sha256 &&
+			pricingManifest.modelsDev?.sha256 === EXPECTED.modelsDev.sha256 &&
+			pricingManifest.modelsDev?.commit === EXPECTED.modelsDev.commit &&
+			pricingManifest.modelsDev?.sourceSha256 === EXPECTED.modelsDev.sourceSha256 &&
+			manifest.get("rust/crates/ccusage-core/src/models-dev-pricing.json") === sha256(modelsDevBuffer),
 		);
 		check(
-			"models.dev snapshot diverges from pristine only additively (entry count)",
+			"models.dev merged snapshot entry count matches pin",
 			Object.keys(snapshot).length === EXPECTED.modelsDev.entries,
 		);
 		check(

@@ -77,8 +77,8 @@ export interface SourceDiagnostic {
 }
 
 /** Whether a successful snapshot covered every source record or some were
- * skipped. `possiblyIncomplete` keeps the accepted totals but requires the UI
- * to label coverage as a risk; it never means the refresh failed. */
+ * skipped. Recoverable skips stay available for troubleshooting; they do not
+ * interrupt the normal dashboard or turn the refresh into a failure. */
 export interface CoverageInfo {
   status: "complete" | "possiblyIncomplete";
   diagnostics: SourceDiagnostic[];

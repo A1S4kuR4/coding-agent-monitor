@@ -929,7 +929,7 @@ describe("App — cost, coverage and statistics transparency (T02)", () => {
     );
   });
 
-  it("surfaces skipped-record diagnostics as a coverage banner without paths", async () => {
+  it("keeps recoverable source diagnostics out of the successful dashboard", async () => {
     const s = summary(13_590_000);
     s.coverage = {
       status: "possiblyIncomplete",
@@ -945,13 +945,9 @@ describe("App — cost, coverage and statistics transparency (T02)", () => {
     tauri.fetch.mockResolvedValueOnce(collectionState(s));
     render(<App />);
     await waitTotal("13.59M");
-    const banner = document.querySelector(".coverage-banner");
-    expect(banner?.textContent).toContain(
-      "Coverage may be incomplete — Claude Code: 2 records were malformed and skipped.",
-    );
-    // Totals stay visible (accepted data is not hidden)…
+    expect(document.querySelector(".coverage-banner")).toBeNull();
+    expect(document.body.textContent).not.toContain("Coverage may be incomplete");
     expect(document.querySelector(".total")?.textContent).toContain("13.59M");
-    // …and no path or raw detail can leak through the sanitized payload.
     expect(document.body.textContent).not.toContain("C:\\");
   });
 

@@ -40,7 +40,6 @@ import {
 } from "./features/usage/viewState";
 import { formatPercent } from "./features/usage/formatPercent";
 import { costDisplay } from "./features/usage/costDisplay";
-import { coverageText } from "./features/usage/coverage";
 import { cacheInputShare } from "./features/usage/cacheInputShare";
 import { relativeTime } from "./features/usage/relativeTime";
 import { agentMeta, compareByMeta, sortAgents } from "./features/usage/agents";
@@ -1008,14 +1007,6 @@ function App() {
         </div>
       )}
 
-      {/* Success with skipped records: accepted totals stay, but coverage is
-          flagged as a risk. Sanitized kinds + agent names only (no paths). */}
-      {coverageText(summary.coverage, lang) !== "" && (
-        <div className="stale-banner coverage-banner" role="status">
-          <span>{coverageText(summary.coverage, lang)}</span>
-        </div>
-      )}
-
       <div className="dash-grid">
         <section className="dash-left" aria-labelledby="today-heading">
           <h2 id="today-heading" className="sr-only">
@@ -1273,7 +1264,6 @@ function App() {
                 <p>{history.scope.startDate} – {history.scope.endDate} · {history.scope.timeZone} · {d.historyIncludesToday}</p>
                 <p>{relativeTime(history.collectedAt, new Date(), lang)} · {costDisplay(history.estimatedCostUsd, null, history.days.some(day => day.totalTokens > 0), lang).text}</p>
                 {(!historyIsCurrent || historyExpired) && <p>{d.historyOld}</p>}
-                {coverageText(history.coverage, lang) !== "" && <p>{coverageText(history.coverage, lang)}</p>}
               </details>
             )}
           </div>}
@@ -1536,7 +1526,6 @@ function App() {
                   dateLabel={weekMode ? seriesDateLabel(selected) : undefined}
                 />
                 <p>{costDisplay(selected.estimatedCostUsd, selected.costUnknownReason, selected.totalTokens > 0, lang).text}</p>
-                <p>{coverageText(historyRange === 30 && history ? history.coverage : summary.coverage, lang)}</p>
                 <p>{weekMode ? d.selectedWeekAll : d.selectedDayAll}</p>
                 <BreakdownList total={selected.totalTokens} breakdown={selected.tokenBreakdown} d={d} />
                 {sortAgents(selected.agents).map(agent => <details key={agent.id} className="history-models">

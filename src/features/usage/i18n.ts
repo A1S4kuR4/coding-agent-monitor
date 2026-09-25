@@ -122,25 +122,6 @@ const en = {
   cacheAcrossModels: (pct: string, models: number) =>
     `~${pct} cached input across ${models} models`,
   modelComp: { in: "in", out: "out", cacheRead: "cache read", creation: "creation" },
-  coveragePrefix: "Coverage may be incomplete — ",
-  coverageSuffix: ".",
-  coverageKinds: {
-    corruptFile: { one: "1 file could not be read", many: "files could not be read" },
-    corruptRecord: {
-      one: "1 record was malformed and skipped",
-      many: "records were malformed and skipped",
-    },
-    databaseError: { one: "1 database read failed", many: "database reads failed" },
-    sourceUnreadable: { one: "1 source was unreadable", many: "sources were unreadable" },
-    sourceChanged: {
-      one: "1 source changed while being read",
-      many: "sources changed while being read",
-    },
-    invariantViolation: {
-      one: "1 record failed consistency checks",
-      many: "records failed consistency checks",
-    },
-  },
   costValue: (usd: string) => `Est. cost ${usd}`,
   costUnavailable: "Est. cost unavailable",
   costMissingPrices: "Est. cost unavailable — missing model prices",
@@ -280,16 +261,6 @@ const zhCN: Dict = {
   cacheAcrossModels: (pct: string, models: number) =>
     `跨 ${models} 个模型约 ${pct} 缓存输入`,
   modelComp: { in: "输入", out: "输出", cacheRead: "缓存读取", creation: "缓存创建" },
-  coveragePrefix: "覆盖可能不完整 — ",
-  coverageSuffix: "。",
-  coverageKinds: {
-    corruptFile: { one: "1 个文件无法读取", many: "个文件无法读取" },
-    corruptRecord: { one: "1 条记录格式错误已跳过", many: "条记录格式错误已跳过" },
-    databaseError: { one: "1 次数据库读取失败", many: "次数据库读取失败" },
-    sourceUnreadable: { one: "1 个来源不可读", many: "个来源不可读" },
-    sourceChanged: { one: "1 个来源在读取时发生变化", many: "个来源在读取时发生变化" },
-    invariantViolation: { one: "1 条记录未通过一致性检查", many: "条记录未通过一致性检查" },
-  },
   costValue: (usd: string) => `预估成本 ${usd}`,
   costUnavailable: "预估成本不可用",
   costMissingPrices: "预估成本不可用 — 缺少模型价格",
