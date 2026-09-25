@@ -16,7 +16,8 @@ the time of that record. Neither checkbox implies a current release gate PASS.
 > gates. The exercised NSIS and MSI install/upgrade/uninstall lifecycles passed;
 > an additional MSI test found that remembered-path search overrode an explicit
 > test `INSTALLDIR` twice. Native tray actions and several external-host checks
-> remain unrun. The release decision is open; v0.5.1 has not been published.
+> remain unrun. After these limits were disclosed, the maintainer directed
+> publication to continue. v0.5.1 has not yet been published.
 >
 > **v0.5.0 released baseline (2026-09-23).** The production path uses vendored ccusage v20.0.20 plus the
 > Antigravity downstream port and Claude Desktop local-agent discovery in the
