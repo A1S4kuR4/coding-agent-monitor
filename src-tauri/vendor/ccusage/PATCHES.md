@@ -3,8 +3,9 @@
 Every deviation of the vendored tree
 (`rust/` + `pricing/` + `UPSTREAM.toml` + this manifest) from pristine upstream
 ccusage **v20.0.20** (`bd7f89b469aee5635fb2e6722dd6d70f2d113ac1`) is recorded
-here. `rust/` is otherwise a byte-faithful, LF-normalized subset of the
-upstream `rust/` workspace (scope filter in [UPSTREAM.toml](UPSTREAM.toml)).
+here. The parser and adapter baseline remains v20.0.20; the separate pricing
+refresh below changes only the two snapshots, catalog rules and one price
+assertion. See [UPSTREAM.toml](UPSTREAM.toml) for the pinned inputs.
 
 Verification state at the time of writing: `cargo test --workspace` in
 `rust/` passes — 482 passed, 0 failed (2 ignored), including all upstream
@@ -84,12 +85,12 @@ The PR targeted the v20.0.18 single-crate layout; v20.0.20 split it into
    `719203dac7ed169af7288449eb6dc0b89026fa4ebdb609b27eeb0c5adf98e528`
    (also recorded in `pricing/pricing-manifest.json`).
 
-### Antigravity models intentionally left unpriced
+### Antigravity model aliases
 
 `adapters/antigravity/src/parser.rs::resolve_model_name` maps raw Antigravity
 model ids to LiteLLM-priced names. The following resolved names exist in
 **neither** the upstream v20.0.20 snapshot nor the PR #1487 snapshot, so they
-have no pricing data:
+have no exact pricing entry in the v0.3 baseline:
 
 - `gemini-3.5-flash-high`
 - `gemini-3.5-flash-medium`
@@ -98,10 +99,10 @@ have no pricing data:
 - `gemini-3-flash-a`, `gemini-3-flash-b`, `gemini-3-flash-c`
   (resolved targets `gemini-3.5-flash-high` / pass-through raw ids)
 
-Per the product contract, missing pricing yields a **null cost** — we do not
-fabricate `$0`, and no synthetic entries are added for these. If models.dev
-publishes them later, updating `models-dev-pricing.json` and the SHA-256 in
-`pricing/pricing-manifest.json` is the only change required.
+The pricing resolver may match a base model for some of these variants. Any
+variant still unresolved after that lookup yields a **null cost**, never a
+fabricated `$0`. We do not assign an API price to an opaque variant merely
+because its name looks similar to a public model.
 
 ---
 
@@ -210,15 +211,17 @@ written against an older snapshot). The vendored tree asserts
 
 - `scripts/vendor-ccusage-import.mjs` rebuilds the vendor tree from the pinned
   commits and **automatically re-applies this patch series** as
-  `patches/0002-cam-downstream-v20.0.20.patch` (the apply-able representation
-  of every committed downstream edit; 0001 is the verbatim upstream PR diff,
+  `patches/0002-cam-downstream-v20.0.20.patch` for the v0.3 code baseline and
+  `patches/0003-pricing-refresh-test.patch` for the changed rate assertion;
+  the pinned data refresh is reproduced by the importer after patching. 0001 is the verbatim upstream PR diff,
   kept as an audit reference only — it does not apply to v20.0.20). Before
   swapping, the rebuild is byte-compared against the committed vendor blobs;
-  any drift aborts the import. Direct vendor edits must therefore be folded
-  back into 0002 (see the script header for the regeneration flow) or the
-  next rebuild will fail by design. `pnpm vendor:verify` re-checks the
+  any drift aborts the import. Direct code edits must therefore be folded
+  into the patch series or the next rebuild will fail by design. Pricing
+  refreshes update the importer pins and generated manifests together.
+  `pnpm vendor:verify` re-checks the
   committed state offline at any time.
-- All changes above are confined to `rust/crates/ccusage-core` +
+- The v0.3 code changes above are confined to `rust/crates/ccusage-core` +
   `rust/crates/ccusage-adapter-all` + the new `rust/adapters/antigravity`
   crate; no adapter behavior other than antigravity registration is touched.
 
@@ -234,3 +237,31 @@ written against an older snapshot). The vendored tree asserts
   unnecessary user paths.
 - `adapters/antigravity/src/loader.rs` gen_metadata prepare-failure branch is
   likewise sanitized (file name only in the structured field).
+
+## 0003 — Pinned pricing refresh (2026-09-23)
+
+The ccusage parser remains at v20.0.20. Only its embedded pricing data was
+refreshed from immutable source commits:
+
+| Input | Commit | Source SHA-256 |
+| --- | --- | --- |
+| LiteLLM `model_prices_and_context_window.json` | `2dccc0dc79143043889bfaf2a9ecb315e5b197e8` | `29906a2b1e9eca5b591bc6b30013fb57e298677cf5c77f29144a7846928dc46d` |
+| ccusage generated `models-dev-pricing.json` | `60377f71a96b185be209ef8ad1d7725944a6486a` | `37ea6f07834a43a88873bc22835f13b3fe53cd1c6fd51f383e0545a025d56173` |
+| ccusage generated catalog rules | same ccusage commit | `57dff8900c025ae3b2e3583247b0f7babba47ba73536af6a643bf0cd0bc81365` |
+
+The importer verifies these raw hashes, merges each new snapshot over the
+v20.0.20 snapshot by exact key, preserves the refreshed source's formatting,
+and appends the retained old keys in sorted order. New
+rates win for a key present in both; 314 LiteLLM keys and 263 models.dev keys
+absent from the refresh are retained for older local logs. The resulting
+tables have 4,509 and 3,164 keys, respectively. Catalog rules are copied from
+the same ccusage commit as the generated models.dev table. The generated
+hashes and source details are in `pricing/pricing-manifest.json`.
+
+`0003-pricing-refresh-test.patch` changes the Codex GPT-5.6 Sol long-context
+assertion from $10/$1/$45 to $8/$0.80/$30 per million tokens, updates other
+price-sensitive assertions, and checks offline rates for GPT-6 Sol, Gemini
+3.8 Flash and Claude Opus 5.5. The refreshed
+rate agrees with OpenAI's [GPT-5.6 Sol model page](https://developers.openai.com/api/docs/models/gpt-5.6-sol),
+which describes the promotional price and 2× input / 1.5× output long-context
+rates. This is an API-equivalent estimate, not a subscription charge.

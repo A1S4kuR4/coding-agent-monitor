@@ -14,11 +14,13 @@
 //   2. export the pristine v20.0.20 rust subset into the staging tree;
 //   3. regenerate the reference PR diff (patches/0001-*.patch, audit-only,
 //      NOT applied);
-//   4. apply the CAM downstream patch series (patches/0002-*.patch) with
+//   4. apply the CAM downstream patch series (0002 and 0003) with
 //      `git apply` — this reproduces the split-architecture antigravity
 //      port, the offline pricing build.rs fallback, the additive
-//      models.dev pricing entry and the in-process PoC seam;
-//   5. fetch the pinned LiteLLM pricing snapshot (SHA-256 verified);
+//      models.dev pricing entry, the in-process PoC seam, and the pricing
+//      refresh's fixed-rate test expectation;
+//   5. fetch pinned pricing refreshes and merge them over the v20.0.20
+//      snapshots, retaining keys removed upstream for historical records;
 //   6. copy the committed PATCHES.md (never regenerated here) and write
 //      UPSTREAM.toml / pricing-manifest.json / MANIFEST.sha256;
 //   7. byte-compare every staged file against the committed vendor blobs —
@@ -28,12 +30,13 @@
 //
 // Preconditions enforced by this script:
 //   - the committed vendor tree is git-clean (no uncommitted vendor edits);
-//   - patches/0002-cam-downstream-v20.0.20.patch applies cleanly to the
+//   - patches/0002 and 0003 apply cleanly to the
 //     pristine export. If vendor edits were made without regenerating that
 //     patch, step 7 fails: regenerate the patch first (see PATCHES.md
 //     "Regression risk & upgrade path").
 //
 // Usage: node scripts/vendor-ccusage-import.mjs [--work-dir <scratch dir>]
+//        node scripts/vendor-ccusage-import.mjs --check-staged
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -73,11 +76,48 @@ const BASELINE = {
 	importedAt: "2026-08-29",
 };
 
+// Pricing is refreshed independently of the parser version. The raw inputs
+// are immutable GitHub blobs; their hashes are checked before any merge.
+const PRICING_REFRESH = {
+	litellm: {
+		commit: "2dccc0dc79143043889bfaf2a9ecb315e5b197e8",
+		sha256: "29906a2b1e9eca5b591bc6b30013fb57e298677cf5c77f29144a7846928dc46d",
+	},
+	modelsDev: {
+		commit: "60377f71a96b185be209ef8ad1d7725944a6486a",
+		sha256: "37ea6f07834a43a88873bc22835f13b3fe53cd1c6fd51f383e0545a025d56173",
+		rulesSha256: "57dff8900c025ae3b2e3583247b0f7babba47ba73536af6a643bf0cd0bc81365",
+	},
+};
+
+function mergePricingSnapshot(previous, current, indentation) {
+	const oldEntries = JSON.parse(previous.toString("utf8"));
+	const currentText = current.toString("utf8").trimEnd();
+	const newEntries = JSON.parse(currentText);
+	if (!currentText.endsWith("}")) throw new Error("pricing refresh must be a JSON object");
+	const legacyKeys = Object.keys(oldEntries)
+		.filter((key) => !Object.hasOwn(newEntries, key))
+		.sort();
+	// Keep the upstream blob's formatting and entry order intact; only append
+	// removed historical keys. This makes the actual rate changes reviewable.
+	const prefix = currentText.slice(0, -1).trimEnd();
+	const additions = legacyKeys.map((key) =>
+		`${indentation}${JSON.stringify(key)}: ${JSON.stringify(oldEntries[key], null, indentation).replaceAll("\n", `\n${indentation}`)}`,
+	);
+	const mergedText = `${prefix}${additions.length ? `,\n${additions.join(",\n")}` : ""}\n}\n`;
+	JSON.parse(mergedText);
+	return {
+		buffer: Buffer.from(mergedText),
+		entries: Object.keys(newEntries).length + legacyKeys.length,
+		retained: legacyKeys.length,
+	};
+}
+
 // The CAM downstream patch series applied on top of the pristine export, in
 // order. 0001 is the verbatim upstream PR diff (audit reference only — it does
-// not apply to the v20.0.20 split architecture). 0002 is the generated,
-// apply-able representation of every committed downstream edit.
-const CAM_PATCHES = ["0002-cam-downstream-v20.0.20.patch"];
+// not apply to the v20.0.20 split architecture). 0002 is the baseline CAM
+// patch; 0003 updates one price-sensitive test for the separately pinned data.
+const CAM_PATCHES = ["0002-cam-downstream-v20.0.20.patch", "0003-pricing-refresh-test.patch"];
 const REFERENCE_PATCHES = ["0001-antigravity-c58c1b3.patch"];
 
 // v20.0.20 archive digests observed during the 2026-08-29 import. GitHub
@@ -208,7 +248,7 @@ function moveDir(from, to) {
 }
 
 function gitBlob(repoPath) {
-	return execFileSync("git", ["-c", "core.autocrlf=false", "cat-file", "blob", `HEAD:${repoPath}`], {
+	return execFileSync("git", ["-c", "core.autocrlf=false", "show", `:${repoPath}`], {
 		cwd: repoRoot,
 		maxBuffer: 64 * 1024 * 1024,
 	});
@@ -227,6 +267,9 @@ function main() {
 	// other file still must match the committed blobs exactly. Later rebuilds
 	// must run WITHOUT this flag.
 	const adoptGenerated = argv.includes("--adopt-generated");
+	// Validate a prospective refresh before committing it. All vendor files
+	// must be staged; this mode compares to index blobs and never swaps files.
+	const checkStaged = argv.includes("--check-staged");
 	// Generator-owned files whose content is fully determined by this script.
 	const GENERATED = new Set(["UPSTREAM.toml", "pricing/pricing-manifest.json"]);
 
@@ -235,7 +278,7 @@ function main() {
 	// 0. Preconditions: the committed vendor tree must be clean so the swap
 	// below cannot discard uncommitted vendor edits.
 	const dirty = git(repoRoot, "status", "--porcelain", "--", "src-tauri/vendor/ccusage").trim();
-	if (dirty) {
+	if (dirty && !checkStaged) {
 		throw new Error(
 			`vendor tree has uncommitted changes; commit or revert them before rebuilding:\n${dirty}`,
 		);
@@ -258,6 +301,10 @@ function main() {
 	fs.mkdirSync(path.join(staging, "rust"), { recursive: true });
 	fs.mkdirSync(path.join(staging, "patches"), { recursive: true });
 	fs.mkdirSync(path.join(staging, "pricing"), { recursive: true });
+	// Give git apply an isolated root even when staging is created inside the
+	// repository, and avoid a separate GNU patch dependency on Windows.
+	git(staging, "init", "--quiet");
+	git(staging, "config", "core.autocrlf", "false");
 
 	// 1. Export the pristine v20.0.20 subset into staging/rust.
 	// core.autocrlf=false keeps blob bytes (LF) intact: the vendor tree must
@@ -305,22 +352,21 @@ function main() {
 		if (!fs.existsSync(repoPatch)) {
 			throw new Error(`CAM patch missing from the repository: ${repoPatch}`);
 		}
-		// GNU patch, not `git apply`: staging may live inside this repository,
-		// and git apply resolves patch paths against the enclosing repo root
-		// rather than the cwd. `-f` makes any failed hunk fail the import.
-		// Copy from the committed blob, not the working tree, so a CRLF
+		// Apply inside the isolated staging repository. A failed hunk aborts.
+		// Copy from the staged blob, not the working tree, so a CRLF
 		// checkout cannot leak into the staged bytes or the applied result.
 		fs.writeFileSync(path.join(staging, "patches", patchFile), gitBlob(`src-tauri/vendor/ccusage/patches/${patchFile}`));
-		execFileSync("patch", ["-p1", "-f", "--no-backup-if-mismatch", "-i", path.join("patches", patchFile)], {
+		execFileSync("git", ["apply", "--unsafe-paths", "--whitespace=nowarn", path.join("patches", patchFile)], {
 			cwd: staging,
 			maxBuffer: 64 * 1024 * 1024,
 		});
 	}
+	fs.rmSync(path.join(staging, ".git"), { recursive: true, force: true });
 	for (const patchFile of REFERENCE_PATCHES) {
 		if (!fs.existsSync(path.join(vendorRoot, "patches", patchFile))) {
 			throw new Error(`reference patch missing from the repository: ${patchFile}`);
 		}
-		// Committed blob, not the working tree (see the CRLF note above).
+		// Staged blob, not the working tree (see the CRLF note above).
 		fs.writeFileSync(
 			path.join(staging, "patches", patchFile),
 			gitBlob(`src-tauri/vendor/ccusage/patches/${patchFile}`),
@@ -335,7 +381,28 @@ function main() {
 			`LiteLLM pricing SHA-256 mismatch: got ${sha256(pricingBuffer)}, expected ${BASELINE.litellm.sha256}`,
 		);
 	}
-	fs.writeFileSync(path.join(staging, "pricing", "litellm-pricing.json"), pricingBuffer);
+	const litellmRefreshUrl = `${BASELINE.litellm.repo}/raw/${PRICING_REFRESH.litellm.commit}/${BASELINE.litellm.file}`;
+	const litellmRefreshBuffer = execFileSync("curl", ["-sL", "-o", "-", litellmRefreshUrl], { maxBuffer: 64 * 1024 * 1024 });
+	if (sha256(litellmRefreshBuffer) !== PRICING_REFRESH.litellm.sha256) {
+		throw new Error("refreshed LiteLLM pricing SHA-256 mismatch");
+	}
+	const mergedLitellm = mergePricingSnapshot(pricingBuffer, litellmRefreshBuffer, "    ");
+	fs.writeFileSync(path.join(staging, "pricing", "litellm-pricing.json"), mergedLitellm.buffer);
+
+	const modelsDevRefreshBase = `${BASELINE.upstream.repo}/raw/${PRICING_REFRESH.modelsDev.commit}/rust/crates/ccusage-core/src`;
+	const modelsDevRefreshUrl = `${modelsDevRefreshBase}/models-dev-pricing.json`;
+	const modelsDevRefreshBuffer = execFileSync("curl", ["-sL", "-o", "-", modelsDevRefreshUrl], { maxBuffer: 64 * 1024 * 1024 });
+	if (sha256(modelsDevRefreshBuffer) !== PRICING_REFRESH.modelsDev.sha256) {
+		throw new Error("refreshed models.dev pricing SHA-256 mismatch");
+	}
+	const rulesBuffer = execFileSync("curl", ["-sL", "-o", "-", `${modelsDevRefreshBase}/models-dev-catalog-rules.json`], { maxBuffer: 64 * 1024 * 1024 });
+	if (sha256(rulesBuffer) !== PRICING_REFRESH.modelsDev.rulesSha256) {
+		throw new Error("refreshed models.dev catalog rules SHA-256 mismatch");
+	}
+	const modelsDevPath = path.join(staging, "rust", "crates", "ccusage-core", "src", "models-dev-pricing.json");
+	const mergedModelsDev = mergePricingSnapshot(fs.readFileSync(modelsDevPath), modelsDevRefreshBuffer, "\t");
+	fs.writeFileSync(modelsDevPath, mergedModelsDev.buffer);
+	fs.writeFileSync(path.join(staging, "rust", "crates", "ccusage-core", "src", "models-dev-catalog-rules.json"), rulesBuffer);
 
 	// 5. Preserve the committed PATCHES.md (hand-written; never regenerated).
 	const patchesDoc = path.join(vendorRoot, "PATCHES.md");
@@ -344,9 +411,8 @@ function main() {
 	}
 	fs.copyFileSync(patchesDoc, path.join(staging, "PATCHES.md"));
 
-	// 6. Auditable manifests. models-dev digest is taken from the post-patch
-	// snapshot (pristine upstream + the one additive entry from PR #1487).
-	const modelsDevPath = path.join(staging, "rust", "crates", "ccusage-core", "src", "models-dev-pricing.json");
+	// 6. Auditable manifests. The v20.0.20 baseline remains identifiable;
+	// price refreshes are separately pinned and merged deterministically.
 	const modelsDevBuffer = fs.readFileSync(modelsDevPath);
 	const modelsDevSha256 = sha256(modelsDevBuffer);
 	const modelsDevEntries = Object.keys(JSON.parse(modelsDevBuffer.toString("utf8"))).length;
@@ -356,21 +422,29 @@ function main() {
 		`${JSON.stringify(
 			{
 				litellm: {
-					source: litellmUrl,
-					commit: BASELINE.litellm.commit,
+					source: litellmRefreshUrl,
+					commit: PRICING_REFRESH.litellm.commit,
 					file: BASELINE.litellm.file,
-					sha256: BASELINE.litellm.sha256,
-					bytes: pricingBuffer.length,
+					sha256: sha256(mergedLitellm.buffer),
+					bytes: mergedLitellm.buffer.length,
+					sourceSha256: PRICING_REFRESH.litellm.sha256,
+					baselineCommit: BASELINE.litellm.commit,
+					baselineSha256: BASELINE.litellm.sha256,
+					retainedLegacyKeys: mergedLitellm.retained,
 					license: BASELINE.litellm.license,
 				},
 				modelsDev: {
-					source: "ccusage v20.0.20 vendored snapshot (rust/crates/ccusage-core/src/models-dev-pricing.json)",
-					upstream: `${BASELINE.upstream.repo}/blob/${BASELINE.upstream.commit}/rust/crates/ccusage-core/src/models-dev-pricing.json`,
+					source: "ccusage v20.0.20 snapshot with pinned pricing refresh",
+					upstream: modelsDevRefreshUrl,
+					commit: PRICING_REFRESH.modelsDev.commit,
+					sourceSha256: PRICING_REFRESH.modelsDev.sha256,
+					rulesSha256: PRICING_REFRESH.modelsDev.rulesSha256,
 					entries: modelsDevEntries,
 					sha256: modelsDevSha256,
 					sha256_upstream_pristine: pristineModelsDevSha256,
+					retainedLegacyKeys: mergedModelsDev.retained,
 					divergence:
-						"0002 patch: additive merge of the antigravity alias entry \"gemini-3.1-pro\" from the PR #1487 snapshot (fork c58c1b3aab2eacc82add250c8229bb6192e4489b); everything else is the pristine upstream blob. Antigravity model ids gemini-3.5-flash-high/-medium/-extra-low, gpt-oss-120b-medium and gemini-3-flash-a/b/c have no entry in either snapshot and intentionally stay unpriced (null cost), see PATCHES.md.",
+						"Pinned ccusage pricing refresh takes precedence; v20.0.20 keys absent from the refresh are retained for historical logs, including the Antigravity gemini-3.1-pro alias from patch 0002. See PATCHES.md.",
 				},
 			},
 			null,
@@ -397,22 +471,30 @@ tree = "${BASELINE.antigravityPatch.tree}"
 base_commit = "${BASELINE.antigravityPatch.baseCommit}"
 patch_file = "patches/0001-antigravity-c58c1b3.patch"
 license = "MIT"
-note = "closed, unmerged downstream patch; ported manually onto the split-adapter v20.0.20 architecture; the apply-able representation of every committed downstream edit is patches/0002-cam-downstream-v20.0.20.patch (see PATCHES.md)"
+note = "closed, unmerged downstream patch; ported manually onto v20.0.20 by 0002; pricing refresh and its test patch 0003 are recorded in PATCHES.md"
 
 [litellm_pricing]
 repo = "${BASELINE.litellm.repo}"
-commit = "${BASELINE.litellm.commit}"
+commit = "${PRICING_REFRESH.litellm.commit}"
 file = "${BASELINE.litellm.file}"
-sha256 = "${BASELINE.litellm.sha256}"
+sha256 = "${sha256(mergedLitellm.buffer)}"
+source_sha256 = "${PRICING_REFRESH.litellm.sha256}"
+baseline_commit = "${BASELINE.litellm.commit}"
+baseline_sha256 = "${BASELINE.litellm.sha256}"
+retained_legacy_keys = ${mergedLitellm.retained}
 
 [models_dev_pricing]
 # Embedded pricing snapshot consumed by ccusage-core (src/models-dev-pricing.json).
-# See PATCHES.md 0001 for the one additive entry and pricing/pricing-manifest.json.
-upstream = "${BASELINE.upstream.repo}/blob/${BASELINE.upstream.commit}/rust/crates/ccusage-core/src/models-dev-pricing.json"
+# The refreshed ccusage pricing table takes precedence; v20.0.20-only keys stay.
+upstream = "${modelsDevRefreshUrl}"
+commit = "${PRICING_REFRESH.modelsDev.commit}"
+source_sha256 = "${PRICING_REFRESH.modelsDev.sha256}"
+rules_sha256 = "${PRICING_REFRESH.modelsDev.rulesSha256}"
 entries = ${modelsDevEntries}
 sha256 = "${modelsDevSha256}"
 sha256_upstream_pristine = "${pristineModelsDevSha256}"
-divergence = "0002 patch: additive merge of 'gemini-3.1-pro' from PR #1487 fork c58c1b3aab2eacc82add250c8229bb6192e4489b; all other entries pristine upstream"
+retained_legacy_keys = ${mergedModelsDev.retained}
+divergence = "Pinned ccusage pricing refresh takes precedence; v20.0.20-only keys remain for historical logs, including patch 0002's gemini-3.1-pro alias"
 
 [archive_digests]
 # SHA-512 of the GitHub codeload tar.gz archives observed during the import.
@@ -470,6 +552,10 @@ scope = "rust workspace subset required for unified daily collection (core, all 
 	}
 	for (const rel of adoptedGenerated) {
 		console.log(`adopted regenerated manifest: ${rel}`);
+	}
+	if (checkStaged) {
+		console.log(`staged vendor tree reproduced byte-for-byte (${stagedRel.length} files); live files unchanged`);
+		return;
 	}
 
 	// 8. MANIFEST.sha256 over the rebuilt tree (committed content identity,

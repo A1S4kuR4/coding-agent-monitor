@@ -49,28 +49,32 @@ Source: <https://github.com/sambitcreate/ccusage/tree/c58c1b3aab2eacc82add250c82
 
 ## LiteLLM pricing snapshot
 
-An offline pricing snapshot from LiteLLM commit
-`1a183efaa1a2108aed7e1bed8d445d93bd1aa60d`
-(`model_prices_and_context_window.json`, SHA-256
-`a74538d2edc13e1eb4f67870fbc2ee05035326e6eaed0dc5bce11d372cff6e60`) is
-embedded in the product. Content outside LiteLLM's enterprise directory is
+An offline pricing table refreshed from LiteLLM commit
+`2dccc0dc79143043889bfaf2a9ecb315e5b197e8`
+(`model_prices_and_context_window.json`, source SHA-256
+`29906a2b1e9eca5b591bc6b30013fb57e298677cf5c77f29144a7846928dc46d`) is
+embedded in the product. Keys removed upstream are retained from the earlier
+`1a183efaa1a2108aed7e1bed8d445d93bd1aa60d` snapshot for historical
+logs; the exact merged digest is in `pricing/pricing-manifest.json`.
+Content outside LiteLLM's enterprise directory is
 distributed under the MIT License.
 
 Copyright (c) 2023 Berri AI
 
-Source: <https://github.com/BerriAI/litellm/tree/1a183efaa1a2108aed7e1bed8d445d93bd1aa60d>
+Source: <https://github.com/BerriAI/litellm/tree/2dccc0dc79143043889bfaf2a9ecb315e5b197e8>
 
 ## models.dev pricing snapshot
 
-The models.dev-derived pricing table shipped inside ccusage v20.0.20
-(`models-dev-pricing.json`, pristine upstream SHA-256
-`be347bd498cb046c2045e018e068aa228a76b34485613e2254f21a48b889eecd`; one
-additive Antigravity alias entry from the patch above) is distributed under
-the MIT License.
+The models.dev-derived pricing table shipped with ccusage v20.0.20 was
+refreshed from ccusage commit `60377f71a96b185be209ef8ad1d7725944a6486a`
+(`models-dev-pricing.json`, source SHA-256
+`37ea6f07834a43a88873bc22835f13b3fe53cd1c6fd51f383e0545a025d56173`).
+Older keys missing from the refresh, including CAM's Antigravity alias, remain
+for historical records. The table is distributed under the MIT License.
 
 Copyright (c) 2025 models.dev
 
-Source: <https://github.com/ccusage/ccusage/blob/bd7f89b469aee5635fb2e6722dd6d70f2d113ac1/rust/crates/ccusage-core/src/models-dev-pricing.json>
+Source: <https://github.com/ccusage/ccusage/blob/60377f71a96b185be209ef8ad1d7725944a6486a/rust/crates/ccusage-core/src/models-dev-pricing.json>
 
 ## JavaScript dependencies shipped in the product
 

@@ -264,7 +264,7 @@ mod tests {
         let pricing = PricingMap::load_embedded();
 
         // gpt-5.6-sol has a 272K threshold with long-context rates of
-        // $10/$45 per 1M input/output tokens and a $1 per 1M cache-read rate.
+        // $8/$30 per 1M input/output tokens and a $0.80 cache-read rate.
         let long = TokenUsageRaw {
             input_tokens: 300_000,
             output_tokens: 1_000,
@@ -280,11 +280,11 @@ mod tests {
         );
         // The whole request switches to long rates once input exceeds 272K,
         // including the output and cache-read buckets that are individually
-        // far below the threshold: 3.0 + 0.045 + 0.0001.
-        assert!((cost - 3.0451).abs() < 1e-9, "long-context cost was {cost}");
+        // far below the threshold: 2.4 + 0.03 + 0.00008.
+        assert!((cost - 2.43008).abs() < 1e-9, "long-context cost was {cost}");
 
         // Below the threshold every bucket stays on the short-context rates:
-        // 0.5 + 0.03 + 0.00005.
+        // 0.4 + 0.02 + 0.00004.
         let short = TokenUsageRaw {
             input_tokens: 100_000,
             output_tokens: 1_000,
@@ -299,7 +299,7 @@ mod tests {
             Some(&pricing),
         );
         assert!(
-            (cost - 0.53005).abs() < 1e-9,
+            (cost - 0.42004).abs() < 1e-9,
             "short-context cost was {cost}"
         );
     }

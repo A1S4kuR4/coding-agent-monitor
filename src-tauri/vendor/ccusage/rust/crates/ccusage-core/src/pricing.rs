@@ -2284,8 +2284,8 @@ mod tests {
         let fast = pricing
             .find("claude-opus-5-fast")
             .expect("the embedded snapshot prices the Fast tier");
-        assert!((fast.input * 1e6 - 12.0).abs() < 1e-9);
-        assert!((fast.output * 1e6 - 60.0).abs() < 1e-9);
+        assert!((fast.input * 1e6 - 10.0).abs() < 1e-9);
+        assert!((fast.output * 1e6 - 50.0).abs() < 1e-9);
         assert_eq!(pricing.context_limit("claude-opus-5-fast"), Some(1_000_000));
 
         // A regional alias shadows the same base entry, and is exact-only for
@@ -2340,8 +2340,8 @@ mod tests {
         let dotted = pricing
             .find("claude-opus-5.fast")
             .expect("the dotted spelling names the Fast tier");
-        assert!((dotted.input * 1e6 - 12.0).abs() < 1e-9);
-        assert!((dotted.output * 1e6 - 60.0).abs() < 1e-9);
+        assert!((dotted.input * 1e6 - 10.0).abs() < 1e-9);
+        assert!((dotted.output * 1e6 - 50.0).abs() < 1e-9);
         assert!(dotted.input > base.input);
         assert_eq!(pricing.context_limit("claude-opus-5.fast"), Some(1_000_000));
     }
@@ -2361,8 +2361,8 @@ mod tests {
         let turbo = pricing
             .find("claude-opus-5-turbo")
             .expect("the alias resolves to the Fast tier");
-        assert!((turbo.input * 1e6 - 12.0).abs() < 1e-9);
-        assert!((turbo.output * 1e6 - 60.0).abs() < 1e-9);
+        assert!((turbo.input * 1e6 - 10.0).abs() < 1e-9);
+        assert!((turbo.output * 1e6 - 50.0).abs() < 1e-9);
         assert_eq!(
             pricing.context_limit("claude-opus-5-turbo"),
             Some(1_000_000)
@@ -3553,15 +3553,15 @@ mod tests {
         let pricing = PricingMap::load_embedded();
 
         let sol = pricing.find("gpt-5.6-sol").unwrap();
-        assert_eq!(sol.input, 5e-6);
-        assert_eq!(sol.output, 30e-6);
-        assert_eq!(sol.cache_create, 6.25e-6);
-        assert_eq!(sol.cache_read, 0.5e-6);
+        assert_eq!(sol.input, 4e-6);
+        assert_eq!(sol.output, 20e-6);
+        assert_eq!(sol.cache_create, 5e-6);
+        assert_eq!(sol.cache_read, 0.4e-6);
         assert!(sol.cache_read_explicit);
-        assert_eq!(sol.input_above_200k, Some(10e-6));
-        assert_eq!(sol.output_above_200k, Some(45e-6));
-        assert_eq!(sol.cache_create_above_200k, Some(12.5e-6));
-        assert_eq!(sol.cache_read_above_200k, Some(1e-6));
+        assert_eq!(sol.input_above_200k, Some(8e-6));
+        assert_eq!(sol.output_above_200k, Some(30e-6));
+        assert_eq!(sol.cache_create_above_200k, Some(10e-6));
+        assert!((sol.cache_read_above_200k.unwrap() - 0.8e-6).abs() < 1e-12);
         assert_eq!(sol.long_context_threshold, Some(272_000));
         assert_eq!(pricing.context_limit("gpt-5.6-sol"), Some(1_050_000));
 
@@ -3583,6 +3583,29 @@ mod tests {
     }
 
     #[test]
+    fn refreshed_offline_pricing_covers_current_agent_models() {
+        let pricing = PricingMap::load_embedded();
+        for (model, input, output, cache_read) in [
+            ("gpt-6-sol", 2.0, 10.0, 0.2),
+            ("gemini-3.8-flash", 0.75, 3.75, 0.075),
+            ("claude-opus-5-5", 4.0, 20.0, 0.2),
+        ] {
+            let rates = pricing
+                .find(model)
+                .expect("current model has offline rates");
+            assert!((rates.input * 1e6 - input).abs() < 1e-9, "{model} input");
+            assert!((rates.output * 1e6 - output).abs() < 1e-9, "{model} output");
+            assert!(
+                (rates.cache_read * 1e6 - cache_read).abs() < 1e-9,
+                "{model} cache read"
+            );
+        }
+        let sol = pricing.find("gpt-6-sol").unwrap();
+        assert_eq!(sol.long_context_threshold, Some(272_000));
+        assert_eq!(sol.input_above_200k, Some(4e-6));
+    }
+
+    #[test]
     fn gpt_5_6_alias_resolves_to_sol_across_pricing_metadata() {
         let pricing = PricingMap::load_embedded();
         let alias = pricing.find("gpt-5.6").unwrap();
@@ -3594,10 +3617,11 @@ mod tests {
         assert_eq!(alias.cache_read, sol.cache_read);
         assert_eq!(alias.input_above_200k, sol.input_above_200k);
         assert_eq!(alias.output_above_200k, sol.output_above_200k);
-        assert_eq!(
-            pricing.context_limit("gpt-5.6"),
-            pricing.context_limit("gpt-5.6-sol")
-        );
+        // LiteLLM now records the alias's maximum input (922K), while the
+        // Sol model retains the full 1.05M context from models.dev. This
+        // metadata difference does not change their identical token rates.
+        assert_eq!(pricing.context_limit("gpt-5.6"), Some(922_000));
+        assert_eq!(pricing.context_limit("gpt-5.6-sol"), Some(1_050_000));
         assert_eq!(long_context_split_threshold("gpt-5.6"), 272_000);
     }
 

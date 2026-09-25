@@ -374,8 +374,9 @@ mod tests {
             calculate_codex_model_cost("gpt-5.6-sol", &usage, &pricing, CodexSpeed::Standard);
 
         // The whole request is billed at long-context rates: 200K non-cached
-        // input at $10/M, 100K cached at $1/M, 1K output at $45/M.
-        let expected = 200_000.0 * 10e-6 + 100_000.0 * 1e-6 + 1_000.0 * 45e-6;
+        // input at $8/M, 100K cached at $0.80/M, 1K output at $30/M.
+        // The pinned 2026-09 pricing refresh includes the Sol promotion.
+        let expected = 200_000.0 * 8e-6 + 100_000.0 * 0.8e-6 + 1_000.0 * 30e-6;
         assert!((cost - expected).abs() < 1e-9);
     }
 
